@@ -86,6 +86,7 @@ export interface City {
 export interface UserAccessMatrix {
   userActionType: string;
   userAccessType: string;
+  apiEntity: string;
 }
 
 // ============================================
@@ -187,13 +188,13 @@ export interface CustomerListFilters {
 // Ride & Booking Types
 // ============================================
 
-export type RideStatus = 
+export type RideStatus =
   | 'NEW'
   | 'INPROGRESS'
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type BookingStatus = 
+export type BookingStatus =
   | 'NEW'
   | 'CONFIRMED'
   | 'AWAITING_REASSIGNMENT'
@@ -286,7 +287,7 @@ export interface Vehicle {
 // Issue Types
 // ============================================
 
-export type IssueStatus = 
+export type IssueStatus =
   | 'OPEN'
   | 'PENDING_INTERNAL'
   | 'PENDING_EXTERNAL'

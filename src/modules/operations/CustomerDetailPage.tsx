@@ -431,10 +431,9 @@ function MultiModalDetailView({ journey }: { journey: MultiModalRideContents }) 
         </div>
         <div className="text-right">
           <p className="text-lg font-bold">
-            <span className="text-muted-foreground">₹</span>
-            {journey.estimatedMinFare?.amount} - {journey.estimatedMaxFare?.amount}
+            {formatCurrency(journey.legs?.reduce((sum, leg) => sum + (leg.totalFare?.amount || 0), 0) || 0)}
           </p>
-          <p className="text-sm text-muted-foreground">Fare Range</p>
+          <p className="text-sm text-muted-foreground">Total Fare</p>
         </div>
       </div>
 
@@ -507,7 +506,10 @@ function MultiModalDetailView({ journey }: { journey: MultiModalRideContents }) 
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">{formatCurrency(leg.estimatedMinFare?.amount || 0)} - {formatCurrency(leg.estimatedMaxFare?.amount || 0)}</p>
+                      {leg.travelMode === 'Taxi' ?
+                        <p className="font-bold">{formatCurrency(leg.estimatedMinFare?.amount || 0)} - {formatCurrency(leg.estimatedMaxFare?.amount || 0)}</p> :
+                        <p className="font-bold">{formatCurrency(leg.totalFare?.amount || 0)}</p>
+                      }
                       <p className="text-xs text-muted-foreground">{formatDistance(leg.estimatedDistance?.value || 0)} • {Math.round(leg.estimatedDuration / 60)} min</p>
                     </div>
                   </div>
@@ -1050,7 +1052,7 @@ export function CustomerDetailPage() {
                             <TableCell><StatusBadge status={j.journeyStatus} /></TableCell>
                             <TableCell>{j.legs?.length} legs</TableCell>
                             <TableCell>{formatDistance(j.estimatedDistance?.value || 0)}</TableCell>
-                            <TableCell>₹{j.estimatedMinFare?.amount}-{j.estimatedMaxFare?.amount}</TableCell>
+                            <TableCell>{formatCurrency(j.legs?.reduce((sum, leg) => sum + (leg.totalFare?.amount || 0), 0) || 0)}</TableCell>
                             <TableCell>{formatDateTime(j.createdAt)}</TableCell>
                             <TableCell><Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button></TableCell>
                           </TableRow>

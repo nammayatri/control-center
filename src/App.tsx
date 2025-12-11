@@ -20,6 +20,10 @@ import { RolesPage } from './modules/access/RolesPage';
 import { AnalyticsOverviewPage } from './modules/analytics/AnalyticsOverviewPage';
 import { NammaTagsPage } from './modules/config/NammaTagsPage';
 import { DynamicLogicPage } from './modules/config/DynamicLogicPage';
+import IssuesListPage from './modules/operations/IssuesListPage';
+import IssueDetailPage from './modules/operations/IssueDetailPage';
+import { UserProfilePage } from './modules/profile/UserProfilePage';
+import { Toaster } from 'sonner';
 
 // Create Query Client - exported so it can be used to invalidate cache on context switch
 export const queryClient = new QueryClient({
@@ -109,9 +113,8 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DashboardProvider>
-              <PermissionsProvider>
-                <Layout />
-              </PermissionsProvider>
+              {/* PermissionsProvider moved to App component */}
+              <Layout />
             </DashboardProvider>
           </ProtectedRoute>
         }
@@ -128,7 +131,10 @@ function AppRoutes() {
           <Route path="customers" element={<CustomersPage />} />
           <Route path="customers/:customerId" element={<CustomerDetailPage />} />
           <Route path="rides" element={<PlaceholderPage title="Rides" />} />
+          <Route path="rides/:rideId" element={<PlaceholderPage title="Ride Details" />} />
           <Route path="comms" element={<PlaceholderPage title="Communications" />} />
+          <Route path="issues" element={<IssuesListPage />} />
+          <Route path="issues/:id" element={<IssueDetailPage />} />
         </Route>
 
         {/* Fleet */}
@@ -163,7 +169,7 @@ function AppRoutes() {
         </Route>
 
         {/* Profile & Settings */}
-        <Route path="profile" element={<PlaceholderPage title="Profile" />} />
+        <Route path="profile" element={<UserProfilePage />} />
         <Route path="settings" element={<PlaceholderPage title="User Settings" />} />
       </Route>
 
@@ -192,9 +198,12 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <TooltipProvider>
-              <AppRoutes />
-            </TooltipProvider>
+            <PermissionsProvider>
+              <TooltipProvider>
+                <AppRoutes />
+              </TooltipProvider>
+              <Toaster />
+            </PermissionsProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

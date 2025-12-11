@@ -1,5 +1,5 @@
 import { bapApi, bppApi, apiRequest } from './api';
-import type { User, LoginModule, FleetConfig } from '../types';
+import type { User, LoginModule, FleetConfig, UserAccessMatrix, Role } from '../types';
 
 // ============================================
 // BAP (Customer Dashboard) Login - Password Based
@@ -18,7 +18,7 @@ export interface BapLoginResponse {
   email?: string;
   mobileNumber?: string;
   mobileCountryCode?: string;
-  roles?: Array<{ id: string; name: string }>;
+  roles?: Role[];
 }
 
 export async function loginBap(data: BapLoginRequest): Promise<{ token: string; user: User }> {
@@ -32,7 +32,7 @@ export async function loginBap(data: BapLoginRequest): Promise<{ token: string; 
 
   // Handle different response formats
   const token = response.token || (response as any).authToken || (response as any).accessToken;
-  
+
   if (!token) {
     console.error('No token in response:', response);
     throw new Error('No token received from server');
@@ -71,7 +71,7 @@ export interface BppLoginResponse {
   email?: string;
   mobileNumber?: string;
   mobileCountryCode?: string;
-  roles?: Array<{ id: string; name: string }>;
+  roles?: Role[];
 }
 
 export async function loginBpp(data: BppLoginRequest): Promise<{ token: string; user: User }> {
@@ -85,7 +85,7 @@ export async function loginBpp(data: BppLoginRequest): Promise<{ token: string; 
 
   // Handle different response formats
   const token = response.token || (response as any).authToken || (response as any).accessToken;
-  
+
   if (!token) {
     console.error('No token in response:', response);
     throw new Error('No token received from server');
@@ -127,7 +127,7 @@ export async function requestFleetOtp(
   data: FleetRequestOtpRequest
 ): Promise<FleetRequestOtpResponse> {
   const { merchantId, city } = fleetConfig;
-  
+
   return apiRequest<FleetRequestOtpResponse>(bppApi, {
     method: 'POST',
     url: `/driver-offer/${merchantId}/${city}/fleet/v2/login/otp`,
@@ -158,7 +158,7 @@ export async function verifyFleetOtp(
   data: FleetVerifyOtpRequest
 ): Promise<{ token: string; user: User }> {
   const { merchantId, city } = fleetConfig;
-  
+
   const response = await apiRequest<FleetVerifyOtpResponse>(bppApi, {
     method: 'POST',
     url: `/driver-offer/${merchantId}/${city}/fleet/v2/verify/otp`,
@@ -186,7 +186,7 @@ export async function verifyFleetOtp(
 
 export async function logout(module: LoginModule): Promise<void> {
   const api = module === 'BAP' ? bapApi : bppApi;
-  
+
   try {
     await apiRequest(api, {
       method: 'POST',
@@ -225,7 +225,7 @@ export interface ProfileResponse {
   email?: string;
   mobileNumber?: string;
   mobileCountryCode?: string;
-  roles?: Array<{ id: string; name: string }>;
+  roles?: Role[];
   availableMerchants: AvailableMerchant[];
   availableCitiesForMerchant: MerchantCity[];
   merchantCityMap: MerchantCityMapping[];
@@ -281,7 +281,7 @@ function getMerchantName(merchantShortId: string): string {
 
 export async function getProfile(module: LoginModule): Promise<ProfileResponse> {
   const api = module === 'BAP' ? bapApi : bppApi;
-  
+
   try {
     const response = await apiRequest<any>(api, {
       method: 'GET',
@@ -292,16 +292,16 @@ export async function getProfile(module: LoginModule): Promise<ProfileResponse> 
 
     // Handle different response formats
     const data = response.result || response.data || response;
-    
+
     // The availableCitiesForMerchant contains both merchants and their cities
     // Format: [{ merchantShortId: "NAMMA_YATRI", operatingCity: ["std:080", "std:044"] }]
     const rawData = data.availableCitiesForMerchant || data.available_cities_for_merchant || [];
-    
+
     // Extract unique merchants and build merchant-city mapping
     const merchants: AvailableMerchant[] = [];
     const allCities: MerchantCity[] = [];
     const merchantCityMap: MerchantCityMapping[] = [];
-    
+
     if (Array.isArray(rawData)) {
       rawData.forEach((item: any) => {
         const merchantShortId = item.merchantShortId || item.merchant_short_id || '';
@@ -311,11 +311,11 @@ export async function getProfile(module: LoginModule): Promise<ProfileResponse> 
             merchantShortId: merchantShortId,
             merchantName: getMerchantName(merchantShortId),
           });
-          
+
           // Extract cities for this merchant
           const cityList = item.operatingCity || item.operating_city || item.cities || [];
           const merchantCities: MerchantCity[] = [];
-          
+
           if (Array.isArray(cityList)) {
             cityList.forEach((cityCode: string) => {
               const city: MerchantCity = {
@@ -323,14 +323,14 @@ export async function getProfile(module: LoginModule): Promise<ProfileResponse> 
                 cityName: getCityName(cityCode),
               };
               merchantCities.push(city);
-              
+
               // Only add to global list if not already present
               if (!allCities.find(c => c.cityId === cityCode)) {
                 allCities.push(city);
               }
             });
           }
-          
+
           // Store merchant-city mapping
           merchantCityMap.push({
             merchantShortId,
@@ -339,7 +339,7 @@ export async function getProfile(module: LoginModule): Promise<ProfileResponse> 
         }
       });
     }
-    
+
     console.log('Parsed merchants:', merchants);
     console.log('Parsed cities:', allCities);
     console.log('Merchant-City Map:', merchantCityMap);
@@ -381,7 +381,7 @@ export async function getProfile(module: LoginModule): Promise<ProfileResponse> 
       email: data.email,
       mobileNumber: data.mobileNumber || data.mobile_number,
       mobileCountryCode: data.mobileCountryCode || data.mobile_country_code,
-      roles: data.roles || [],
+      roles: data.roles || (data.role ? [data.role] : []),
       availableMerchants: merchants,
       availableCitiesForMerchant: allCities,
       merchantCityMap,
@@ -400,17 +400,28 @@ export async function getProfile(module: LoginModule): Promise<ProfileResponse> 
   }
 }
 
-export async function getAccessMatrix(module: LoginModule): Promise<AccessMatrixItem[]> {
+export async function getAccessMatrix(module: LoginModule): Promise<UserAccessMatrix[]> {
   const api = module === 'BAP' ? bapApi : bppApi;
-  
+
   try {
-    const response = await apiRequest<AccessMatrixItem[]>(api, {
+    const response = await apiRequest<any>(api, {
       method: 'GET',
       url: '/user/getAccessMatrix',
     });
 
     console.log('Access Matrix Response:', response);
-    return response || [];
+
+    // Handle nested structure from API
+    if (response && response.accessMatrixRow && Array.isArray(response.accessMatrixRow)) {
+      return response.accessMatrixRow;
+    }
+
+    // Fallback if it returns array directly
+    if (Array.isArray(response)) {
+      return response;
+    }
+
+    return [];
   } catch (error) {
     console.error('Failed to fetch access matrix:', error);
     // Return empty array on error - don't break login flow
@@ -420,7 +431,7 @@ export async function getAccessMatrix(module: LoginModule): Promise<AccessMatrix
 
 export async function switchMerchant(module: LoginModule, merchantId: string): Promise<{ token: string }> {
   const api = module === 'BAP' ? bapApi : bppApi;
-  
+
   const response = await apiRequest<{ token: string }>(api, {
     method: 'POST',
     url: '/user/switchMerchant',
@@ -440,12 +451,12 @@ export interface SwitchMerchantCityResponse {
 }
 
 export async function switchMerchantAndCity(
-  module: LoginModule, 
-  merchantId: string, 
+  module: LoginModule,
+  merchantId: string,
   cityId: string
 ): Promise<{ token: string }> {
   const api = module === 'BAP' ? bapApi : bppApi;
-  
+
   const response = await apiRequest<SwitchMerchantCityResponse>(api, {
     method: 'POST',
     url: '/user/switchMerchantAndCity',
@@ -457,4 +468,23 @@ export async function switchMerchantAndCity(
   // Return the token in a normalized format
   return { token: response.authToken };
 }
+
+export interface ChangePasswordRequest {
+  newPassword: string;
+  oldPassword: string;
+}
+
+export async function changePassword(
+  module: LoginModule,
+  data: ChangePasswordRequest
+): Promise<void> {
+  const api = module === 'BAP' ? bapApi : bppApi;
+
+  await apiRequest(api, {
+    method: 'POST',
+    url: '/user/changePassword',
+    data,
+  });
+}
+
 

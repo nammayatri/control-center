@@ -196,6 +196,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       // Update state
+      const storedUser = localStorage.getItem(USER_KEY);
+      const currentUser = storedUser ? JSON.parse(storedUser) : (user || {});
+
+      const updatedUser: User = {
+        ...currentUser,
+        id: profileData.personId || currentUser.id || '',
+        firstName: profileData.firstName || '',
+        lastName: profileData.lastName,
+        email: profileData.email,
+        mobileNumber: profileData.mobileNumber || '',
+        mobileCountryCode: profileData.mobileCountryCode || '',
+        roles: profileData.roles || currentUser.roles || [],
+      };
+      setUser(updatedUser);
+
       setMerchants(mappedMerchants);
       setCities(mappedCities);
       setMerchantCityMap(mappedMerchantCityMap);
@@ -204,6 +219,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setAccessMatrix(accessMatrixData || []);
 
       // Persist to localStorage
+      localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
       localStorage.setItem(MERCHANTS_KEY, JSON.stringify(mappedMerchants));
       localStorage.setItem(CITIES_KEY, JSON.stringify(mappedCities));
       localStorage.setItem(MERCHANT_CITY_MAP_KEY, JSON.stringify(mappedMerchantCityMap));

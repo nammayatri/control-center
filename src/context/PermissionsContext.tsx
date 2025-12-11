@@ -35,9 +35,9 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   // Build permissions from access matrix
   const permissions = useMemo((): Permission[] => {
     if (safeAccessMatrix.length === 0) return [];
-    
-    return safeAccessMatrix.map((access) => ({
-      resource: access.userAccessType,
+
+    return safeAccessMatrix.filter((access) => access.userAccessType === 'USER_FULL_ACCESS').map((access) => ({
+      resource: access.apiEntity,
       action: access.userActionType,
     }));
   }, [safeAccessMatrix]);
@@ -45,19 +45,19 @@ export function PermissionsProvider({ children }: PermissionsProviderProps) {
   const hasPermission = useCallback(
     (resource: string, action: string): boolean => {
       // Super admin check
-      if (user?.roles?.some((r) => r.name === 'ADMIN' || r.name === 'SUPER_ADMIN')) {
+      if (user?.roles?.some((r) => r.dashboardAccessType === 'DASHBOARD_ADMIN')) {
         return true;
       }
-      
+
       // If no access matrix, allow all (for backwards compatibility)
       if (safeAccessMatrix.length === 0) {
         return true;
       }
-      
+
       return permissions.some(
-        (p) => 
-          (p.resource === resource || p.resource === '*') &&
-          (p.action === action || p.action === '*')
+        (p) =>
+          (p.resource === resource || p.resource === '*' || resource === '*') &&
+          (p.action === action || p.action === '*' || action === '*')
       );
     },
     [permissions, user, safeAccessMatrix]
@@ -118,15 +118,15 @@ interface PermissionGuardProps {
   fallback?: React.ReactNode;
 }
 
-export function PermissionGuard({ 
-  resource, 
-  action, 
+export function PermissionGuard({
+  resource,
+  action,
   actionType,
-  children, 
-  fallback = null 
+  children,
+  fallback = null
 }: PermissionGuardProps) {
   const { hasPermission, hasAccess } = usePermissions();
-  
+
   // Check by actionType if provided
   if (actionType) {
     if (!hasAccess(actionType)) {
@@ -134,12 +134,12 @@ export function PermissionGuard({
     }
     return <>{children}</>;
   }
-  
+
   // Check by resource/action
   if (resource && action && !hasPermission(resource, action)) {
     return <>{fallback}</>;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -152,7 +152,7 @@ export function withPermission<P extends object>(
 ) {
   return function WithPermissionComponent(props: P) {
     const { hasPermission } = usePermissions();
-    
+
     if (!hasPermission(resource, action)) {
       if (FallbackComponent) {
         return <FallbackComponent />;
@@ -168,7 +168,7 @@ export function withPermission<P extends object>(
         </div>
       );
     }
-    
+
     return <WrappedComponent {...props} />;
   };
 }
