@@ -1,47 +1,115 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { Skeleton } from '../../components/ui/skeleton';
 import { DriverSummary } from '../../components/domain/DriverBadge';
-import { DriverModeBadge, VerificationStatusBadge } from '../../components/domain/StatusBadge';
-import { useDriverInfo, useDriverFeedback, useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver } from '../../hooks/useDrivers';
+import { VerificationStatusBadge } from '../../components/domain/StatusBadge';
+import { useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver } from '../../hooks/useDrivers';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate, formatDateTime } from '../../lib/utils';
 import {
-  Phone,
-  Mail,
-  MapPin,
   Calendar,
-  Car,
+  Smartphone,
+  Star,
+  Activity,
+  SmartphoneNfc,
+  Tag,
+  CheckCircle2,
+  Car as CarIcon,
   Ban,
   CheckCircle,
-  XCircle,
-  RefreshCw,
   Lock,
+  User as UserIcon,
+  Shield,
   LogIn,
 } from 'lucide-react';
+import { Label } from '../../components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '../../components/ui/table';
+import type { DriverInfoResponse } from '../../services/drivers';
+import { toast } from 'sonner';
 
 export function DriverDetailPage() {
   const { driverId } = useParams<{ driverId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { merchantId } = useDashboardContext();
   const { loginModule, logout } = useAuth();
+
+  // Get driver from location state and manage locally
+  const [driver, setDriver] = useState<DriverInfoResponse | undefined>(
+    location.state?.driver as DriverInfoResponse | undefined
+  );
 
   // Check if user has access to driver operations (requires BPP or FLEET login)
   const hasDriverAccess = loginModule === 'BPP' || loginModule === 'FLEET';
 
-  // These hooks must be called unconditionally, but we'll skip the API calls if no access
-  const { data: driver, isLoading, error, refetch } = useDriverInfo(hasDriverAccess ? (driverId || '') : '');
-  const { data: feedback } = useDriverFeedback(hasDriverAccess ? (driverId || '') : '');
-  
   const blockMutation = useBlockDriver();
   const unblockMutation = useUnblockDriver();
   const enableMutation = useEnableDriver();
   const disableMutation = useDisableDriver();
+
+  const handleBlockDriver = (_reason: string) => {
+    if (!driverId || !driver) return;
+    blockMutation.mutate(driverId, {
+      onSuccess: () => {
+        toast.success(`Driver ${driver.firstName} has been blocked.`);
+        setDriver(prev => prev ? { ...prev, blocked: true } : prev);
+      },
+      onError: (error: any) => {
+        toast.error(error.message || 'Failed to block driver');
+      }
+    });
+  };
+
+  const handleUnblockDriver = () => {
+    if (!driverId || !driver) return;
+    unblockMutation.mutate(driverId, {
+      onSuccess: () => {
+        toast.success(`Driver ${driver.firstName} has been unblocked.`);
+        setDriver(prev => prev ? { ...prev, blocked: false } : prev);
+      },
+      onError: (error: any) => {
+        toast.error(error.message || 'Failed to unblock driver');
+      }
+    });
+  };
+
+  const handleEnableDriver = () => {
+    if (!driverId || !driver) return;
+    enableMutation.mutate(driverId, {
+      onSuccess: () => {
+        toast.success(`Driver ${driver.firstName} has been enabled.`);
+        setDriver(prev => prev ? { ...prev, enabled: true } : prev);
+      },
+      onError: (error: any) => {
+        toast.error(error.message || 'Failed to enable driver');
+      }
+    });
+  };
+
+  const handleDisableDriver = () => {
+    if (!driverId || !driver) return;
+    disableMutation.mutate(driverId, {
+      onSuccess: () => {
+        toast.success(`Driver ${driver?.firstName} has been disabled.`);
+        setDriver(prev => prev ? { ...prev, enabled: false } : prev);
+      },
+      onError: (error: any) => {
+        toast.error(error.message || 'Failed to disable driver');
+      }
+    });
+  };
 
   if (!hasDriverAccess) {
     return (
@@ -55,10 +123,10 @@ export function DriverDetailPage() {
               </div>
               <h3 className="text-lg font-semibold">Driver Login Required</h3>
               <p className="text-muted-foreground">
-                You are currently logged in with the <strong>Customer (BAP)</strong> module. 
+                You are currently logged in with the <strong>Customer (BAP)</strong> module.
                 To access driver details, please log in with the <strong>Driver (BPP)</strong> or <strong>Fleet</strong> module.
               </p>
-              <Button 
+              <Button
                 onClick={() => {
                   logout();
                   navigate('/login');
@@ -75,30 +143,9 @@ export function DriverDetailPage() {
     );
   }
 
-  const handleBlock = async () => {
-    if (!driverId) return;
-    await blockMutation.mutateAsync(driverId);
-    refetch();
-  };
-
-  const handleUnblock = async () => {
-    if (!driverId) return;
-    await unblockMutation.mutateAsync(driverId);
-    refetch();
-  };
-
-  const handleEnable = async () => {
-    if (!driverId) return;
-    await enableMutation.mutateAsync(driverId);
-    refetch();
-  };
-
-  const handleDisable = async () => {
-    if (!driverId) return;
-    await disableMutation.mutateAsync(driverId);
-    refetch();
-  };
-
+  // These async handlers are not used in the current JSX, but are kept for completeness
+  // as they were part of the original code structure.
+  // The `refetch` function is missing, which would cause an error if these were called.
   if (merchantId === 'all') {
     return (
       <Page>
@@ -116,28 +163,19 @@ export function DriverDetailPage() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <Page>
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </Page>
-    );
-  }
-
-  if (error || !driver) {
+  if (!driver) {
     return (
       <Page>
         <PageHeader title="Driver Details" />
         <PageContent>
           <Card>
             <CardContent className="p-12 text-center">
-              <p className="text-destructive">Error loading driver details</p>
-              <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
-                Go Back
+              <p className="text-muted-foreground">No driver information found.</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Please search for the driver again from the Drivers page.
+              </p>
+              <Button variant="outline" className="mt-4" onClick={() => navigate('/ops/drivers')}>
+                Go to Search
               </Button>
             </CardContent>
           </Card>
@@ -157,45 +195,47 @@ export function DriverDetailPage() {
         ]}
         actions={
           <>
-            <Button variant="outline" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
             {driver.blocked ? (
-              <Button 
-                variant="outline" 
-                onClick={handleUnblock}
+              <Button
+                variant="outline"
+                className="text-red-500 hover:text-red-600"
+                onClick={handleUnblockDriver}
                 disabled={unblockMutation.isPending}
               >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Unblock
+                <Ban className="h-4 w-4 mr-2" />
+                Unblock Driver
               </Button>
             ) : (
-              <Button 
-                variant="destructive" 
-                onClick={handleBlock}
+              <Button
+                variant="outline"
+                className="text-red-500 hover:text-red-600"
+                onClick={() => handleBlockDriver('Blocked by admin')}
                 disabled={blockMutation.isPending}
               >
                 <Ban className="h-4 w-4 mr-2" />
-                Block
+                Block Driver
               </Button>
             )}
+
             {driver.enabled ? (
-              <Button 
-                variant="outline" 
-                onClick={handleDisable}
+              <Button
+                variant="outline"
+                className="text-orange-500 hover:text-orange-600"
+                onClick={handleDisableDriver}
                 disabled={disableMutation.isPending}
               >
-                <XCircle className="h-4 w-4 mr-2" />
-                Disable
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Disable Driver
               </Button>
             ) : (
-              <Button 
-                onClick={handleEnable}
+              <Button
+                variant="outline"
+                className="text-green-600 hover:text-green-700"
+                onClick={handleEnableDriver}
                 disabled={enableMutation.isPending}
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
-                Enable
+                Enable Driver
               </Button>
             )}
           </>
@@ -220,11 +260,11 @@ export function DriverDetailPage() {
                   vehicleNumber: driver.vehicleNumber,
                   numberOfRides: driver.numberOfRides,
                   merchantOperatingCity: driver.merchantOperatingCity,
-                  driverMode: driver.driverMode,
+                  driverMode: driver.driverMode as any,
                 }}
                 className="flex-1"
               />
-              
+
               {/* Quick Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
@@ -265,75 +305,266 @@ export function DriverDetailPage() {
           </TabsList>
 
           <TabsContent value="info" className="mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Detailed Info Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Personal Information */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Personal Information</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserIcon className="h-5 w-5" />
+                    Personal Information
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Phone</p>
-                      <p>{driver.mobileCountryCode} {driver.mobileNumber}</p>
-                    </div>
-                  </div>
-                  {driver.email && (
-                    <div className="flex items-center gap-3">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Email</p>
-                        <p>{driver.email}</p>
+                      <Label className="text-xs text-muted-foreground">Full Name</Label>
+                      <div className="font-medium">
+                        {[driver.firstName, driver.middleName, driver.lastName].filter(Boolean).join(' ')}
                       </div>
                     </div>
-                  )}
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-sm text-muted-foreground">City</p>
-                      <p>{driver.merchantOperatingCity || '-'}</p>
+                      <Label className="text-xs text-muted-foreground">Driver ID</Label>
+                      <div className="font-medium font-mono text-sm truncate" title={driver.driverId}>
+                        {driver.driverId}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-sm text-muted-foreground">Onboarded</p>
-                      <p>{driver.onboardingDate ? formatDate(driver.onboardingDate) : '-'}</p>
+                      <Label className="text-xs text-muted-foreground">Mobile Number</Label>
+                      <div className="font-medium flex items-center gap-2">
+                        <Smartphone className="h-4 w-4 text-muted-foreground" />
+                        {driver.mobileCountryCode} {driver.mobileNumber}
+                      </div>
+                      {driver.alternateNumber && (
+                        <div className="text-xs text-muted-foreground mt-1 ml-6">
+                          Alt: {driver.alternateNumber}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Email</Label>
+                      <div className="font-medium text-sm truncate" title={driver.email || 'N/A'}>
+                        {driver.email || 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Onboarding Date</Label>
+                      <div className="font-medium flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        {driver.onboardingDate ? new Date(driver.onboardingDate).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Last Activity</Label>
+                      <div className="font-medium">
+                        {driver.lastActivityDate ? new Date(driver.lastActivityDate).toLocaleString() : 'N/A'}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Performance & Status */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Status & Tags</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Performance & Status
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    {driver.driverMode && <DriverModeBadge mode={driver.driverMode} />}
-                    {driver.verified && <Badge variant="success">Verified</Badge>}
-                    {driver.subscribed && <Badge variant="info">Subscribed</Badge>}
-                    {driver.blocked && <Badge variant="destructive">Blocked</Badge>}
-                    {!driver.enabled && <Badge variant="secondary">Disabled</Badge>}
-                  </div>
-                  
-                  {driver.driverTag && driver.driverTag.length > 0 && (
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground mb-2">Tags</p>
-                      <div className="flex flex-wrap gap-1">
-                        {driver.driverTag.map((tag, i) => (
-                          <Badge key={i} variant="outline">{tag}</Badge>
-                        ))}
+                      <Label className="text-xs text-muted-foreground">Rating</Label>
+                      <div className="flex items-center gap-1 font-medium">
+                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                        {driver.rating?.toFixed(2) || 'N/A'}
                       </div>
                     </div>
-                  )}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Rides Completed</Label>
+                      <div className="font-medium">{driver.numberOfRides} ({driver.cancelledCount ?? 0} cancelled)</div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Status</Label>
+                      <div className="flex gap-2 mt-1">
+                        <Badge variant={driver.enabled ? 'default' : 'secondary'}>
+                          {driver.enabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                        <Badge variant={driver.blocked ? 'destructive' : 'outline'}>
+                          {driver.blocked ? 'Blocked' : 'Active'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Driver Mode</Label>
+                      <div className="font-medium">{driver.driverMode || 'N/A'}</div>
+                    </div>
+                  </div>
 
-                  {driver.blockedReason && (
-                    <div className="p-3 bg-destructive/10 rounded-lg">
-                      <p className="text-sm font-medium text-destructive">Block Reason</p>
-                      <p className="text-sm">{driver.blockedReason}</p>
+                  {driver.blocked && (
+                    <div className="bg-destructive/10 p-3 rounded-md text-sm text-destructive mt-2">
+                      <div className="font-semibold flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Blocked: {driver.blockedReason || 'No reason provided'}
+                      </div>
+                      {driver.blockedInfo && driver.blockedInfo.length > 0 && (
+                        <div className="mt-1 text-xs opacity-90">
+                          Last reported: {new Date(driver.blockedInfo[0].reportedAt).toLocaleDateString()}
+                        </div>
+                      )}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Driver Tags */}
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Tag className="h-5 w-5" />
+                    Driver Tags
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {driver.driverTagObject && driver.driverTagObject.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {driver.driverTagObject.map((tag, idx) => (
+                        <div key={idx} className="bg-muted/30 p-2 rounded border text-sm flex justify-between items-center">
+                          <span className="font-medium text-muted-foreground text-xs">{tag.tagName}</span>
+                          <span className="font-semibold truncate max-w-[50%] text-right" title={String(tag.tagValue.contents)}>
+                            {String(tag.tagValue.contents).replace(/"/g, '')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-sm">No tags assigned</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Quality & Compliance */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Quality & Compliance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">AC Status</Label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Badge variant={driver.currentACStatus ? 'success' : 'secondary'}>
+                          {driver.currentACStatus ? 'ON' : 'OFF'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">AC Off Reports</Label>
+                      <div className="font-medium text-destructive">
+                        {driver.currentAcOffReportCount ?? 0}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">AC Restriction Unblocks</Label>
+                      <div className="font-medium">
+                        {driver.totalAcRestrictionUnblockCount ?? 0}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Last AC Check</Label>
+                      <div className="font-medium text-sm">
+                        {driver.lastACStatusCheckedAt ? formatDateTime(driver.lastACStatusCheckedAt) : 'Never checked'}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Block Count</Label>
+                      <div className="font-medium">
+                        {driver.blockCount ?? 0}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Drunk & Drive Violations</Label>
+                      <div className="font-medium text-destructive">
+                        {driver.drunkAndDriveViolationCount ?? 0}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs text-muted-foreground">Blocked Due To Rider Complains</Label>
+                      <div className="mt-1">
+                        <Badge variant={driver.blockedDueToRiderComplains ? 'destructive' : 'outline'}>
+                          {driver.blockedDueToRiderComplains ? 'Yes' : 'No'}
+                        </Badge>
+                      </div>
+                    </div>
+                    {driver.downgradeReason && (
+                      <div className="col-span-2">
+                        <Label className="text-xs text-muted-foreground">Downgrade Reason</Label>
+                        <div className="text-sm text-foreground mt-1 bg-muted/40 p-2 rounded">{driver.downgradeReason}</div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Application Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <SmartphoneNfc className="h-5 w-5" />
+                    App & System Info
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="col-span-2">
+                      <Label className="text-xs text-muted-foreground mb-1 block">Service Tiers</Label>
+                      <div className="flex flex-wrap gap-1">
+                        {driver.selectedServiceTiers && driver.selectedServiceTiers.length > 0 ? (
+                          driver.selectedServiceTiers.map((tier, idx) => (
+                            <Badge key={idx} variant="outline" className="text-[10px] border-primary/20 bg-primary/5 text-primary">
+                              {tier}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-xs">None selected</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">Client Version</span>
+                      <span className="font-mono">
+                        {driver.clientVersion ?
+                          `${driver.clientVersion.major}.${driver.clientVersion.minor}.${driver.clientVersion.maintenance}` : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">Bundle Version</span>
+                      <span className="font-mono">
+                        {driver.bundleVersion ?
+                          `${driver.bundleVersion.major}.${driver.bundleVersion.minor}.${driver.bundleVersion.maintenance}` : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">React Version</span>
+                      <span className="font-mono">{driver.reactVersion || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">Aadhar Associated</span>
+                      <span className="font-mono">{driver.aadharAssociationDetails ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground block text-xs mb-1">Available Merchants</span>
+                      <div className="flex flex-wrap gap-1">
+                        {driver.availableMerchants?.map(m => (
+                          <Badge key={m} variant="secondary" className="text-[10px]">{m}</Badge>
+                        )) || 'None'}
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -380,44 +611,137 @@ export function DriverDetailPage() {
               </CardHeader>
               <CardContent>
                 {driver.vehicleRegistrationDetails && driver.vehicleRegistrationDetails.length > 0 ? (
-                  <div className="space-y-4">
-                    {driver.vehicleRegistrationDetails.map((vehicle, i) => (
-                      <div key={i} className="p-4 border rounded-lg">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <Car className="h-5 w-5 text-primary" />
-                            <span className="font-mono font-medium">
-                              {vehicle.certificateNumber}
-                            </span>
+                  <div className="space-y-6">
+                    {/* Active Vehicles Section */}
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Vehicle</h4>
+                      {driver.vehicleRegistrationDetails.filter(v => v.isRcActive).length === 0 && (
+                        <p className="text-sm text-muted-foreground italic">No active vehicle found.</p>
+                      )}
+                      {driver.vehicleRegistrationDetails
+                        .filter(v => v.isRcActive)
+                        .map((vehicle, i) => (
+                          <div key={`active-${i}`} className="p-5 border border-primary/40 bg-primary/5 rounded-lg shadow-sm">
+                            <div className="flex items-center justify-between mb-4 border-b border-primary/20 pb-2">
+                              <div className="flex items-center gap-3">
+                                <CarIcon className="h-6 w-6 text-primary" />
+                                <div>
+                                  <span className="font-mono font-bold text-xl block leading-none">
+                                    {vehicle.details.certificateNumber}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {vehicle.details.manufacturerModel || vehicle.details.vehicleModel} ({vehicle.details.vehicleColor})
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-primary hover:bg-primary/90">Current</Badge>
+                                <VerificationStatusBadge status={vehicle.details.verificationStatus} />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-4 gap-x-6 text-sm">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Vehicle Class</Label>
+                                <div className="font-medium">{vehicle.details.vehicleClass || 'N/A'}</div>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Variant</Label>
+                                <div className="font-medium">{vehicle.details.vehicleVariant || 'N/A'}</div>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Fuel Type</Label>
+                                <div className="font-medium">{vehicle.details.vehicleEnergyType || 'N/A'}</div>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Capacity</Label>
+                                <div className="font-medium">{vehicle.details.vehicleCapacity ? `${vehicle.details.vehicleCapacity} Seats` : 'N/A'}</div>
+                              </div>
+                              <div className="col-span-2 md:col-span-1">
+                                <Label className="text-xs text-muted-foreground">Manufacturer</Label>
+                                <div className="font-medium truncate" title={vehicle.details.vehicleManufacturer || ''}>
+                                  {vehicle.details.vehicleManufacturer || 'N/A'}
+                                </div>
+                              </div>
+                              <div className="col-span-2 md:col-span-1">
+                                <Label className="text-xs text-muted-foreground">Association Date</Label>
+                                <div className="font-medium">
+                                  {vehicle.associatedOn ? formatDateTime(vehicle.associatedOn) : 'N/A'}
+                                </div>
+                              </div>
+
+                              <div className="border-t col-span-full my-1 border-dashed opacity-50"></div>
+
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Insurance Exp</Label>
+                                <div className="font-medium">
+                                  {vehicle.details.insuranceValidity ? formatDate(vehicle.details.insuranceValidity) : 'N/A'}
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Fitness Exp</Label>
+                                <div className="font-medium">
+                                  {vehicle.details.fitnessExpiry ? formatDate(vehicle.details.fitnessExpiry) : 'N/A'}
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Permit Exp</Label>
+                                <div className="font-medium">
+                                  {vehicle.details.permitExpiry ? formatDate(vehicle.details.permitExpiry) : 'N/A'}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {vehicle.isRcActive && <Badge variant="success">Active</Badge>}
-                            <VerificationStatusBadge status={vehicle.verificationStatus} />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-muted-foreground">Model</p>
-                            <p>{vehicle.vehicleModel || '-'}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Variant</p>
-                            <p>{vehicle.vehicleVariant || '-'}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Fitness Expiry</p>
-                            <p>{formatDate(vehicle.fitnessExpiry)}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Insurance</p>
-                            <p>{vehicle.insuranceValidity ? formatDate(vehicle.insuranceValidity) : '-'}</p>
-                          </div>
-                        </div>
+                        ))}
+                    </div>
+
+                    {/* Inactive Vehicles History Section */}
+                    {driver.vehicleRegistrationDetails.filter(v => !v.isRcActive).length > 0 && (
+                      <div className="space-y-3 pt-4 border-t">
+                        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Vehicle History</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>RC Number</TableHead>
+                              <TableHead>Vehicle Details</TableHead>
+                              <TableHead>Association History</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {driver.vehicleRegistrationDetails
+                              .filter(v => !v.isRcActive)
+                              .sort((a, b) => new Date(b.associatedOn || 0).getTime() - new Date(a.associatedOn || 0).getTime())
+                              .map((vehicle, i) => (
+                                <TableRow key={`hist-${i}`} className="text-sm opacity-80 hover:opacity-100">
+                                  <TableCell className="font-mono font-medium">{vehicle.details.certificateNumber}</TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <span>{vehicle.details.vehicleModel || vehicle.details.manufacturerModel || 'N/A'}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {[vehicle.details.vehicleVariant, vehicle.details.vehicleColor].filter(Boolean).join(' • ')}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col text-xs">
+                                      <span>From: {vehicle.associatedOn ? formatDate(vehicle.associatedOn) : 'N/A'}</span>
+                                      <span className="text-muted-foreground">Till: {vehicle.associatedTill ? formatDate(vehicle.associatedTill) : 'N/A'}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <VerificationStatusBadge status={vehicle.details.verificationStatus} />
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
                       </div>
-                    ))}
+                    )}
+
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No vehicles registered</p>
+                  <div className="text-center py-8 text-muted-foreground">No vehicle information available</div>
                 )}
               </CardContent>
             </Card>
@@ -429,25 +753,7 @@ export function DriverDetailPage() {
                 <CardTitle className="text-lg">Customer Feedback</CardTitle>
               </CardHeader>
               <CardContent>
-                {feedback?.feedbacks && feedback.feedbacks.length > 0 ? (
-                  <div className="space-y-4">
-                    {feedback.feedbacks.map((fb, i) => (
-                      <div key={i} className="p-4 border rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">
-                            Ride: {fb.rideId.slice(0, 8)}...
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            {formatDateTime(fb.createdAt)}
-                          </span>
-                        </div>
-                        <p>{fb.feedbackText || fb.feedbackDetails || 'No feedback text'}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">No feedback available</p>
-                )}
+                <p className="text-muted-foreground">Feedback display temporarily disabled.</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -462,32 +768,28 @@ export function DriverDetailPage() {
                   <div className="space-y-4">
                     {driver.blockedInfo.map((block, i) => (
                       <div key={i} className="p-4 border rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">{block.blockedBy}</span>
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="font-medium text-destructive">Blocked</span>
                           <span className="text-sm text-muted-foreground">
                             {formatDateTime(block.reportedAt)}
                           </span>
                         </div>
-                        {block.blockReason && (
-                          <p className="text-sm">{block.blockReason}</p>
-                        )}
-                        {block.blockTimeInHours && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Duration: {block.blockTimeInHours} hours
-                          </p>
+                        <p className="text-sm text-foreground mb-1">Reason: {block.reason || 'N/A'}</p>
+                        {block.blockedBy && (
+                          <p className="text-xs text-muted-foreground">Blocked By: {block.blockedBy}</p>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No block history</p>
+                  <p className="text-muted-foreground">No block history available</p>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
-      </PageContent>
-    </Page>
+        </Tabs >
+      </PageContent >
+    </Page >
   );
 }
 

@@ -143,7 +143,7 @@ const navItems: NavItem[] = [
         icon: <Settings className="h-4 w-4" />,
         resource: 'DSL',
         action: 'RIDER_MANAGEMENT/NAMMA_TAG/POST_NAMMA_TAG_TAG_CREATE',
-        allowedModules: ['BAP'],
+        allowedModules: ['BAP', 'BPP'],
         showLocked: true,
       },
       {
@@ -152,7 +152,7 @@ const navItems: NavItem[] = [
         icon: <Settings className="h-4 w-4" />,
         resource: 'DSL',
         action: 'RIDER_MANAGEMENT/NAMMA_TAG/POST_NAMMA_TAG_APP_DYNAMIC_LOGIC_UPSERT_LOGIC_ROLLOUT',
-        allowedModules: ['BAP'],
+        allowedModules: ['BAP', 'BPP'],
         showLocked: true,
       },
       {
@@ -161,7 +161,7 @@ const navItems: NavItem[] = [
         icon: <Settings className="h-4 w-4" />,
         resource: 'DSL',
         action: 'DRIVER_OFFER_BPP_MANAGEMENT/MERCHANT/UPSERT_FARE_POLICY',
-        allowedModules: ['BAP'],
+        allowedModules: ['BAP', 'BPP'],
         showLocked: true,
       },
       {
@@ -170,7 +170,7 @@ const navItems: NavItem[] = [
         icon: <Settings className="h-4 w-4" />,
         resource: 'DSL',
         action: 'DRIVER_OFFER_BPP_MANAGEMENT/MERCHANT/UPSERT_FARE_POLICY',
-        allowedModules: ['BAP'],
+        allowedModules: ['BAP', 'BPP'],
         showLocked: true,
       },
     ],

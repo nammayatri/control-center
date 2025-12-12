@@ -12,29 +12,31 @@ import {
   Search,
   Phone,
   Hash,
-  ArrowRight,
   Loader2,
   Car,
   AlertCircle,
   Lock,
   LogIn,
+  CreditCard,
+  FileText,
+  Mail,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '../../components/ui/alert';
+import { getDriverInfo } from '../../services/drivers';
 
 export function DriversPage() {
   const navigate = useNavigate();
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
   const { currentMerchant, loginModule, logout } = useAuth();
-  
-  const [searchType, setSearchType] = useState<'phone' | 'id'>('phone');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [driverId, setDriverId] = useState('');
+
+  const [searchType, setSearchType] = useState<'phone' | 'id' | 'vehicle' | 'dl' | 'rc' | 'email'>('phone');
+  const [searchValue, setSearchValue] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSearchByPhone = async () => {
-    if (!phoneNumber.trim()) {
-      setError('Please enter a phone number');
+  const handleSearch = async () => {
+    if (!searchValue.trim()) {
+      setError('Please enter a search value');
       return;
     }
 
@@ -48,34 +50,73 @@ export function DriversPage() {
     setError(null);
 
     try {
-      // Call the list API with phone number as search string
-      const response = await listDrivers(
+      // Build search params based on type
+      const params: any = {};
+
+      switch (searchType) {
+        case 'phone':
+          params.mobileNumber = searchValue.trim();
+          params.mobileCountryCode = '91'; // Default
+          break;
+        case 'vehicle':
+          params.vehicleNumber = searchValue.trim();
+          break;
+        case 'dl':
+          params.dlNumber = searchValue.trim();
+          break;
+        case 'rc':
+          params.rcNumber = searchValue.trim();
+          break;
+        case 'email':
+          params.email = searchValue.trim();
+          break;
+        case 'id':
+          params.personId = searchValue.trim(); // Using personId as generic ID search
+          break;
+      }
+
+      // Special case for direct driverId lookups (if user explicitly knows it's a UUID)
+      if (searchType === 'id' && /^[0-9a-fA-F-]{36}$/.test(searchValue.trim())) {
+        // Direct navigation if valid UUID
+        navigate(`/ops/drivers/${searchValue.trim()}`);
+        return;
+      }
+
+      const response = await getDriverInfo(
         apiMerchantId,
         cityId || undefined,
-        { searchString: phoneNumber.trim(), limit: 1 }
+        params
       );
 
-      if (response.listItem && response.listItem.length > 0) {
-        // Found driver, navigate to details
-        navigate(`/ops/drivers/${response.listItem[0].driverId}`);
+      if (response && response.driverId) {
+        navigate(`/ops/drivers/${response.driverId}`, { state: { driver: response } });
       } else {
-        setError('No driver found with this phone number');
+        setError('No driver found with provided details');
       }
     } catch (err) {
       console.error('Search error:', err);
-      setError('Failed to search for driver. Please try again.');
+      // Try to list drivers as fallback for some fields if getDriverInfo fails
+      if (searchType === 'phone' || searchType === 'vehicle') {
+        try {
+          const listResponse = await listDrivers(
+            apiMerchantId,
+            cityId || undefined,
+            { searchString: searchValue.trim(), limit: 1 }
+          );
+
+          if (listResponse.listItem && listResponse.listItem.length > 0) {
+            navigate(`/ops/drivers/${listResponse.listItem[0].driverId}`);
+            return;
+          }
+        } catch (retryErr) {
+          console.error('Retry listing failed', retryErr);
+        }
+      }
+
+      setError('Failed to find driver. Please verify details and try again.');
     } finally {
       setIsSearching(false);
     }
-  };
-
-  const handleGoToDriver = () => {
-    if (!driverId.trim()) {
-      setError('Please enter a driver ID');
-      return;
-    }
-    setError(null);
-    navigate(`/ops/drivers/${driverId.trim()}`);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent, action: () => void) => {
@@ -99,10 +140,10 @@ export function DriversPage() {
               </div>
               <h3 className="text-lg font-semibold">Driver Login Required</h3>
               <p className="text-muted-foreground">
-                You are currently logged in with the <strong>Customer (BAP)</strong> module. 
+                You are currently logged in with the <strong>Customer (BAP)</strong> module.
                 To access driver operations, please log in with the <strong>Driver (BPP)</strong> or <strong>Fleet</strong> module.
               </p>
-              <Button 
+              <Button
                 onClick={() => {
                   logout();
                   navigate('/login');
@@ -159,130 +200,107 @@ export function DriversPage() {
           )}
 
           {/* Search Type Tabs */}
-          <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
-            <button
-              onClick={() => { setSearchType('phone'); setError(null); }}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                searchType === 'phone'
+          <div className="flex flex-wrap gap-2 p-1 bg-muted rounded-lg w-full md:w-fit">
+            {[
+              { id: 'phone', label: 'Phone', icon: <Phone className="h-4 w-4 mr-2" /> },
+              { id: 'vehicle', label: 'Vehicle', icon: <Car className="h-4 w-4 mr-2" /> },
+              { id: 'dl', label: 'DL No', icon: <CreditCard className="h-4 w-4 mr-2" /> },
+              { id: 'rc', label: 'RC No', icon: <FileText className="h-4 w-4 mr-2" /> },
+              { id: 'email', label: 'Email', icon: <Mail className="h-4 w-4 mr-2" /> },
+              { id: 'id', label: 'Driver ID', icon: <Hash className="h-4 w-4 mr-2" /> },
+            ].map((type) => (
+              <button
+                key={type.id}
+                onClick={() => {
+                  setSearchType(type.id as any);
+                  setSearchValue('');
+                  setError(null);
+                }}
+                className={`flex-1 md:flex-none px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${searchType === type.id
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Phone className="h-4 w-4 inline-block mr-2" />
-              Search by Phone
-            </button>
-            <button
-              onClick={() => { setSearchType('id'); setError(null); }}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                searchType === 'id'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Hash className="h-4 w-4 inline-block mr-2" />
-              Direct Driver ID
-            </button>
+                  }`}
+              >
+                {type.icon}
+                {type.label}
+              </button>
+            ))}
           </div>
 
-          {/* Search by Phone Number */}
-          {searchType === 'phone' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Phone className="h-5 w-5" />
-                  Search by Phone Number
-                </CardTitle>
-                <CardDescription>
-                  Enter the driver's phone number to find their account
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter phone number (e.g., 9876543210)"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      onKeyPress={(e) => handleKeyPress(e, handleSearchByPhone)}
-                      className="flex-1"
-                    />
-                    <Button 
-                      onClick={handleSearchByPhone}
-                      disabled={isSearching || !phoneNumber.trim()}
-                    >
-                      {isSearching ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Searching...
-                        </>
-                      ) : (
-                        <>
-                          <Search className="h-4 w-4 mr-2" />
-                          Search
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Enter the phone number without country code
-                  </p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Search Driver
+              </CardTitle>
+              <CardDescription>
+                Find driver by {searchType === 'dl' ? 'Driving License' : searchType.toUpperCase()} details
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="searchValue">
+                  {searchType === 'phone' ? 'Phone Number' :
+                    searchType === 'vehicle' ? 'Vehicle Number' :
+                      searchType === 'dl' ? 'Driving License Number' :
+                        searchType === 'rc' ? 'RC Number' :
+                          searchType === 'email' ? 'Email Address' : 'Driver ID'}
+                </Label>
+                <div className="flex gap-2">
+                  {searchType === 'phone' && (
+                    <div className="w-20">
+                      <Input value="+91" disabled className="bg-muted" />
+                    </div>
+                  )}
+                  <Input
+                    id="searchValue"
+                    type={searchType === 'phone' ? 'tel' : searchType === 'email' ? 'email' : 'text'}
+                    placeholder={
+                      searchType === 'phone' ? '9876543210' :
+                        searchType === 'vehicle' ? 'KA01AB1234' :
+                          searchType === 'dl' ? 'KA0120220001234' :
+                            searchType === 'email' ? 'driver@example.com' :
+                              'Enter value...'
+                    }
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    onKeyPress={(e) => handleKeyPress(e, handleSearch)}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleSearch}
+                    disabled={isSearching || !searchValue.trim()}
+                  >
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Searching...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        Search
+                      </>
+                    )}
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Direct Driver ID */}
-          {searchType === 'id' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Hash className="h-5 w-5" />
-                  Go to Driver by ID
-                </CardTitle>
-                <CardDescription>
-                  Enter the driver ID directly to view their details
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="driverId">Driver ID</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="driverId"
-                      type="text"
-                      placeholder="Enter driver ID (UUID)"
-                      value={driverId}
-                      onChange={(e) => setDriverId(e.target.value)}
-                      onKeyPress={(e) => handleKeyPress(e, handleGoToDriver)}
-                      className="flex-1 font-mono"
-                    />
-                    <Button 
-                      onClick={handleGoToDriver}
-                      disabled={!driverId.trim()}
-                    >
-                      <ArrowRight className="h-4 w-4 mr-2" />
-                      Go to Driver
-                    </Button>
-                  </div>
+                {searchType === 'phone' && (
                   <p className="text-xs text-muted-foreground">
-                    The driver ID is a unique identifier (UUID format)
+                    Enter the 10-digit mobile number
                   </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Help Card */}
-          <Card className="bg-muted/50">
+          {/* Tips Card */}
+          <Card className="bg-muted/50 border-none shadow-none">
             <CardContent className="p-4">
-              <h4 className="font-medium mb-2">Tips</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Use phone number search for quick lookup of driver accounts</li>
-                <li>• Use direct ID when you have the driver ID from other sources</li>
-                <li>• Make sure you have selected the correct merchant and city</li>
+              <h4 className="font-medium mb-2 text-sm">Search Tips</h4>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                <li>Make sure to select the correct Merchant and City before searching.</li>
+                <li>For vehicle numbers, avoid spaces or special characters.</li>
+                <li>Driver ID is unique and provides the most direct match.</li>
               </ul>
             </CardContent>
           </Card>

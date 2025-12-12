@@ -1,17 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
-import { KPIHeader } from '../../components/layout/KPIHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
-import { useDriverActivity } from '../../hooks/useDrivers';
-import { useOperatorAllTimeAnalytics } from '../../hooks/useAnalytics';
 import {
   Users,
   Car,
-  TrendingUp,
-  Star,
   ArrowRight,
   Activity,
   UserCircle,
@@ -33,7 +28,7 @@ interface QuickLinkProps {
 
 function QuickLink({ title, description, icon, href, locked, lockMessage }: QuickLinkProps) {
   const navigate = useNavigate();
-  
+
   if (locked) {
     return (
       <Card className="opacity-60 cursor-not-allowed">
@@ -54,9 +49,9 @@ function QuickLink({ title, description, icon, href, locked, lockMessage }: Quic
       </Card>
     );
   }
-  
+
   return (
-    <Card 
+    <Card
       className="cursor-pointer hover:shadow-md transition-shadow group"
       onClick={() => navigate(href)}
     >
@@ -81,15 +76,10 @@ function QuickLink({ title, description, icon, href, locked, lockMessage }: Quic
 export function DashboardPage() {
   const { merchantId } = useDashboardContext();
   const { user, loginModule } = useAuth();
-  
-  // These hooks will only fetch data if user has the right module access
-  const { data: activityData, isLoading: activityLoading } = useDriverActivity();
-  const { data: analyticsData, isLoading: analyticsLoading } = useOperatorAllTimeAnalytics();
 
   const isDriverModule = loginModule === 'BPP' || loginModule === 'FLEET';
   const isCustomerModule = loginModule === 'BAP';
-  
-  const isLoading = isDriverModule ? (activityLoading || analyticsLoading) : false;
+
   const hasMerchant = !!merchantId;
 
   const getModuleLabel = () => {
@@ -111,31 +101,15 @@ export function DashboardPage() {
       <PageContent>
         {/* Stats Overview - Only show for driver/fleet module */}
         {hasMerchant && isDriverModule ? (
-          <KPIHeader
-            loading={isLoading}
-            stats={[
-              {
-                label: 'Active Drivers',
-                value: activityData?.activeDrivers || 0,
-                icon: <Users className="h-5 w-5" />,
-              },
-              {
-                label: 'Busy Drivers',
-                value: activityData?.busyDrivers || 0,
-                icon: <Car className="h-5 w-5" />,
-              },
-              {
-                label: 'Average Rating',
-                value: analyticsData?.rating?.toFixed(2) || '-',
-                icon: <Star className="h-5 w-5" />,
-              },
-              {
-                label: 'Acceptance Rate',
-                value: `${analyticsData?.acceptanceRate?.toFixed(1) || 0}%`,
-                icon: <TrendingUp className="h-5 w-5" />,
-              },
-            ]}
-          />
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Car className="h-12 w-12 mx-auto text-primary mb-4" />
+              <h3 className="text-lg font-semibold">Driver Dashboard</h3>
+              <p className="text-muted-foreground mt-2">
+                Search and manage driver accounts, fleet, and vehicles.
+              </p>
+            </CardContent>
+          </Card>
         ) : hasMerchant && isCustomerModule ? (
           <Card>
             <CardContent className="p-8 text-center">
@@ -235,7 +209,7 @@ export function DashboardPage() {
                       {isCustomerModule ? 'Search Customers' : 'Search Drivers'}
                     </h4>
                     <p className="text-sm text-muted-foreground">
-                      {isCustomerModule 
+                      {isCustomerModule
                         ? 'Navigate to Customer Operations to search by phone number or customer ID.'
                         : 'Navigate to Driver Operations to search by phone number or driver ID.'
                       }

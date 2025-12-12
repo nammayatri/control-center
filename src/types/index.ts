@@ -131,17 +131,29 @@ export interface DriverLicense {
 }
 
 export interface VehicleRegistration {
-  registrationCertificateId: string;
-  certificateNumber: string;
-  vehicleClass?: string;
-  vehicleVariant?: string;
-  vehicleModel?: string;
-  vehicleColor?: string;
-  vehicleManufacturer?: string;
-  fitnessExpiry: string;
-  insuranceValidity?: string;
-  permitExpiry?: string;
-  verificationStatus: VerificationStatus;
+  associatedOn: string;
+  associatedTill: string;
+  details: {
+    certificateNumber: string;
+    registrationCertificateId: string;
+    vehicleModel?: string;
+    manufacturerModel?: string;
+    vehicleManufacturer?: string;
+    vehicleColor?: string;
+    vehicleEnergyType?: string;
+    vehicleCapacity?: number;
+    vehicleClass?: string;
+    vehicleVariant?: string;
+    insuranceValidity?: string;
+    fitnessExpiry?: string;
+    permitExpiry?: string;
+    pucExpiry?: string;
+    verificationStatus: VerificationStatus;
+    failedRules?: string[];
+    documentImageId?: string;
+    reviewRequired?: boolean;
+    reviewedAt?: string;
+  };
   isRcActive: boolean;
 }
 

@@ -663,7 +663,7 @@ export function NammaTagsPage() {
     const { loginModule, logout } = useAuth();
     const navigate = useNavigate();
 
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = loginModule === 'BAP' || loginModule === 'BPP';
 
     if (!hasAccess) {
         return (

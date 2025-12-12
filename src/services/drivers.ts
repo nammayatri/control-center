@@ -18,7 +18,7 @@ export async function listDrivers(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/list`
     : `/driver-offer/{merchantId}/driver/list`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
   const query = buildQueryParams({
     searchString: filters.searchString,
@@ -30,7 +30,7 @@ export async function listDrivers(
     limit: filters.limit || 20,
     offset: filters.offset || 0,
   });
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: `${path}${query}`,
@@ -48,6 +48,7 @@ export interface DriverInfoResponse {
   rating?: number;
   enabled: boolean;
   blocked: boolean;
+  blockedDueToRiderComplains?: boolean;
   blockedReason?: string;
   verified: boolean;
   subscribed: boolean;
@@ -64,26 +65,90 @@ export interface DriverInfoResponse {
   assignedCount?: number;
   cancelledCount?: number;
   driverTag?: string[];
+  driverTagObject?: Array<{
+    tagName: string;
+    tagValue: { contents: string | number; tag: string };
+    tagExpiry: string | null;
+  }>;
+  // AC Quality Stats
+  totalAcRestrictionUnblockCount?: number;
+  lastACStatusCheckedAt?: string;
+  currentAcOffReportCount?: number;
+  currentACStatus?: boolean;
+
+  // Service Tiers & Switching
+  selectedServiceTiers?: string[];
+  canSwitchToInterCity?: boolean;
+  canSwitchToIntraCity?: boolean;
+  canSwitchToRental?: boolean;
+  canDowngradeToHatchback?: boolean;
+  canDowngradeToSedan?: boolean;
+  canDowngradeToTaxi?: boolean;
+  downgradeReason?: string | null;
+
+  // Violations & Blocks
+  blockCount?: number;
+  drunkAndDriveViolationCount?: number;
+  blockStateModifier?: string | null;
+  softBlockExpiryTime?: string | null;
+  softBlockReasonFlag?: string | null;
+  softBlockStiers?: any; // or string[] if known
+
+  // Other Info
+  alternateNumber?: string | null;
+  lastOfflineTime?: string | null;
+  reactVersion?: string;
+  windowSize?: any;
+
   blockedInfo?: Array<{
     reportedAt: string;
-    blockedBy: string;
-    blockReason?: string;
+    reason: string;
+    blockedBy?: string;
     blockTimeInHours?: number;
   }>;
+  availableMerchants?: string[];
+  clientVersion?: {
+    major: number;
+    minor: number;
+    maintenance: number;
+    build: number | null;
+    preRelease: number | null;
+  };
+  bundleVersion?: {
+    major: number;
+    minor: number;
+    maintenance: number;
+    build: number | null;
+    preRelease: number | null;
+  };
+  aadharAssociationDetails?: any;
+  panCardDetails?: any;
+}
+
+export interface DriverInfoSearchParams {
+  [key: string]: string | number | boolean | null | undefined;
+  driverId?: string;
+  mobileNumber?: string;
+  mobileCountryCode?: string;
+  vehicleNumber?: string;
+  dlNumber?: string;
+  rcNumber?: string;
+  email?: string;
+  personId?: string;
 }
 
 export async function getDriverInfo(
   merchantId: string,
-  driverId: string,
-  cityId?: string
+  cityId?: string,
+  params: DriverInfoSearchParams = {}
 ): Promise<DriverInfoResponse> {
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/info`
     : `/driver-offer/{merchantId}/driver/info`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  const query = buildQueryParams({ driverId });
-  
+  const query = buildQueryParams(params);
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: `${path}${query}`,
@@ -102,9 +167,9 @@ export async function blockDriver(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/block`
     : `/driver-offer/{merchantId}/driver/{driverId}/block`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -126,9 +191,9 @@ export async function blockDriverWithReason(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/blockWithReason`
     : `/driver-offer/{merchantId}/driver/{driverId}/blockWithReason`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -144,9 +209,9 @@ export async function unblockDriver(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/unblock`
     : `/driver-offer/{merchantId}/driver/{driverId}/unblock`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -161,9 +226,9 @@ export async function enableDriver(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/enable`
     : `/driver-offer/{merchantId}/driver/{driverId}/enable`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -178,9 +243,9 @@ export async function disableDriver(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/disable`
     : `/driver-offer/{merchantId}/driver/{driverId}/disable`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -204,9 +269,9 @@ export async function getDriverDocuments(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/documents/info`
     : `/driver-offer/{merchantId}/driver/{driverId}/documents/info`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: path,
@@ -230,9 +295,9 @@ export async function getDriverActivity(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/activity`
     : `/driver-offer/{merchantId}/driver/activity`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: path,
@@ -254,10 +319,10 @@ export async function getDriverStats(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/stats`
     : `/driver-offer/{merchantId}/driver/stats`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
   const query = driverId ? buildQueryParams({ driverId }) : '';
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: `${path}${query}`,
@@ -288,10 +353,10 @@ export async function getDriverEarnings(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/earnings`
     : `/driver-offer/{merchantId}/driver/earnings`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
   const query = buildQueryParams({ driverId, from, to });
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: `${path}${query}`,
@@ -316,10 +381,10 @@ export async function getDriverLocation(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/location`
     : `/driver-offer/{merchantId}/driver/location`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
   const query = buildQueryParams({ driverId });
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: `${path}${query}`,
@@ -349,10 +414,10 @@ export async function getDriverFeedback(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/feedback/list`
     : `/driver-offer/{merchantId}/driver/feedback/list`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
   const query = buildQueryParams({ driverId });
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: `${path}${query}`,
@@ -375,9 +440,9 @@ export async function getBlockReasonList(
   const basePath = cityId && cityId !== 'all'
     ? `/driver-offer/{merchantId}/{city}/driver/blockReasonList`
     : `/driver-offer/{merchantId}/driver/blockReasonList`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: path,

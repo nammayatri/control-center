@@ -9,13 +9,13 @@ import type { DriverListFilters } from '../types';
 export function useDriverList(filters: DriverListFilters = {}) {
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
   const { loginModule } = useAuth();
-  
+
   // Use merchantShortId for API calls as that's what the API expects
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   // Only enable for BPP or FLEET login
   const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
-  
+
   return useQuery({
     queryKey: ['drivers', merchantId, cityId, filters],
     queryFn: () => driversService.listDrivers(
@@ -30,18 +30,18 @@ export function useDriverList(filters: DriverListFilters = {}) {
 export function useDriverInfo(driverId: string) {
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
   const { loginModule } = useAuth();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   // Only enable for BPP or FLEET login
   const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
-  
+
   return useQuery({
     queryKey: ['driver', merchantId, cityId, driverId],
     queryFn: () => driversService.getDriverInfo(
       apiMerchantId!,
-      driverId,
-      cityId || undefined
+      cityId || undefined,
+      { driverId },
     ),
     enabled: !!driverId && !!merchantId && hasAccess,
   });
@@ -50,12 +50,12 @@ export function useDriverInfo(driverId: string) {
 export function useDriverActivity() {
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
   const { loginModule } = useAuth();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   // Only enable for BPP or FLEET login
   const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
-  
+
   return useQuery({
     queryKey: ['driverActivity', merchantId, cityId],
     queryFn: () => driversService.getDriverActivity(
@@ -69,12 +69,12 @@ export function useDriverActivity() {
 export function useDriverEarnings(driverId: string, from?: string, to?: string) {
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
   const { loginModule } = useAuth();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   // Only enable for BPP or FLEET login
   const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
-  
+
   return useQuery({
     queryKey: ['driverEarnings', merchantId, cityId, driverId, from, to],
     queryFn: () => driversService.getDriverEarnings(
@@ -91,12 +91,12 @@ export function useDriverEarnings(driverId: string, from?: string, to?: string) 
 export function useDriverFeedback(driverId: string) {
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
   const { loginModule } = useAuth();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   // Only enable for BPP or FLEET login
   const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
-  
+
   return useQuery({
     queryKey: ['driverFeedback', merchantId, cityId, driverId],
     queryFn: () => driversService.getDriverFeedback(
@@ -111,11 +111,11 @@ export function useDriverFeedback(driverId: string) {
 export function useBlockDriver() {
   const queryClient = useQueryClient();
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   return useMutation({
-    mutationFn: (driverId: string) => 
+    mutationFn: (driverId: string) =>
       driversService.blockDriver(
         apiMerchantId!,
         driverId,
@@ -131,11 +131,11 @@ export function useBlockDriver() {
 export function useUnblockDriver() {
   const queryClient = useQueryClient();
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   return useMutation({
-    mutationFn: (driverId: string) => 
+    mutationFn: (driverId: string) =>
       driversService.unblockDriver(
         apiMerchantId!,
         driverId,
@@ -151,11 +151,11 @@ export function useUnblockDriver() {
 export function useEnableDriver() {
   const queryClient = useQueryClient();
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   return useMutation({
-    mutationFn: (driverId: string) => 
+    mutationFn: (driverId: string) =>
       driversService.enableDriver(
         apiMerchantId!,
         driverId,
@@ -171,11 +171,11 @@ export function useEnableDriver() {
 export function useDisableDriver() {
   const queryClient = useQueryClient();
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   return useMutation({
-    mutationFn: (driverId: string) => 
+    mutationFn: (driverId: string) =>
       driversService.disableDriver(
         apiMerchantId!,
         driverId,
@@ -191,12 +191,12 @@ export function useDisableDriver() {
 export function useBlockReasonList() {
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
   const { loginModule } = useAuth();
-  
+
   const apiMerchantId = merchantShortId || merchantId;
-  
+
   // Only enable for BPP or FLEET login
   const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
-  
+
   return useQuery({
     queryKey: ['blockReasons', merchantId, cityId],
     queryFn: () => driversService.getBlockReasonList(

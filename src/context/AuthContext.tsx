@@ -328,7 +328,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Immediately update current merchant and city based on selection
       // Find the merchant from our list
-      const selectedMerchant = merchants.find(m => m.shortId === merchantId || m.id === merchantId);
+      let selectedMerchant = merchants.find(m => m.shortId === merchantId || m.id === merchantId);
+
+      // FOR BPP/FLEET: If merchant not found in list, and it matches the current user's merchant ID, create a temporary one
+      // This is because BPP/Fleet might return merchantId differently or not include it in availableMerchants
+      if (!selectedMerchant && (loginModule === 'BPP' || loginModule === 'FLEET')) {
+        // If the switched merchantId matches what we expect, construct it
+        selectedMerchant = {
+          id: merchantId,
+          shortId: merchantId,
+          name: merchantId.replace(/_/g, ' '), // Basic formatting
+        };
+      }
+
       if (selectedMerchant) {
         setCurrentMerchantState(selectedMerchant);
         localStorage.setItem(CURRENT_MERCHANT_KEY, JSON.stringify(selectedMerchant));
@@ -336,8 +348,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Find the city from the merchant-city map or cities list
       const merchantMapping = merchantCityMap.find(m => m.merchantShortId === merchantId);
-      const selectedCity = merchantMapping?.cities.find(c => c.id === cityId)
+      let selectedCity = merchantMapping?.cities.find(c => c.id === cityId)
         || cities.find(c => c.id === cityId);
+
+      // FOR BPP/FLEET: If city not found, create a temporary one
+      if (!selectedCity && (loginModule === 'BPP' || loginModule === 'FLEET')) {
+        selectedCity = {
+          id: cityId,
+          name: cityId.split(':')[1] || cityId
+        };
+      }
+
       if (selectedCity) {
         setCurrentCityState(selectedCity);
         localStorage.setItem(CURRENT_CITY_KEY, JSON.stringify(selectedCity));

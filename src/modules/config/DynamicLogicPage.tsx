@@ -631,7 +631,7 @@ export function DynamicLogicPage() {
     const { data: domains, isLoading: domainsLoading } = useDomains();
     const [selectedDomain, setSelectedDomain] = useState<LogicDomain | null>(null);
 
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = loginModule === 'BAP' || loginModule === 'BPP';
 
     // Auto-select first domain
     useEffect(() => {
