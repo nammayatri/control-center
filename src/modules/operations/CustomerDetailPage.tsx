@@ -906,10 +906,10 @@ export function CustomerDetailPage() {
   const deleteMutation = useDeleteCustomer();
   const syncDuesMutation = useSyncCancellationDues();
 
-  const canBlock = hasAccess('CUSTOMERS_BLOCK');
-  const canUnblock = hasAccess('CUSTOMERS_UNBLOCK');
-  const canDelete = hasAccess('CUSTOMERS_DELETE');
-  const canSyncDues = hasAccess('CUSTOMERS_CANCELLATION_DUES_SYNC');
+  const canBlock = hasAccess('RIDER_MANAGEMENT/CUSTOMER/POST_CUSTOMER_BLOCK');
+  const canUnblock = hasAccess('RIDER_MANAGEMENT/CUSTOMER/POST_CUSTOMER_UNBLOCK');
+  const canDelete = hasAccess('RIDER_MANAGEMENT/CUSTOMER/DELETE_CUSTOMER_DELETE');
+  const canSyncDues = hasAccess('CUSTOMER_CANCELLATION_DUES_SYNC');
 
   const { rides, multimodalRides } = useMemo(() => {
     if (!journeyData?.list) return { rides: [], multimodalRides: [] };

@@ -1,4 +1,5 @@
-import { bapApi } from './api';
+import { bapApi, bppApi } from './api';
+import type { LoginModule } from '../types';
 
 export interface PersonDetail {
     firstName: string;
@@ -70,15 +71,17 @@ export interface GetIssuesParams {
 export const getIssuesList = async (
     merchantId: string,
     cityId: string,
-    params: GetIssuesParams
+    params: GetIssuesParams,
+    module: LoginModule = 'BAP'
 ) => {
+    const api = module === 'BPP' ? bppApi : bapApi;
     // Manually ensure status is double-quoted
     const queryParams = {
         ...params,
         status: `"${params.status}"`
     };
 
-    const response = await bapApi.get<GetIssuesResponse>(
+    const response = await api.get<GetIssuesResponse>(
         `/${merchantId}/${cityId}/issueV2/list`,
         { params: queryParams }
     );
@@ -88,9 +91,11 @@ export const getIssuesList = async (
 export const getIssueDetails = async (
     merchantId: string,
     cityId: string,
-    issueId: string
+    issueId: string,
+    module: LoginModule = 'BAP'
 ) => {
-    const response = await bapApi.get<IssueDetails>(
+    const api = module === 'BPP' ? bppApi : bapApi;
+    const response = await api.get<IssueDetails>(
         `/${merchantId}/${cityId}/issueV2/${issueId}/info`
     );
     return response.data;
@@ -100,9 +105,11 @@ export const updateIssueAssignee = async (
     merchantId: string,
     cityId: string,
     issueId: string,
-    assignee: string
+    assignee: string,
+    module: LoginModule = 'BAP'
 ) => {
-    const response = await bapApi.put(
+    const api = module === 'BPP' ? bppApi : bapApi;
+    const response = await api.put(
         `/${merchantId}/${cityId}/issueV2/${issueId}/update`,
         { assignee }
     );
@@ -113,9 +120,11 @@ export const updateIssueStatus = async (
     merchantId: string,
     cityId: string,
     issueId: string,
-    status: string
+    status: string,
+    module: LoginModule = 'BAP'
 ) => {
-    const response = await bapApi.put(
+    const api = module === 'BPP' ? bppApi : bapApi;
+    const response = await api.put(
         `/${merchantId}/${cityId}/issueV2/${issueId}/update`,
         { status }
     );
@@ -126,9 +135,11 @@ export const addIssueComment = async (
     merchantId: string,
     cityId: string,
     issueId: string,
-    comment: string
+    comment: string,
+    module: LoginModule = 'BAP'
 ) => {
-    const response = await bapApi.post(
+    const api = module === 'BPP' ? bppApi : bapApi;
+    const response = await api.post(
         `/${merchantId}/${cityId}/issueV2/${issueId}/comment`,
         { comment }
     );
@@ -140,12 +151,14 @@ export const sendIssuePush = async (
     cityId: string,
     rideId: string,
     message: string,
-    title: string
+    title: string,
+    module: LoginModule = 'BAP'
 ) => {
+    const api = module === 'BPP' ? bppApi : bapApi;
     // Note: The curl used `/api/bap/NAMMA_YATRI/Bangalore/rideBooking/multiModal/sendMessage/...`
     // This is a different path structure than issueV2.
     // Assuming rideBooking aligns with bapApi base.
-    const response = await bapApi.post(
+    const response = await api.post(
         `/${merchantId}/${cityId}/rideBooking/multiModal/sendMessage/${rideId}/`,
         {
             title,

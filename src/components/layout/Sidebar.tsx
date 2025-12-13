@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Truck,
   BarChart3,
+  Ticket,
   Settings,
   Shield,
   ChevronDown,
@@ -129,6 +130,21 @@ const navItems: NavItem[] = [
         icon: <BarChart3 className="h-4 w-4" />,
         resource: '*',
         action: '*',
+      },
+    ],
+  },
+  {
+    label: 'Agent Booth',
+    path: '/agent', // A parent path for agent booth items
+    icon: <Ticket className="h-4 w-4" />, // Using Ticket icon for agent booth
+    allowedModules: ['BAP'],
+    children: [
+      {
+        label: 'Pass Booking',
+        path: '/agent/pass-booking',
+        icon: <Ticket className="h-4 w-4" />, // Using Ticket icon for pass booking
+        resource: 'PASS_BOOKING', // Assuming a permission or use generics
+        action: 'VIEW',
       },
     ],
   },

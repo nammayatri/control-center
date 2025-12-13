@@ -20,11 +20,11 @@ export function useDomains() {
     const { loginModule } = useAuth();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useQuery({
-        queryKey: ['dynamicLogic', 'domains', merchantId, cityId],
-        queryFn: () => dynamicLogicService.getDomains(apiMerchantId!, cityId!),
+        queryKey: ['dynamicLogic', 'domains', merchantId, cityId, loginModule],
+        queryFn: () => dynamicLogicService.getDomains(apiMerchantId!, cityId!, loginModule || undefined),
         enabled: !!apiMerchantId && !!cityId && hasAccess,
     });
 }
@@ -38,11 +38,11 @@ export function useLogicRollout(domain: LogicDomain | null, timeBound?: string) 
     const { loginModule } = useAuth();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useQuery({
-        queryKey: ['dynamicLogic', 'rollout', merchantId, cityId, domain, timeBound],
-        queryFn: () => dynamicLogicService.getLogicRollout(apiMerchantId!, cityId!, domain!, timeBound),
+        queryKey: ['dynamicLogic', 'rollout', merchantId, cityId, domain, timeBound, loginModule],
+        queryFn: () => dynamicLogicService.getLogicRollout(apiMerchantId!, cityId!, domain!, timeBound, loginModule || undefined),
         enabled: !!apiMerchantId && !!cityId && !!domain && hasAccess,
     });
 }
@@ -53,14 +53,14 @@ export function useUpsertLogicRollout() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: LogicRolloutEntry[]) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return dynamicLogicService.upsertLogicRollout(apiMerchantId, cityId, data);
+            return dynamicLogicService.upsertLogicRollout(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['dynamicLogic', 'rollout'] });
@@ -77,11 +77,11 @@ export function useTimeBounds(domain: LogicDomain | null) {
     const { loginModule } = useAuth();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useQuery({
-        queryKey: ['dynamicLogic', 'timeBounds', merchantId, cityId, domain],
-        queryFn: () => dynamicLogicService.getTimeBounds(apiMerchantId!, cityId!, domain!),
+        queryKey: ['dynamicLogic', 'timeBounds', merchantId, cityId, domain, loginModule],
+        queryFn: () => dynamicLogicService.getTimeBounds(apiMerchantId!, cityId!, domain!, loginModule || undefined),
         enabled: !!apiMerchantId && !!cityId && !!domain && hasAccess,
     });
 }
@@ -92,14 +92,14 @@ export function useCreateTimeBounds() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: CreateTimeBoundsRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return dynamicLogicService.createTimeBounds(apiMerchantId, cityId, data);
+            return dynamicLogicService.createTimeBounds(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['dynamicLogic', 'timeBounds'] });
@@ -113,14 +113,14 @@ export function useDeleteTimeBounds() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: ({ domain, name }: { domain: LogicDomain; name: string }) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return dynamicLogicService.deleteTimeBounds(apiMerchantId, cityId, domain, name);
+            return dynamicLogicService.deleteTimeBounds(apiMerchantId, cityId, domain, name, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['dynamicLogic', 'timeBounds'] });
@@ -137,11 +137,11 @@ export function useDynamicLogic(domain: LogicDomain | null, version: number) {
     const { loginModule } = useAuth();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useQuery({
-        queryKey: ['dynamicLogic', 'logic', merchantId, cityId, domain, version],
-        queryFn: () => dynamicLogicService.getDynamicLogic(apiMerchantId!, cityId!, domain!, version),
+        queryKey: ['dynamicLogic', 'logic', merchantId, cityId, domain, version, loginModule],
+        queryFn: () => dynamicLogicService.getDynamicLogic(apiMerchantId!, cityId!, domain!, version, loginModule || undefined),
         enabled: !!apiMerchantId && !!cityId && !!domain && version > 0 && hasAccess,
     });
 }
@@ -152,14 +152,14 @@ export function useVerifyDynamicLogic() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: VerifyLogicRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return dynamicLogicService.verifyDynamicLogic(apiMerchantId, cityId, data);
+            return dynamicLogicService.verifyDynamicLogic(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: (data) => {
             if (data.isRuleUpdated) {
@@ -175,11 +175,11 @@ export function useLogicVersions(domain: LogicDomain | null, limit: number = 10,
     const { loginModule } = useAuth();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useQuery({
-        queryKey: ['dynamicLogic', 'versions', merchantId, cityId, domain, limit, offset],
-        queryFn: () => dynamicLogicService.getLogicVersions(apiMerchantId!, cityId!, domain!, limit, offset),
+        queryKey: ['dynamicLogic', 'versions', merchantId, cityId, domain, limit, offset, loginModule],
+        queryFn: () => dynamicLogicService.getLogicVersions(apiMerchantId!, cityId!, domain!, limit, offset, loginModule || undefined),
         enabled: !!apiMerchantId && !!cityId && !!domain && hasAccess,
     });
 }

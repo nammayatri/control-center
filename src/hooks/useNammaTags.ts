@@ -23,14 +23,14 @@ export function useCreateTag() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule; // BAP or BPP
 
     return useMutation({
         mutationFn: (data: CreateTagRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return nammaTagsService.createTag(apiMerchantId, cityId, data);
+            return nammaTagsService.createTag(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['nammaTags'] });
@@ -44,14 +44,14 @@ export function useUpdateTag() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: UpdateTagRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return nammaTagsService.updateTag(apiMerchantId, cityId, data);
+            return nammaTagsService.updateTag(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['nammaTags'] });
@@ -65,14 +65,14 @@ export function useDeleteTag() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (tagName: string) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return nammaTagsService.deleteTag(apiMerchantId, cityId, tagName);
+            return nammaTagsService.deleteTag(apiMerchantId, cityId, tagName, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['nammaTags'] });
@@ -85,14 +85,14 @@ export function useVerifyTagRule() {
     const { loginModule } = useAuth();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: VerifyTagRuleRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return nammaTagsService.verifyTagRule(apiMerchantId, cityId, data);
+            return nammaTagsService.verifyTagRule(apiMerchantId, cityId, data, loginModule || undefined);
         },
     });
 }
@@ -107,14 +107,14 @@ export function useCreateQuery() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: CreateQueryRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return nammaTagsService.createQuery(apiMerchantId, cityId, data);
+            return nammaTagsService.createQuery(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['nammaQueries'] });
@@ -128,14 +128,14 @@ export function useUpdateQuery() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: UpdateQueryRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return nammaTagsService.updateQuery(apiMerchantId, cityId, data);
+            return nammaTagsService.updateQuery(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['nammaQueries'] });
@@ -149,14 +149,14 @@ export function useDeleteQuery() {
     const queryClient = useQueryClient();
 
     const apiMerchantId = merchantShortId || merchantId;
-    const hasAccess = loginModule === 'BAP';
+    const hasAccess = !!loginModule;
 
     return useMutation({
         mutationFn: (data: DeleteQueryRequest) => {
             if (!apiMerchantId || !cityId || !hasAccess) {
                 return Promise.reject(new Error('Missing required context'));
             }
-            return nammaTagsService.deleteQuery(apiMerchantId, cityId, data);
+            return nammaTagsService.deleteQuery(apiMerchantId, cityId, data, loginModule || undefined);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['nammaQueries'] });

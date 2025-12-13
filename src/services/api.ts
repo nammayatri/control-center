@@ -4,11 +4,17 @@ import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } f
 // In development, requests are proxied through Vite to avoid CORS
 // In production, these should point to the actual API endpoints
 const isDev = import.meta.env.DEV;
+const API_DOMAIN = import.meta.env.VITE_API_URL || 'https://dashboard.moving.tech';
+
+// For "dev" and "master" environments (integ domain), the path prefix is /api/dev
+// For "prod" (moving.tech domain), the path prefix is /api
+const isInteg = API_DOMAIN.includes('integ');
+const apiPath = isInteg ? '/api/dev' : '/api';
 
 export const API_BASE_URLS = {
-  BAP: isDev ? '/api/bap' : 'https://dashboard.moving.tech/api/bap',
-  BPP: isDev ? '/api/bpp' : 'https://dashboard.moving.tech/api/bpp',
-  ADMIN: isDev ? '/api' : 'https://dashboard.moving.tech/api',
+  BAP: isDev ? '/api/bap' : `${API_DOMAIN}${apiPath}/bap`,
+  BPP: isDev ? '/api/bpp' : `${API_DOMAIN}${apiPath}/bpp`,
+  ADMIN: isDev ? '/api' : `${API_DOMAIN}${apiPath}`,
 } as const;
 
 // Create axios instances for different API endpoints
@@ -73,11 +79,11 @@ export function buildPath(
   if (!merchantId || merchantId === 'all') {
     return basePath;
   }
-  
+
   if (cityId && cityId !== 'all') {
     return basePath.replace('{merchantId}', merchantId).replace('{city}', cityId);
   }
-  
+
   return basePath.replace('{merchantId}', merchantId).replace('/{city}', '');
 }
 

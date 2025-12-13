@@ -19,6 +19,7 @@ import { UsersPage } from './modules/access/UsersPage';
 import { RolesPage } from './modules/access/RolesPage';
 import { AnalyticsOverviewPage } from './modules/analytics/AnalyticsOverviewPage';
 import { NammaTagsPage } from './modules/config/NammaTagsPage';
+import PassBookingPage from './modules/agent/PassBookingPage';
 import { DynamicLogicPage } from './modules/config/DynamicLogicPage';
 import IssuesListPage from './modules/operations/IssuesListPage';
 import IssueDetailPage from './modules/operations/IssueDetailPage';
@@ -151,11 +152,14 @@ function AppRoutes() {
           <Route path="reports" element={<PlaceholderPage title="Reports" />} />
         </Route>
 
+        {/* Agent */}
+        <Route path="/agent/pass-booking" element={<PassBookingPage />} />
+
         {/* Config */}
         <Route path="config">
           <Route index element={<Navigate to="/config/namma-tags" replace />} />
           <Route path="namma-tags" element={<NammaTagsPage />} />
-          <Route path="dynamic-logic" element={<DynamicLogicPage />} />
+          <Route path="logic" element={<DynamicLogicPage />} />
           <Route path="fare-policy" element={<PlaceholderPage title="Fare Policy" />} />
           <Route path="settings" element={<PlaceholderPage title="Settings" />} />
         </Route>
