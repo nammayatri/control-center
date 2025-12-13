@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Button } from '../ui/button';
 import {
   Select,
   SelectContent,
@@ -8,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { Building2, MapPin, Loader2, RefreshCw } from 'lucide-react';
+import { Building2, MapPin, Loader2 } from 'lucide-react';
 
 export function MerchantCitySelector() {
   const {
@@ -43,38 +42,28 @@ export function MerchantCitySelector() {
     }
   }, [currentCity]);
 
-  // Check if selection has changed from current context
-  const hasChanges = (
-    (selectedMerchantId && selectedMerchantId !== (currentMerchant?.shortId || currentMerchant?.id)) ||
-    (selectedCityId && selectedCityId !== currentCity?.id)
-  );
-
   const handleMerchantChange = (merchantId: string) => {
     setSelectedMerchantId(merchantId);
     // Reset city when merchant changes - user needs to select a new city
     setSelectedCityId('');
   };
 
-  const handleCityChange = (cityId: string) => {
+  const handleCityChange = async (cityId: string) => {
     setSelectedCityId(cityId);
-  };
 
-  const handleSwitch = async () => {
-    if (!selectedMerchantId || !selectedCityId) {
-      console.warn('Please select both merchant and city');
-      return;
-    }
-
-    setIsSwitching(true);
-    try {
-      await switchContext(selectedMerchantId, selectedCityId);
-    } catch (error) {
-      console.error('Failed to switch context:', error);
-      // Reset to current values on error
-      if (currentMerchant) setSelectedMerchantId(currentMerchant.shortId || currentMerchant.id);
-      if (currentCity) setSelectedCityId(currentCity.id);
-    } finally {
-      setIsSwitching(false);
+    // Auto-switch context when city is selected
+    if (selectedMerchantId && cityId) {
+      setIsSwitching(true);
+      try {
+        await switchContext(selectedMerchantId, cityId);
+      } catch (error) {
+        console.error('Failed to switch context:', error);
+        // Reset to current values on error
+        if (currentMerchant) setSelectedMerchantId(currentMerchant.shortId || currentMerchant.id);
+        if (currentCity) setSelectedCityId(currentCity.id);
+      } finally {
+        setIsSwitching(false);
+      }
     }
   };
 
@@ -136,26 +125,10 @@ export function MerchantCitySelector() {
         </Select>
       </div>
 
-      {/* Switch Button - Only show when there are changes */}
-      <Button
-        size="sm"
-        variant={hasChanges ? "default" : "outline"}
-        onClick={handleSwitch}
-        disabled={isSwitching || !selectedMerchantId || !selectedCityId}
-        className="h-8"
-      >
-        {isSwitching ? (
-          <>
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Switching...
-          </>
-        ) : (
-          <>
-            <RefreshCw className="h-3 w-3 md:mr-1" />
-            <span className="hidden md:inline">Switch</span>
-          </>
-        )}
-      </Button>
+      {/* Loading indicator when switching */}
+      {isSwitching && (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      )}
     </div>
   );
 }

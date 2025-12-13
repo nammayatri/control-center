@@ -15,6 +15,7 @@ import {
   Settings,
   Shield,
   Lock,
+  Ticket,
 } from 'lucide-react';
 
 interface QuickLinkProps {
@@ -165,6 +166,14 @@ export function DashboardPage() {
               description="View reports and performance metrics"
               icon={<BarChart3 className="h-6 w-6" />}
               href="/analytics/overview"
+            />
+            <QuickLink
+              title="Agent Booth"
+              description="Book bus passes for customers at booths"
+              icon={<Ticket className="h-6 w-6" />}
+              href="/agent/pass-booking"
+              locked={isDriverModule}
+              lockMessage="Requires Customer (BAP) login"
             />
             <QuickLink
               title="System Configuration"

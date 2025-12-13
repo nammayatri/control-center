@@ -27,7 +27,7 @@ import {
     useSelectPass,
     usePaymentStatus,
 } from '../../hooks/useBooth';
-import { Loader2, CheckCircle2, Ticket, QrCode, Camera, RefreshCw, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle2, Ticket, QrCode, Camera, RefreshCw, Trash2, SwitchCamera } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PassDetails, PurchasedPass } from '../../types/booth';
 
@@ -48,6 +48,7 @@ export default function PassBookingPage() {
     const [bookingStartDate, setBookingStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [showCamera, setShowCamera] = useState(false);
+    const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
     const videoRef = React.useRef<HTMLVideoElement>(null);
     const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -76,11 +77,21 @@ export default function PassBookingPage() {
     }, [paymentStatus]);
 
     // Camera Handlers
-    const handleStartCamera = async () => {
+    const handleStartCamera = async (mode: 'user' | 'environment' = facingMode) => {
         setCapturedImage(null);
         setShowCamera(true);
+        setFacingMode(mode);
+
+        // Stop any existing stream first
+        if (videoRef.current && videoRef.current.srcObject) {
+            const oldStream = videoRef.current.srcObject as MediaStream;
+            oldStream.getTracks().forEach(track => track.stop());
+        }
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: mode }
+            });
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
             }
@@ -88,6 +99,11 @@ export default function PassBookingPage() {
             toast.error("Unable to access camera");
             setShowCamera(false);
         }
+    };
+
+    const handleSwitchCamera = () => {
+        const newMode = facingMode === 'user' ? 'environment' : 'user';
+        handleStartCamera(newMode);
     };
 
     const handleStopCamera = () => {
@@ -532,7 +548,7 @@ export default function PassBookingPage() {
                                         <Button
                                             variant="outline"
                                             className="w-full h-24 border-dashed border-2 flex flex-col gap-2"
-                                            onClick={handleStartCamera}
+                                            onClick={() => handleStartCamera()}
                                         >
                                             <Camera className="w-6 h-6 text-muted-foreground" />
                                             Capture Photo
@@ -541,13 +557,32 @@ export default function PassBookingPage() {
 
                                     {showCamera && (
                                         <div className="space-y-2">
-                                            <div className="relative rounded-lg overflow-hidden bg-black aspect-video">
+                                            <div className="relative rounded-lg overflow-hidden bg-black aspect-square">
                                                 <video
                                                     ref={videoRef}
                                                     autoPlay
                                                     playsInline
+                                                    muted
                                                     className="w-full h-full object-cover"
                                                 />
+                                                {/* Face Guide Overlay */}
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="w-48 h-60 border-4 border-white/50 rounded-[50%] shadow-lg">
+                                                        {/* Face outline */}
+                                                    </div>
+                                                </div>
+                                                <p className="absolute bottom-2 left-0 right-0 text-center text-white text-xs bg-black/40 py-1">
+                                                    Align face within the oval
+                                                </p>
+                                                {/* Switch Camera Button */}
+                                                <Button
+                                                    size="icon"
+                                                    variant="secondary"
+                                                    className="absolute top-2 right-2 h-10 w-10 rounded-full bg-white/20 backdrop-blur hover:bg-white/40"
+                                                    onClick={handleSwitchCamera}
+                                                >
+                                                    <SwitchCamera className="w-5 h-5 text-white" />
+                                                </Button>
                                             </div>
                                             <div className="flex gap-2">
                                                 <Button onClick={handleCapturePhoto} className="flex-1">Capture</Button>
@@ -569,7 +604,7 @@ export default function PassBookingPage() {
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </div>
-                                            <Button variant="outline" size="sm" onClick={handleStartCamera} className="w-full">
+                                            <Button variant="outline" size="sm" onClick={() => handleStartCamera()} className="w-full">
                                                 <RefreshCw className="w-3 h-3 mr-2" /> Retake Photo
                                             </Button>
                                         </div>
