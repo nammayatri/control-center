@@ -345,6 +345,7 @@ export default function PassBookingPage() {
                                     value={mobileNumber}
                                     onChange={(e) => setMobileNumber(e.target.value)}
                                     maxLength={10}
+                                    inputMode="numeric"
                                 />
                                 <Button
                                     onClick={handleSendOtp}
@@ -362,6 +363,7 @@ export default function PassBookingPage() {
                                 placeholder="Enter OTP"
                                 value={otp}
                                 onChange={(e) => setOtp(e.target.value)}
+                                inputMode="numeric"
                             />
                         </div>
                     </CardContent>
