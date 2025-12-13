@@ -4,6 +4,8 @@ import { Page, PageHeader, PageContent } from '../../components/layout/Page';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../context/PermissionsContext';
+import { navConfig, hasAccessibleChildren, getFirstAccessibleChildPath } from '../../config/navigation';
 import {
   Users,
   Car,
@@ -14,42 +16,36 @@ import {
   BarChart3,
   Settings,
   Shield,
-  Lock,
   Ticket,
+  LayoutDashboard,
+  MessageSquare,
+  AlertCircle,
 } from 'lucide-react';
+
+// Icon mapping from string to component
+const iconMap: Record<string, React.ReactNode> = {
+  LayoutDashboard: <LayoutDashboard className="h-6 w-6" />,
+  Users: <Users className="h-6 w-6" />,
+  Car: <Car className="h-6 w-6" />,
+  UserCircle: <UserCircle className="h-6 w-6" />,
+  Truck: <Truck className="h-6 w-6" />,
+  BarChart3: <BarChart3 className="h-6 w-6" />,
+  Settings: <Settings className="h-6 w-6" />,
+  Shield: <Shield className="h-6 w-6" />,
+  Ticket: <Ticket className="h-6 w-6" />,
+  MessageSquare: <MessageSquare className="h-6 w-6" />,
+  AlertCircle: <AlertCircle className="h-6 w-6" />,
+};
 
 interface QuickLinkProps {
   title: string;
   description: string;
   icon: React.ReactNode;
   href: string;
-  locked?: boolean;
-  lockMessage?: string;
 }
 
-function QuickLink({ title, description, icon, href, locked, lockMessage }: QuickLinkProps) {
+function QuickLink({ title, description, icon, href }: QuickLinkProps) {
   const navigate = useNavigate();
-
-  if (locked) {
-    return (
-      <Card className="opacity-60 cursor-not-allowed">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-muted rounded-lg text-muted-foreground">
-              {icon}
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-muted-foreground flex items-center gap-2">
-                {title}
-                <Lock className="h-3 w-3" />
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">{lockMessage || 'Different login required'}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card
@@ -77,6 +73,7 @@ function QuickLink({ title, description, icon, href, locked, lockMessage }: Quic
 export function DashboardPage() {
   const { merchantId } = useDashboardContext();
   const { user, loginModule } = useAuth();
+  const { hasPermission } = usePermissions();
 
   const isDriverModule = loginModule === 'BPP' || loginModule === 'FLEET';
   const isCustomerModule = loginModule === 'BAP';
@@ -91,6 +88,19 @@ export function DashboardPage() {
       default: return '';
     }
   };
+
+  // Filter nav items that should appear as quick links (skip Dashboard itself)
+  // Only show parent items that have accessible children
+  const quickLinks = navConfig
+    .filter(item => item.path !== '/dashboard') // Skip Dashboard
+    .filter(item => {
+      // If item has children, check if any are accessible
+      if (item.children && item.children.length > 0) {
+        return hasAccessibleChildren(item, loginModule, hasPermission);
+      }
+      // If no children, this item itself should be accessible
+      return true;
+    });
 
   return (
     <Page>
@@ -133,60 +143,26 @@ export function DashboardPage() {
           </Card>
         )}
 
-        {/* Quick Links */}
+        {/* Quick Links - Generated from nav config */}
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-4">Quick Access</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <QuickLink
-              title="Driver Operations"
-              description="Manage drivers, view profiles, and handle issues"
-              icon={<UserCircle className="h-6 w-6" />}
-              href="/ops/drivers"
-              locked={isCustomerModule}
-              lockMessage="Requires Driver (BPP) login"
-            />
-            <QuickLink
-              title="Customer Operations"
-              description="View customers, bookings, and support tickets"
-              icon={<Users className="h-6 w-6" />}
-              href="/ops/customers"
-              locked={isDriverModule}
-              lockMessage="Requires Customer (BAP) login"
-            />
-            <QuickLink
-              title="Fleet Management"
-              description="Monitor vehicles and fleet performance"
-              icon={<Truck className="h-6 w-6" />}
-              href="/fleet/overview"
-              locked={isCustomerModule}
-              lockMessage="Requires Driver (BPP/Fleet) login"
-            />
-            <QuickLink
-              title="Analytics"
-              description="View reports and performance metrics"
-              icon={<BarChart3 className="h-6 w-6" />}
-              href="/analytics/overview"
-            />
-            <QuickLink
-              title="Agent Booth"
-              description="Book bus passes for customers at booths"
-              icon={<Ticket className="h-6 w-6" />}
-              href="/agent/pass-booking"
-              locked={isDriverModule}
-              lockMessage="Requires Customer (BAP) login"
-            />
-            <QuickLink
-              title="System Configuration"
-              description="Manage fare policies and settings"
-              icon={<Settings className="h-6 w-6" />}
-              href="/config/settings"
-            />
-            <QuickLink
-              title="Access Control"
-              description="Manage users, roles, and permissions"
-              icon={<Shield className="h-6 w-6" />}
-              href="/access/users"
-            />
+            {quickLinks.map((item) => {
+              // Get the path to navigate to (first accessible child or item path)
+              const targetPath = item.children && item.children.length > 0
+                ? getFirstAccessibleChildPath(item, loginModule, hasPermission) || item.path
+                : item.path;
+
+              return (
+                <QuickLink
+                  key={item.path}
+                  title={item.label}
+                  description={item.description || `Manage ${item.label.toLowerCase()}`}
+                  icon={iconMap[item.icon || 'LayoutDashboard'] || <LayoutDashboard className="h-6 w-6" />}
+                  href={targetPath}
+                />
+              );
+            })}
           </div>
         </div>
 
@@ -205,7 +181,7 @@ export function DashboardPage() {
                   <div>
                     <h4 className="font-medium">Select a Merchant & City</h4>
                     <p className="text-sm text-muted-foreground">
-                      Use the merchant and city selectors in the top bar, then click Switch to change context.
+                      Use the merchant and city selectors in the top bar to change context.
                     </p>
                   </div>
                 </div>

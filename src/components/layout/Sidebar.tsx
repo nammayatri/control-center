@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { usePermissions } from '../../context/PermissionsContext';
 import { useAuth } from '../../context/AuthContext';
+import { navConfig, canAccessNavItem, hasAccessibleChildren, type NavItem } from '../../config/navigation';
 import type { LoginModule } from '../../types';
 import {
   LayoutDashboard,
@@ -21,198 +22,26 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
-interface NavItem {
-  label: string;
-  path: string;
-  icon: React.ReactNode;
-  resource?: string;
-  action?: string;
-  children?: NavItem[];
-  // Which modules can access this item. If undefined, all modules can access.
-  allowedModules?: LoginModule[];
-  // If true, show as locked/disabled for users not logged in with the allowed module
-  showLocked?: boolean;
-}
+// Icon mapping from string to React component
+const iconMap: Record<string, (size: 'sm' | 'lg') => React.ReactNode> = {
+  LayoutDashboard: (size) => <LayoutDashboard className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  Users: (size) => <Users className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  Car: (size) => <Car className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  UserCircle: (size) => <UserCircle className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  MessageSquare: (size) => <MessageSquare className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  Truck: (size) => <Truck className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  BarChart3: (size) => <BarChart3 className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  Ticket: (size) => <Ticket className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  Settings: (size) => <Settings className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  Shield: (size) => <Shield className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+  AlertCircle: (size) => <AlertCircle className={size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'} />,
+};
 
-// Navigation items with module restrictions
-const navItems: NavItem[] = [
-  {
-    label: 'Dashboard',
-    path: '/dashboard',
-    icon: <LayoutDashboard className="h-5 w-5" />,
-  },
-  {
-    label: 'Operations',
-    path: '/ops',
-    icon: <UserCircle className="h-5 w-5" />,
-    children: [
-      {
-        label: 'Drivers',
-        path: '/ops/drivers',
-        icon: <Car className="h-4 w-4" />,
-        resource: 'DRIVERS',
-        action: 'LIST',
-        allowedModules: ['BPP', 'FLEET'],
-        showLocked: true,
-      },
-      {
-        label: 'Customers',
-        path: '/ops/customers',
-        icon: <Users className="h-4 w-4" />,
-        resource: 'DSL',
-        action: 'RIDER_MANAGEMENT/CUSTOMER/GET_CUSTOMER_INFO',
-        allowedModules: ['BAP'],
-        showLocked: true,
-      },
-      {
-        label: 'Rides',
-        path: '/ops/rides',
-        icon: <Car className="h-4 w-4" />,
-        resource: 'RIDES',
-        action: 'RIDE_LIST',
-      },
-      {
-        label: 'Communications',
-        path: '/ops/comms',
-        icon: <MessageSquare className="h-4 w-4" />,
-        resource: 'ops.comms',
-        action: 'view',
-      },
-      {
-        label: 'Issues',
-        path: '/ops/issues',
-        icon: <AlertCircle className="h-4 w-4" />,
-        resource: 'DSL',
-        action: 'RIDER_ISSUE_MANAGEMENT/ISSUE/GET_ISSUE_LIST',
-      },
-    ],
-  },
-  {
-    label: 'Fleet',
-    path: '/fleet',
-    icon: <Truck className="h-5 w-5" />,
-    allowedModules: ['BPP', 'FLEET'],
-    showLocked: true,
-    children: [
-      {
-        label: 'Overview',
-        path: '/fleet/overview',
-        icon: <LayoutDashboard className="h-4 w-4" />,
-        resource: 'fleet',
-        action: 'view',
-        allowedModules: ['BPP', 'FLEET'],
-      },
-      {
-        label: 'Vehicles',
-        path: '/fleet/vehicles',
-        icon: <Car className="h-4 w-4" />,
-        resource: 'fleet.vehicles',
-        action: 'view',
-        allowedModules: ['BPP', 'FLEET'],
-      },
-    ],
-  },
-  {
-    label: 'Analytics',
-    path: '/analytics',
-    icon: <BarChart3 className="h-5 w-5" />,
-    children: [
-      {
-        label: 'Overview',
-        path: '/analytics/overview',
-        icon: <LayoutDashboard className="h-4 w-4" />,
-        resource: '*',
-        action: '*',
-      },
-      {
-        label: 'Reports',
-        path: '/analytics/reports',
-        icon: <BarChart3 className="h-4 w-4" />,
-        resource: '*',
-        action: '*',
-      },
-    ],
-  },
-  {
-    label: 'Agent Booth',
-    path: '/agent', // A parent path for agent booth items
-    icon: <Ticket className="h-4 w-4" />, // Using Ticket icon for agent booth
-    allowedModules: ['BAP'],
-    children: [
-      {
-        label: 'Pass Booking',
-        path: '/agent/pass-booking',
-        icon: <Ticket className="h-4 w-4" />, // Using Ticket icon for pass booking
-        resource: 'PASS_BOOKING', // Assuming a permission or use generics
-        action: 'VIEW',
-      },
-    ],
-  },
-  {
-    label: 'System Config',
-    path: '/config',
-    icon: <Settings className="h-5 w-5" />,
-    children: [
-      {
-        label: 'NammaTags',
-        path: '/config/namma-tags',
-        icon: <Settings className="h-4 w-4" />,
-        resource: 'DSL',
-        action: 'RIDER_MANAGEMENT/NAMMA_TAG/POST_NAMMA_TAG_TAG_CREATE',
-        allowedModules: ['BAP', 'BPP'],
-        showLocked: true,
-      },
-      {
-        label: 'Dynamic Logic',
-        path: '/config/dynamic-logic',
-        icon: <Settings className="h-4 w-4" />,
-        resource: 'DSL',
-        action: 'RIDER_MANAGEMENT/NAMMA_TAG/POST_NAMMA_TAG_APP_DYNAMIC_LOGIC_UPSERT_LOGIC_ROLLOUT',
-        allowedModules: ['BAP', 'BPP'],
-        showLocked: true,
-      },
-      {
-        label: 'Fare Policy',
-        path: '/config/fare-policy',
-        icon: <Settings className="h-4 w-4" />,
-        resource: 'DSL',
-        action: 'DRIVER_OFFER_BPP_MANAGEMENT/MERCHANT/UPSERT_FARE_POLICY',
-        allowedModules: ['BAP', 'BPP'],
-        showLocked: true,
-      },
-      {
-        label: 'Settings',
-        path: '/config/settings',
-        icon: <Settings className="h-4 w-4" />,
-        resource: 'DSL',
-        action: 'DRIVER_OFFER_BPP_MANAGEMENT/MERCHANT/UPSERT_FARE_POLICY',
-        allowedModules: ['BAP', 'BPP'],
-        showLocked: true,
-      },
-    ],
-  },
-  {
-    label: 'Access Control',
-    path: '/access',
-    icon: <Shield className="h-5 w-5" />,
-    children: [
-      {
-        label: 'Users',
-        path: '/access/users',
-        icon: <Users className="h-4 w-4" />,
-        resource: 'admin.users',
-        action: 'view',
-      },
-      {
-        label: 'Roles',
-        path: '/access/roles',
-        icon: <Shield className="h-4 w-4" />,
-        resource: 'admin.roles',
-        action: 'view',
-      },
-    ],
-  },
-];
+const getIcon = (iconName: string | undefined, isChild: boolean): React.ReactNode => {
+  const size = isChild ? 'sm' : 'lg';
+  const iconFn = iconMap[iconName || 'LayoutDashboard'];
+  return iconFn ? iconFn(size) : <LayoutDashboard className={isChild ? 'h-4 w-4' : 'h-5 w-5'} />;
+};
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -226,7 +55,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
   // Auto-expand parent when child is active
   React.useEffect(() => {
-    navItems.forEach((item) => {
+    navConfig.forEach((item) => {
       if (item.children?.some((child) => location.pathname.startsWith(child.path))) {
         setExpandedItems((prev) =>
           prev.includes(item.path) ? prev : [...prev, item.path]
@@ -241,11 +70,6 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
         ? prev.filter((p) => p !== path)
         : [...prev, path]
     );
-  };
-
-  const canAccessItem = (item: NavItem): boolean => {
-    if (!item.resource || !item.action) return true;
-    return hasPermission(item.resource, item.action);
   };
 
   // Check if user has correct module for this item
@@ -263,36 +87,15 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   };
 
   const renderNavItem = (item: NavItem, isChild = false) => {
-    if (!canAccessItem(item)) return null;
-
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.path);
     const isActive = location.pathname === item.path ||
       (hasChildren && item.children?.some((c) => location.pathname.startsWith(c.path)));
     const moduleAccessGranted = hasModuleAccess(item);
+    const canAccess = canAccessNavItem(item, loginModule, hasPermission);
 
     // If item requires different module and showLocked is true, show locked state
     if (!moduleAccessGranted && item.showLocked) {
-      if (hasChildren) {
-        return (
-          <div key={item.path}>
-            <div
-              className={cn(
-                "flex w-full items-center justify-between px-3 py-2 rounded-lg text-sm font-medium",
-                "text-sidebar-foreground/40 cursor-not-allowed"
-              )}
-              title={`Requires ${getRequiredModuleName(item.allowedModules!)} login`}
-            >
-              <div className="flex items-center gap-3">
-                {item.icon}
-                {!collapsed && <span>{item.label}</span>}
-              </div>
-              {!collapsed && <Lock className="h-3 w-3" />}
-            </div>
-          </div>
-        );
-      }
-
       return (
         <div
           key={item.path}
@@ -303,7 +106,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           )}
           title={`Requires ${getRequiredModuleName(item.allowedModules!)} login`}
         >
-          {item.icon}
+          {getIcon(item.icon, isChild)}
           {!collapsed && (
             <>
               <span className="flex-1">{item.label}</span>
@@ -314,18 +117,17 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
       );
     }
 
-    // If item requires different module and not showing locked, hide it
-    if (!moduleAccessGranted) {
+    // If item requires different module and not showing locked, or no permission, hide it
+    if (!canAccess) {
       return null;
     }
 
     if (hasChildren) {
-      // Filter children based on module access
-      const accessibleChildren = item.children?.filter(child =>
-        hasModuleAccess(child) || child.showLocked
-      );
+      // Check if user can access any children
+      const hasAccessible = hasAccessibleChildren(item, loginModule, hasPermission);
 
-      if (!accessibleChildren || accessibleChildren.length === 0) {
+      // If no children are actually accessible, hide the parent tab entirely
+      if (!hasAccessible) {
         return null;
       }
 
@@ -341,7 +143,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
             )}
           >
             <div className="flex items-center gap-3">
-              {item.icon}
+              {getIcon(item.icon, false)}
               {!collapsed && <span>{item.label}</span>}
             </div>
             {!collapsed && (
@@ -375,7 +177,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           )
         }
       >
-        {item.icon}
+        {getIcon(item.icon, isChild)}
         {!collapsed && <span>{item.label}</span>}
       </NavLink>
     );
@@ -415,7 +217,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        {navItems.map((item) => renderNavItem(item))}
+        {navConfig.map((item) => renderNavItem(item))}
       </nav>
 
       {/* Footer */}
