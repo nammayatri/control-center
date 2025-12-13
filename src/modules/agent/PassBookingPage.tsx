@@ -27,7 +27,7 @@ import {
     useSelectPass,
     usePaymentStatus,
 } from '../../hooks/useBooth';
-import { Loader2, CheckCircle2, Ticket, QrCode } from 'lucide-react';
+import { Loader2, CheckCircle2, Ticket, QrCode, Camera, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PassDetails, PurchasedPass } from '../../types/booth';
 
@@ -46,6 +46,10 @@ export default function PassBookingPage() {
     // Purchase Selection State
     const [selectedPassForPurchase, setSelectedPassForPurchase] = useState<PassDetails | null>(null);
     const [bookingStartDate, setBookingStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [capturedImage, setCapturedImage] = useState<string | null>(null);
+    const [showCamera, setShowCamera] = useState(false);
+    const videoRef = React.useRef<HTMLVideoElement>(null);
+    const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
     // Hooks
     const sendOtpMutation = useSendAuthOtp();
@@ -70,6 +74,46 @@ export default function PassBookingPage() {
             setStep('SUCCESS');
         }
     }, [paymentStatus]);
+
+    // Camera Handlers
+    const handleStartCamera = async () => {
+        setCapturedImage(null);
+        setShowCamera(true);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+        } catch (err) {
+            toast.error("Unable to access camera");
+            setShowCamera(false);
+        }
+    };
+
+    const handleStopCamera = () => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+        }
+        setShowCamera(false);
+    };
+
+    const handleCapturePhoto = () => {
+        if (videoRef.current && canvasRef.current) {
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            if (context) {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                setCapturedImage(dataUrl);
+                handleStopCamera();
+            }
+        }
+    };
 
     const handleSendOtp = () => {
         if (mobileNumber.length !== 10) {
@@ -140,6 +184,7 @@ export default function PassBookingPage() {
                 passId: selectedPassForPurchase.id,
                 data: {
                     startDay: bookingStartDate,
+                    profilePicture: capturedImage || undefined,
                 },
             },
             {
@@ -435,15 +480,100 @@ export default function PassBookingPage() {
                                 <div className="text-xl font-bold">₹{selectedPassForPurchase.amount}</div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Start Date</Label>
-                                <Input
-                                    type="date"
-                                    value={bookingStartDate}
-                                    min={new Date().toISOString().split('T')[0]}
-                                    onChange={(e) => setBookingStartDate(e.target.value)}
-                                    className="w-full"
-                                />
+                            <div className="space-y-4">
+                                <div>
+                                    <Label>Start Date</Label>
+                                    <div className="flex gap-2 mb-2 mt-1">
+                                        <Button
+                                            variant={bookingStartDate === new Date().toISOString().split('T')[0] ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => setBookingStartDate(new Date().toISOString().split('T')[0])}
+                                            className="text-xs"
+                                        >
+                                            Today
+                                        </Button>
+                                        <Button
+                                            variant={bookingStartDate === (() => {
+                                                const d = new Date();
+                                                d.setDate(16);
+                                                if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
+                                                return d.toISOString().split('T')[0];
+                                            })() ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => {
+                                                const d = new Date();
+                                                d.setDate(16);
+                                                if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
+                                                setBookingStartDate(d.toISOString().split('T')[0]);
+                                            }}
+                                            className="text-xs"
+                                        >
+                                            16th {(() => {
+                                                const d = new Date();
+                                                if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
+                                                return d.toLocaleString('default', { month: 'short' });
+                                            })()}
+                                        </Button>
+                                    </div>
+                                    <Input
+                                        type="date"
+                                        value={bookingStartDate}
+                                        min={new Date().toISOString().split('T')[0]} // Cannot select past dates
+                                        onChange={(e) => setBookingStartDate(e.target.value)}
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Customer Photo (Optional)</Label>
+                                    {!showCamera && !capturedImage && (
+                                        <Button
+                                            variant="outline"
+                                            className="w-full h-24 border-dashed border-2 flex flex-col gap-2"
+                                            onClick={handleStartCamera}
+                                        >
+                                            <Camera className="w-6 h-6 text-muted-foreground" />
+                                            Capture Photo
+                                        </Button>
+                                    )}
+
+                                    {showCamera && (
+                                        <div className="space-y-2">
+                                            <div className="relative rounded-lg overflow-hidden bg-black aspect-video">
+                                                <video
+                                                    ref={videoRef}
+                                                    autoPlay
+                                                    playsInline
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button onClick={handleCapturePhoto} className="flex-1">Capture</Button>
+                                                <Button variant="ghost" onClick={handleStopCamera}>Cancel</Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {capturedImage && (
+                                        <div className="space-y-2">
+                                            <div className="relative rounded-lg overflow-hidden border aspect-video bg-muted flex items-center justify-center">
+                                                <img src={capturedImage} alt="Captured" className="h-full object-contain" />
+                                                <Button
+                                                    size="icon"
+                                                    variant="destructive"
+                                                    className="absolute top-2 right-2 h-8 w-8"
+                                                    onClick={() => setCapturedImage(null)}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                            <Button variant="outline" size="sm" onClick={handleStartCamera} className="w-full">
+                                                <RefreshCw className="w-3 h-3 mr-2" /> Retake Photo
+                                            </Button>
+                                        </div>
+                                    )}
+                                    <canvas ref={canvasRef} className="hidden" />
+                                </div>
                             </div>
                         </div>
                     )}
