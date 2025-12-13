@@ -161,7 +161,7 @@ function AppRoutes() {
         <Route path="config">
           <Route index element={<Navigate to="/config/namma-tags" replace />} />
           <Route path="namma-tags" element={<NammaTagsPage />} />
-          <Route path="logic" element={<DynamicLogicPage />} />
+          <Route path="dynamic-logic" element={<DynamicLogicPage />} />
           <Route path="fare-policy" element={<PlaceholderPage title="Fare Policy" />} />
           <Route path="settings" element={<PlaceholderPage title="Settings" />} />
         </Route>

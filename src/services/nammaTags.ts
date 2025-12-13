@@ -100,6 +100,11 @@ export interface DeleteQueryRequest {
 // Tag APIs
 // ============================================
 
+// Helper to get path with /driver-offer prefix for BPP
+function getModulePath(basePath: string, module: LoginModule): string {
+    return module === 'BPP' ? `/driver-offer${basePath}` : basePath;
+}
+
 export async function createTag(
     merchantId: string,
     cityId: string,
@@ -107,7 +112,8 @@ export async function createTag(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/tag/create', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/tag/create', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -123,7 +129,8 @@ export async function updateTag(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/tag/update', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/tag/update', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -139,7 +146,8 @@ export async function deleteTag(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/tag/delete', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/tag/delete', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'DELETE',
@@ -154,7 +162,8 @@ export async function verifyTagRule(
     module: LoginModule = 'BAP'
 ): Promise<VerifyTagRuleResponse> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/tag/verify', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/tag/verify', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -174,7 +183,8 @@ export async function createQuery(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/query/create', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/query/create', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -190,7 +200,8 @@ export async function updateQuery(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/query/update', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/query/update', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -206,7 +217,8 @@ export async function deleteQuery(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/query/delete', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/query/delete', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'DELETE',

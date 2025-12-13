@@ -98,13 +98,19 @@ export interface LogicVersionItem {
 // Domain APIs
 // ============================================
 
+// Helper to get path with /driver-offer prefix for BPP
+function getModulePath(basePath: string, module: LoginModule): string {
+    return module === 'BPP' ? `/driver-offer${basePath}` : basePath;
+}
+
 export async function getDomains(
     merchantId: string,
     cityId: string,
     module: LoginModule = 'BAP'
 ): Promise<LogicDomain[]> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/domains', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/domains', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'GET',
@@ -124,7 +130,8 @@ export async function getLogicRollout(
     module: LoginModule = 'BAP'
 ): Promise<LogicRolloutEntry[]> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/getLogicRollout', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/getLogicRollout', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     const params = new URLSearchParams();
     params.append('domain', JSON.stringify(domain));
@@ -143,7 +150,8 @@ export async function upsertLogicRollout(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/upsertLogicRollout', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/upsertLogicRollout', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -163,7 +171,8 @@ export async function getTimeBounds(
     module: LoginModule = 'BAP'
 ): Promise<TimeBoundsEntry[]> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/timeBounds', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/timeBounds', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'GET',
@@ -178,7 +187,8 @@ export async function createTimeBounds(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/timeBounds/create', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/timeBounds/create', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -195,7 +205,8 @@ export async function deleteTimeBounds(
     module: LoginModule = 'BAP'
 ): Promise<void> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/timeBounds/delete', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/timeBounds/delete', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'DELETE',
@@ -215,7 +226,8 @@ export async function getDynamicLogic(
     module: LoginModule = 'BAP'
 ): Promise<DynamicLogicEntry[]> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'GET',
@@ -230,7 +242,8 @@ export async function verifyDynamicLogic(
     module: LoginModule = 'BAP'
 ): Promise<VerifyLogicResponse> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/verify', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/verify', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     return apiRequest(api, {
         method: 'POST',
@@ -248,7 +261,8 @@ export async function getLogicVersions(
     module: LoginModule = 'BAP'
 ): Promise<LogicVersionItem[]> {
     const api = module === 'BPP' ? bppApi : bapApi;
-    const path = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/versions', merchantId, cityId);
+    const basePath = buildPath('/{merchantId}/{city}/nammaTag/appDynamicLogic/versions', merchantId, cityId);
+    const path = getModulePath(basePath, module);
 
     const params = new URLSearchParams();
     params.append('domain', JSON.stringify(domain));

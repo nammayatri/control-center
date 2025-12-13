@@ -3,7 +3,7 @@ import type { User, Role, Merchant, AccessMatrix, Summary, RoleAccessMatrixRespo
 
 // Helper to get the correct API client based on login module
 function getAdminApi() {
-  const loginModule = localStorage.getItem('dashboard_login_module') as LoginModule | null;
+  const loginModule = localStorage.getItem('dashboard_module') as LoginModule | null;
   return loginModule === 'BPP' ? bppApi : bapApi;
 }
 

@@ -400,6 +400,7 @@ function TimeBoundsSection({ domain }: { domain: LogicDomain }) {
 // ============================================
 function VersionsSection({ domain }: { domain: LogicDomain }) {
     const { merchantShortId, merchantId, cityId } = useDashboardContext();
+    const { loginModule } = useAuth();
     const { data: versions, isLoading } = useLogicVersions(domain, 20, 0);
     const verifyMutation = useVerifyDynamicLogic();
 
@@ -454,7 +455,8 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
                 merchantShortId || merchantId || '',
                 cityId || '',
                 domain,
-                version
+                version,
+                loginModule || undefined
             );
             setViewingLogic(logicData);
         } catch (error) {
