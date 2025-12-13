@@ -1,9 +1,19 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
+import { FilterBar } from '../../components/layout/FilterBar';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -15,18 +25,30 @@ import {
 } from '../../components/ui/dialog';
 import { Skeleton } from '../../components/ui/skeleton';
 import { useRoleList, useCreateRole } from '../../hooks/useAdmin';
-import { Shield, Plus, Users } from 'lucide-react';
+import { Shield, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export function RolesPage() {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newRole, setNewRole] = useState({
     name: '',
     description: '',
     dashboardAccessType: '',
   });
+  const pageSize = 20;
 
-  const { data, isLoading, error, refetch } = useRoleList();
+  const { data, isLoading, error, refetch } = useRoleList({
+    searchString: search || undefined,
+    limit: pageSize,
+    offset: page * pageSize,
+  });
   const createRoleMutation = useCreateRole();
+
+  const handleSearch = () => {
+    setPage(0);
+  };
 
   const handleCreateRole = async () => {
     try {
@@ -38,8 +60,8 @@ export function RolesPage() {
       setCreateDialogOpen(false);
       setNewRole({ name: '', description: '', dashboardAccessType: '' });
       refetch();
-    } catch (error) {
-      console.error('Failed to create role:', error);
+    } catch (err) {
+      console.error('Failed to create role:', err);
     }
   };
 
@@ -97,7 +119,7 @@ export function RolesPage() {
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleCreateRole}
                   disabled={!newRole.name || createRoleMutation.isPending}
                 >
@@ -110,72 +132,108 @@ export function RolesPage() {
       />
 
       <PageContent>
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-32" />
-                  <Skeleton className="h-4 w-48" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-8 w-24" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : error ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <p className="text-destructive">Error loading roles</p>
-            </CardContent>
-          </Card>
-        ) : data?.list?.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No roles defined yet</p>
-              <Button className="mt-4" onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create First Role
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {data?.list?.map((role) => (
-              <Card key={role.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-primary" />
-                      {role.name}
-                    </CardTitle>
-                    {role.dashboardAccessType && (
-                      <Badge variant="outline">{role.dashboardAccessType}</Badge>
-                    )}
-                  </div>
-                  <CardDescription>
-                    {role.description || 'No description provided'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      <span>Role ID: {role.id.slice(0, 8)}...</span>
-                    </div>
-                    <Button variant="ghost" size="sm">
-                      Edit
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {/* Search */}
+        <FilterBar
+          searchPlaceholder="Search roles by name..."
+          searchValue={search}
+          onSearchChange={setSearch}
+          onSearch={handleSearch}
+        />
+
+        {/* Table */}
+        <Card className="mt-4">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Role Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Access Type</TableHead>
+                  <TableHead>Role ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : error ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-destructive">
+                      Error loading roles
+                    </TableCell>
+                  </TableRow>
+                ) : data?.list?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      No roles found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  data?.list?.map((role) => (
+                    <TableRow
+                      key={role.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/access/roles/${role.id}`)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-primary" />
+                          <span className="font-medium">{role.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {role.description || '-'}
+                      </TableCell>
+                      <TableCell>
+                        {role.dashboardAccessType ? (
+                          <Badge variant="outline">{role.dashboardAccessType}</Badge>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {role.id.slice(0, 8)}...
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+
+            {/* Pagination */}
+            {data && (
+              <div className="flex items-center justify-between px-4 py-3 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Showing {page * pageSize + 1} - {Math.min((page + 1) * pageSize, data.summary?.totalCount || 0)} of {data.summary?.totalCount || 0}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page === 0}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={(page + 1) * pageSize >= (data.summary?.totalCount || 0)}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </PageContent>
     </Page>
   );
 }
-

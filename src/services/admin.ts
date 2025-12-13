@@ -1,5 +1,11 @@
-import { adminApi, apiRequest, buildQueryParams } from './api';
-import type { User, Role, Merchant, AccessMatrix, Summary } from '../types';
+import { bapApi, bppApi, apiRequest, buildQueryParams } from './api';
+import type { User, Role, Merchant, AccessMatrix, Summary, RoleAccessMatrixResponse, LoginModule } from '../types';
+
+// Helper to get the correct API client based on login module
+function getAdminApi() {
+  const loginModule = localStorage.getItem('dashboard_login_module') as LoginModule | null;
+  return loginModule === 'BPP' ? bppApi : bapApi;
+}
 
 // ============================================
 // User APIs
@@ -7,6 +13,7 @@ import type { User, Role, Merchant, AccessMatrix, Summary } from '../types';
 
 export type UserListParams = {
   searchString?: string;
+  personId?: string;
   limit?: number;
   offset?: number;
 };
@@ -18,7 +25,7 @@ export interface UserListResponse {
 
 export async function listUsers(params: UserListParams = {}): Promise<UserListResponse> {
   const query = buildQueryParams(params as Record<string, string | number | boolean | undefined | null>);
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: `/admin/person/list${query}`,
   });
@@ -30,11 +37,12 @@ export interface CreateUserRequest {
   email?: string;
   mobileNumber: string;
   mobileCountryCode: string;
+  password: string;
   roleId?: string;
 }
 
 export async function createUser(data: CreateUserRequest): Promise<{ personId: string }> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/admin/person/create',
     data,
@@ -42,7 +50,7 @@ export async function createUser(data: CreateUserRequest): Promise<{ personId: s
 }
 
 export async function deleteUser(personId: string): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'DELETE',
     url: `/admin/person/delete/${personId}`,
   });
@@ -52,7 +60,7 @@ export async function changeUserEnabledStatus(
   personId: string,
   enabled: boolean
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/changeEnabledStatus/${personId}`,
     data: { enabled },
@@ -63,10 +71,10 @@ export async function changeUserEmail(
   personId: string,
   email: string
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/change/email/${personId}`,
-    data: { email },
+    data: { newEmail: email },
   });
 }
 
@@ -75,10 +83,10 @@ export async function changeUserMobile(
   mobileNumber: string,
   mobileCountryCode: string
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/mobile/${personId}`,
-    data: { mobileNumber, mobileCountryCode },
+    data: { newMobileNumber: mobileNumber, newMobileCountryCode: mobileCountryCode },
   });
 }
 
@@ -86,7 +94,7 @@ export async function changeUserPassword(
   personId: string,
   newPassword: string
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/password/${personId}`,
     data: { newPassword },
@@ -97,7 +105,7 @@ export async function assignRoleToUser(
   personId: string,
   roleId: string
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/${personId}/assignRole/${roleId}`,
   });
@@ -107,7 +115,7 @@ export async function assignMerchantAccess(
   personId: string,
   merchantIds: string[]
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/${personId}/assignMerchantAccess`,
     data: { merchantIds },
@@ -117,17 +125,17 @@ export async function assignMerchantAccess(
 export async function assignMerchantCityAccess(
   personId: string,
   merchantId: string,
-  cityIds: string[]
+  operatingCity: string
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/${personId}/assignMerchantCityAccess`,
-    data: { merchantId, cityIds },
+    data: { merchantId, operatingCity },
   });
 }
 
 export async function resetMerchantAccess(personId: string): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/person/${personId}/resetMerchantAccess`,
   });
@@ -142,10 +150,17 @@ export interface RoleListResponse {
   summary: Summary;
 }
 
-export async function listRoles(): Promise<RoleListResponse> {
-  return apiRequest(adminApi, {
+export type RoleListParams = {
+  searchString?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export async function listRoles(params: RoleListParams = {}): Promise<RoleListResponse> {
+  const query = buildQueryParams(params as Record<string, string | number | boolean | undefined | null>);
+  return apiRequest(getAdminApi(), {
     method: 'GET',
-    url: '/admin/roles/list',
+    url: `/admin/roles/list${query}`,
   });
 }
 
@@ -156,26 +171,32 @@ export interface CreateRoleRequest {
 }
 
 export async function createRole(data: CreateRoleRequest): Promise<{ roleId: string }> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/admin/roles/create',
     data,
   });
 }
 
+export interface AssignAccessLevelRequest {
+  userAccessType: 'USER_FULL_ACCESS' | 'USER_NO_ACCESS';
+  userActionType: string;
+  apiEntity: string;
+}
+
 export async function assignAccessLevel(
   roleId: string,
-  accessLevel: string
+  data: AssignAccessLevelRequest
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: `/admin/roles/${roleId}/assignAccessLevel`,
-    data: { accessLevel },
+    data,
   });
 }
 
-export async function getRoleAccessMatrix(roleId: string): Promise<AccessMatrix[]> {
-  return apiRequest(adminApi, {
+export async function getRoleAccessMatrix(roleId: string): Promise<RoleAccessMatrixResponse> {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: `/admin/accessMatrix/role/${roleId}`,
   });
@@ -186,7 +207,7 @@ export async function getRoleAccessMatrix(roleId: string): Promise<AccessMatrix[
 // ============================================
 
 export async function getAccessMatrix(): Promise<AccessMatrix[]> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: '/admin/accessMatrix',
   });
@@ -202,7 +223,7 @@ export interface MerchantWithCityItem {
 }
 
 export async function getMerchantWithCityList(): Promise<MerchantWithCityItem[]> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: '/admin/accessMatrix/merchantWithCityList',
   });
@@ -218,7 +239,7 @@ export interface MerchantListResponse {
 }
 
 export async function listMerchants(): Promise<MerchantListResponse> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: '/admin/merchant/list',
   });
@@ -231,7 +252,7 @@ export interface CreateMerchantRequest {
 }
 
 export async function createMerchant(data: CreateMerchantRequest): Promise<{ merchantId: string }> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/admin/merchant/create',
     data,
@@ -242,7 +263,7 @@ export async function changeMerchantEnabledState(
   merchantId: string,
   enabled: boolean
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/admin/merchant/change/enableState',
     data: { merchantId, enabled },
@@ -264,7 +285,7 @@ export interface LoginResponse {
 }
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/user/login',
     data,
@@ -272,28 +293,28 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function logout(): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/user/logout',
   });
 }
 
 export async function getCurrentUser(): Promise<User> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: '/user/profile',
   });
 }
 
 export async function getCurrentMerchant(): Promise<Merchant> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: '/user/getCurrentMerchant',
   });
 }
 
 export async function switchMerchant(merchantId: string): Promise<{ token: string }> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/user/switchMerchant',
     data: { merchantId },
@@ -304,7 +325,7 @@ export async function switchMerchantAndCity(
   merchantId: string,
   cityId: string
 ): Promise<{ token: string }> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/user/switchMerchantAndCity',
     data: { merchantId, city: cityId },
@@ -312,7 +333,7 @@ export async function switchMerchantAndCity(
 }
 
 export async function getUserAccessMatrix(): Promise<AccessMatrix[]> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'GET',
     url: '/user/getAccessMatrix',
   });
@@ -322,7 +343,7 @@ export async function changePassword(
   oldPassword: string,
   newPassword: string
 ): Promise<void> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/user/changePassword',
     data: { oldPassword, newPassword },
@@ -330,7 +351,7 @@ export async function changePassword(
 }
 
 export async function enable2FA(): Promise<{ qrCode: string }> {
-  return apiRequest(adminApi, {
+  return apiRequest(getAdminApi(), {
     method: 'POST',
     url: '/user/enable2Fa',
   });

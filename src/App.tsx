@@ -16,7 +16,9 @@ import { DriverDetailPage } from './modules/operations/DriverDetailPage';
 import { CustomersPage } from './modules/operations/CustomersPage';
 import { CustomerDetailPage } from './modules/operations/CustomerDetailPage';
 import { UsersPage } from './modules/access/UsersPage';
+import { UserDetailPage } from './modules/access/UserDetailPage';
 import { RolesPage } from './modules/access/RolesPage';
+import { RoleDetailPage } from './modules/access/RoleDetailPage';
 import { AnalyticsOverviewPage } from './modules/analytics/AnalyticsOverviewPage';
 import { NammaTagsPage } from './modules/config/NammaTagsPage';
 import PassBookingPage from './modules/agent/PassBookingPage';
@@ -168,7 +170,9 @@ function AppRoutes() {
         <Route path="access">
           <Route index element={<Navigate to="/access/users" replace />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="users/:userId" element={<UserDetailPage />} />
           <Route path="roles" element={<RolesPage />} />
+          <Route path="roles/:roleId" element={<RoleDetailPage />} />
           <Route path="permissions" element={<PlaceholderPage title="Permissions" />} />
         </Route>
 

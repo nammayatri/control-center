@@ -39,10 +39,19 @@ export interface User {
   email?: string;
   mobileNumber: string;
   mobileCountryCode: string;
-  roles: Role[];
-  enabled: boolean;
-  createdAt: string;
+  roles?: Role[];
+  role?: Role; // Single role from list API
+  enabled?: boolean;
+  verified?: boolean;
+  createdAt?: string;
+  registeredAt?: string;
   updatedAt?: string;
+  receiveNotification?: boolean | null;
+  availableMerchants?: string[];
+  availableCitiesForMerchant?: {
+    merchantShortId: string;
+    operatingCity: string[];
+  }[];
 }
 
 export interface Role {
@@ -60,8 +69,14 @@ export interface Permission {
 }
 
 export interface AccessMatrix {
+  apiEntity: string;
   userActionType: string;
   userAccessType: string;
+}
+
+export interface RoleAccessMatrixResponse {
+  role: Role;
+  accessMatrixRow: AccessMatrix[];
 }
 
 export interface AuthResponse {

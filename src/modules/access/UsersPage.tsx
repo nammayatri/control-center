@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
 import { FilterBar } from '../../components/layout/FilterBar';
 import { Button } from '../../components/ui/button';
@@ -22,13 +23,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../../components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../components/ui/select';
 import { Skeleton } from '../../components/ui/skeleton';
 import { useUserList, useRoleList, useCreateUser, useChangeUserEnabledStatus } from '../../hooks/useAdmin';
 import { formatDateTime } from '../../lib/utils';
@@ -40,6 +34,7 @@ import {
   Check,
   X,
   Shield,
+  Search,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -47,17 +42,33 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '../../components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../../components/ui/popover';
 
 export function UsersPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [roleSearchOpen, setRoleSearchOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     firstName: '',
     lastName: '',
     email: '',
     mobileNumber: '',
     mobileCountryCode: '+91',
+    password: '',
     roleId: '',
   });
   const pageSize = 20;
@@ -68,9 +79,16 @@ export function UsersPage() {
     offset: page * pageSize,
   });
 
-  const { data: rolesData } = useRoleList();
+  // Role search uses API
+  const [roleSearchQuery, setRoleSearchQuery] = useState('');
+  const { data: rolesData } = useRoleList({
+    searchString: roleSearchQuery || undefined,
+    limit: 50,
+  });
   const createUserMutation = useCreateUser();
   const changeStatusMutation = useChangeUserEnabledStatus();
+
+  const selectedRole = rolesData?.list?.find((r) => r.id === newUser.roleId);
 
   const handleSearch = () => {
     setPage(0);
@@ -84,6 +102,7 @@ export function UsersPage() {
         email: newUser.email || undefined,
         mobileNumber: newUser.mobileNumber,
         mobileCountryCode: newUser.mobileCountryCode,
+        password: newUser.password,
         roleId: newUser.roleId || undefined,
       });
       setCreateDialogOpen(false);
@@ -93,11 +112,12 @@ export function UsersPage() {
         email: '',
         mobileNumber: '',
         mobileCountryCode: '+91',
+        password: '',
         roleId: '',
       });
       refetch();
-    } catch (error) {
-      console.error('Failed to create user:', error);
+    } catch (err) {
+      console.error('Failed to create user:', err);
     }
   };
 
@@ -108,8 +128,8 @@ export function UsersPage() {
         enabled: !currentEnabled,
       });
       refetch();
-    } catch (error) {
-      console.error('Failed to change status:', error);
+    } catch (err) {
+      console.error('Failed to change status:', err);
     }
   };
 
@@ -130,7 +150,7 @@ export function UsersPage() {
                 Add User
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Create New User</DialogTitle>
                 <DialogDescription>
@@ -184,31 +204,74 @@ export function UsersPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">Password *</label>
+                  <Input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    placeholder="Enter password"
+                  />
+                </div>
+                <div className="space-y-2">
                   <label className="text-sm font-medium">Role</label>
-                  <Select
-                    value={newUser.roleId}
-                    onValueChange={(value) => setNewUser({ ...newUser, roleId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {rolesData?.list?.map((role) => (
-                        <SelectItem key={role.id} value={role.id}>
-                          {role.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={roleSearchOpen} onOpenChange={setRoleSearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={roleSearchOpen}
+                        className="w-full justify-between"
+                      >
+                        {selectedRole ? selectedRole.name : "Select a role..."}
+                        <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search roles..."
+                          value={roleSearchQuery}
+                          onValueChange={setRoleSearchQuery}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No role found.</CommandEmpty>
+                          <CommandGroup className="max-h-64 overflow-auto">
+                            {rolesData?.list.map((role) => (
+                              <CommandItem
+                                key={role.id}
+                                value={role.name}
+                                onSelect={() => {
+                                  setNewUser({ ...newUser, roleId: role.id });
+                                  setRoleSearchOpen(false);
+                                  setRoleSearchQuery('');
+                                }}
+                              >
+                                <Shield className="mr-2 h-4 w-4" />
+                                <div className="flex-1">
+                                  <p>{role.name}</p>
+                                  {role.description && (
+                                    <p className="text-xs text-muted-foreground">{role.description}</p>
+                                  )}
+                                </div>
+                                {newUser.roleId === role.id && (
+                                  <Check className="h-4 w-4 text-primary" />
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleCreateUser}
-                  disabled={!newUser.firstName || !newUser.mobileNumber || createUserMutation.isPending}
+                  disabled={!newUser.firstName || !newUser.mobileNumber || !newUser.password || createUserMutation.isPending}
                 >
                   {createUserMutation.isPending ? 'Creating...' : 'Create User'}
                 </Button>
@@ -236,9 +299,9 @@ export function UsersPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Roles</TableHead>
+                  <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead>Registered</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -269,7 +332,11 @@ export function UsersPage() {
                   </TableRow>
                 ) : (
                   data?.list?.map((user) => (
-                    <TableRow key={user.id}>
+                    <TableRow
+                      key={user.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/access/users/${user.id}`)}
+                    >
                       <TableCell>
                         <div>
                           <p className="font-medium">
@@ -285,35 +352,41 @@ export function UsersPage() {
                         {user.mobileCountryCode} {user.mobileNumber}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {user.roles?.map((role) => (
-                            <Badge key={role.id} variant="outline">
-                              <Shield className="h-3 w-3 mr-1" />
-                              {role.name}
-                            </Badge>
-                          )) || '-'}
-                        </div>
+                        {user.role ? (
+                          <Badge variant="outline">
+                            <Shield className="h-3 w-3 mr-1" />
+                            {user.role.name}
+                          </Badge>
+                        ) : user.roles?.[0] ? (
+                          <Badge variant="outline">
+                            <Shield className="h-3 w-3 mr-1" />
+                            {user.roles[0].name}
+                          </Badge>
+                        ) : '-'}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={user.enabled ? 'success' : 'secondary'}>
-                          {user.enabled ? 'Active' : 'Disabled'}
+                        <Badge variant={user.verified ? 'success' : 'secondary'}>
+                          {user.verified ? 'Verified' : 'Unverified'}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {user.createdAt ? formatDateTime(user.createdAt) : '-'}
+                        {user.registeredAt ? formatDateTime(user.registeredAt) : user.createdAt ? formatDateTime(user.createdAt) : '-'}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                              onClick={() => handleToggleStatus(user.id, user.enabled)}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleStatus(user.id, user.enabled !== false);
+                              }}
                             >
-                              {user.enabled ? (
+                              {user.enabled !== false ? (
                                 <>
                                   <X className="h-4 w-4 mr-2" />
                                   Disable User
@@ -366,4 +439,3 @@ export function UsersPage() {
     </Page>
   );
 }
-

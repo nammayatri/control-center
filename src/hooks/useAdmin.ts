@@ -9,9 +9,18 @@ export function useUserList(params: adminService.UserListParams = {}) {
   });
 }
 
+export function useUserDetail(personId: string | null) {
+  return useQuery({
+    queryKey: ['user', personId],
+    queryFn: () => adminService.listUsers({ personId: personId! }),
+    enabled: !!personId,
+    select: (data) => data.list?.[0] || null,
+  });
+}
+
 export function useCreateUser() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (data: adminService.CreateUserRequest) => adminService.createUser(data),
     onSuccess: () => {
@@ -22,7 +31,7 @@ export function useCreateUser() {
 
 export function useDeleteUser() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (personId: string) => adminService.deleteUser(personId),
     onSuccess: () => {
@@ -33,7 +42,7 @@ export function useDeleteUser() {
 
 export function useChangeUserEnabledStatus() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: ({ personId, enabled }: { personId: string; enabled: boolean }) =>
       adminService.changeUserEnabledStatus(personId, enabled),
@@ -45,7 +54,7 @@ export function useChangeUserEnabledStatus() {
 
 export function useAssignRole() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: ({ personId, roleId }: { personId: string; roleId: string }) =>
       adminService.assignRoleToUser(personId, roleId),
@@ -55,17 +64,65 @@ export function useAssignRole() {
   });
 }
 
+export function useChangeUserPassword() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ personId, newPassword }: { personId: string; newPassword: string }) =>
+      adminService.changeUserPassword(personId, newPassword),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+}
+
+export function useChangeUserEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ personId, email }: { personId: string; email: string }) =>
+      adminService.changeUserEmail(personId, email),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+}
+
+export function useChangeUserMobile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ personId, mobileNumber, mobileCountryCode }: { personId: string; mobileNumber: string; mobileCountryCode: string }) =>
+      adminService.changeUserMobile(personId, mobileNumber, mobileCountryCode),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+}
+
+export function useAssignMerchantCityAccess() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ personId, merchantId, operatingCity }: { personId: string; merchantId: string; operatingCity: string }) =>
+      adminService.assignMerchantCityAccess(personId, merchantId, operatingCity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+}
+
 // Role Hooks
-export function useRoleList() {
+export function useRoleList(params: adminService.RoleListParams = {}) {
   return useQuery({
-    queryKey: ['roles'],
-    queryFn: () => adminService.listRoles(),
+    queryKey: ['roles', params],
+    queryFn: () => adminService.listRoles(params),
   });
 }
 
 export function useCreateRole() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (data: adminService.CreateRoleRequest) => adminService.createRole(data),
     onSuccess: () => {
@@ -79,6 +136,18 @@ export function useRoleAccessMatrix(roleId: string) {
     queryKey: ['roleAccessMatrix', roleId],
     queryFn: () => adminService.getRoleAccessMatrix(roleId),
     enabled: !!roleId,
+  });
+}
+
+export function useAssignAccessLevel() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ roleId, data }: { roleId: string; data: adminService.AssignAccessLevelRequest }) =>
+      adminService.assignAccessLevel(roleId, data),
+    onSuccess: (_, { roleId }) => {
+      queryClient.invalidateQueries({ queryKey: ['roleAccessMatrix', roleId] });
+    },
   });
 }
 
@@ -99,7 +168,7 @@ export function useMerchantWithCityList() {
 
 export function useCreateMerchant() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (data: adminService.CreateMerchantRequest) => adminService.createMerchant(data),
     onSuccess: () => {
@@ -110,7 +179,7 @@ export function useCreateMerchant() {
 
 export function useChangeMerchantEnabledState() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: ({ merchantId, enabled }: { merchantId: string; enabled: boolean }) =>
       adminService.changeMerchantEnabledState(merchantId, enabled),
@@ -152,7 +221,7 @@ export function useCurrentMerchant() {
 
 export function useSwitchMerchant() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (merchantId: string) => adminService.switchMerchant(merchantId),
     onSuccess: () => {
