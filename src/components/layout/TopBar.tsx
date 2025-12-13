@@ -49,7 +49,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   return (
     <header className="flex items-center justify-between h-16 px-4 border-b bg-background">
       {/* Left section */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0 overflow-hidden">
         <Button
           variant="ghost"
           size="icon"
@@ -64,7 +64,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       </div>
 
       {/* Right section */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-shrink-0">
         {/* Theme Toggle */}
         <Button
           variant="ghost"

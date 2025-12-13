@@ -40,9 +40,9 @@ export function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)} />
-        
+
         <main className="flex-1 overflow-y-auto bg-muted/30">
-          <div className="container mx-auto p-6">
+          <div className="container mx-auto p-4 md:p-6">
             {children || <Outlet />}
           </div>
         </main>

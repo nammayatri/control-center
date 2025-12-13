@@ -230,7 +230,7 @@ export default function PassBookingPage() {
         const borderColor = isDiamond ? 'border-gray-400' : 'border-[#C5A028]';
 
         return (
-            <div key={pass.id} className={`relative w-[340px] h-[520px] rounded-[30px] p-6 shadow-2xl flex flex-col items-center justify-between border-4 ${bgClass} font-sans mx-auto transition-transform hover:scale-105 duration-300`}>
+            <div key={pass.id} className={`relative w-full max-w-[340px] h-[520px] rounded-[30px] p-6 shadow-2xl flex flex-col items-center justify-between border-4 ${bgClass} font-sans mx-auto transition-transform hover:scale-105 duration-300`}>
                 {/* Header Section */}
                 <div className="w-full flex justify-between items-start z-10">
                     <div className="bg-black/10 rounded-full p-2 backdrop-blur-sm">
@@ -303,7 +303,7 @@ export default function PassBookingPage() {
     };
 
     return (
-        <div className="container mx-auto p-6 max-w-4xl min-h-screen">
+        <div className="container mx-auto px-2 py-4 md:p-6 max-w-4xl min-h-screen">
             <h1 className="text-3xl font-bold mb-8">Agent Booth - Pass Booking</h1>
 
             {/* Steps Indicator */}
@@ -324,7 +324,7 @@ export default function PassBookingPage() {
                         >
                             {idx + 1}
                         </div>
-                        <span className="text-sm">{s}</span>
+                        <span className="text-sm hidden sm:block">{s}</span>
                     </div>
                 ))}
             </div>
@@ -581,7 +581,7 @@ export default function PassBookingPage() {
                     )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setSelectedPassForPurchase(null)}>Cancel</Button>
-                        <Button onClick={confirmPassPurchase} disabled={selectPassMutation.isPending}>
+                        <Button onClick={confirmPassPurchase} disabled={selectPassMutation.isPending || !capturedImage}>
                             {selectPassMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Proceed to Pay
                         </Button>
