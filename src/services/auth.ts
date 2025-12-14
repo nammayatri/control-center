@@ -264,7 +264,7 @@ const MERCHANT_NAME_MAP: Record<string, string> = {
   'NAMMA_YATRI': 'Namma Yatri',
   'YATRI': 'Yatri',
   'JATRI_SAATHI': 'Jatri Saathi',
-  'ANNA_APP': 'Anna App',
+  'ANNA_APP': 'Chennai One',
   'NAMMA_YATRI_PARTNER': 'Namma Yatri Partner',
   'YATRI_PARTNER': 'Yatri Partner',
   'JATRI_SAATHI_PARTNER': 'Jatri Saathi Partner',
