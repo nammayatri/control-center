@@ -436,7 +436,12 @@ export default function PassBookingPage() {
                                                     <CardHeader>
                                                         <CardTitle className="text-lg flex justify-between">
                                                             <span>{pass.name}</span>
-                                                            <span className="text-primary font-bold">
+                                                            <span className="text-primary font-bold flex items-center gap-2">
+                                                                {pass.originalAmount && pass.originalAmount > pass.amount && (
+                                                                    <span className="text-muted-foreground line-through text-sm font-normal">
+                                                                        ₹{pass.originalAmount}
+                                                                    </span>
+                                                                )}
                                                                 ₹{pass.amount}
                                                             </span>
                                                         </CardTitle>
@@ -495,7 +500,14 @@ export default function PassBookingPage() {
                                     <p className="font-semibold">{selectedPassForPurchase.name}</p>
                                     <p className="text-sm text-muted-foreground">{selectedPassForPurchase.maxDays > 1000 ? 'Unlimited' : selectedPassForPurchase.maxDays} Days Validity</p>
                                 </div>
-                                <div className="text-xl font-bold">₹{selectedPassForPurchase.amount}</div>
+                                <div className="text-xl font-bold flex items-center gap-2">
+                                    {selectedPassForPurchase.originalAmount && selectedPassForPurchase.originalAmount > selectedPassForPurchase.amount && (
+                                        <span className="text-muted-foreground line-through text-base font-normal">
+                                            ₹{selectedPassForPurchase.originalAmount}
+                                        </span>
+                                    )}
+                                    ₹{selectedPassForPurchase.amount}
+                                </div>
                             </div>
 
                             <div className="space-y-4">

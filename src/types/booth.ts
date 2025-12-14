@@ -56,6 +56,7 @@ export interface PassDetails {
     name: string;
     description: string;
     amount: number;
+    originalAmount?: number;
     savings: number;
     maxDays: number; // API returns large number, might need handling
     maxTrips: number;
