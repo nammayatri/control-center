@@ -34,6 +34,7 @@ import {
   useDeleteCustomer,
   useSyncCancellationDues,
 } from '../../hooks/useCustomers';
+import { usePurchasedPasses, useChangePassStartDate } from '../../hooks/useBooth';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { usePermissions } from '../../context/PermissionsContext';
 import { useAuth } from '../../context/AuthContext';
@@ -83,8 +84,13 @@ import {
   PawPrint,
   Accessibility,
   Moon,
+  CalendarDays,
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../components/ui/dialog';
+import { Avatar, AvatarImage, AvatarFallback } from '../../components/ui/avatar';
+import { Label } from '../../components/ui/label';
+import type { PurchasedPass } from '../../types/booth';
+import { toast } from 'sonner';
 
 // ============================================
 // Helper Components
@@ -906,6 +912,38 @@ export function CustomerDetailPage() {
   const deleteMutation = useDeleteCustomer();
   const syncDuesMutation = useSyncCancellationDues();
 
+  // Purchased Passes
+  const { data: purchasedPasses, isLoading: passesLoading } = usePurchasedPasses(customerId || null);
+  const changeStartDateMutation = useChangePassStartDate();
+
+  // Change Date Dialog State
+  const [changeDateDialogOpen, setChangeDateDialogOpen] = useState(false);
+  const [selectedPassForDateChange, setSelectedPassForDateChange] = useState<PurchasedPass | null>(null);
+  const [newStartDate, setNewStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  const handleChangeStartDate = async () => {
+    if (!customerId || !selectedPassForDateChange?.passNumber || !newStartDate) return;
+    changeStartDateMutation.mutate(
+      { customerId, passNumber: selectedPassForDateChange.passNumber, startDay: newStartDate },
+      {
+        onSuccess: () => {
+          toast.success('Pass start date updated successfully');
+          setChangeDateDialogOpen(false);
+          setSelectedPassForDateChange(null);
+        },
+        onError: (error) => {
+          toast.error(`Failed to update start date: ${(error as Error).message}`);
+        },
+      }
+    );
+  };
+
+  const openChangeDateDialog = (pass: PurchasedPass) => {
+    setSelectedPassForDateChange(pass);
+    setNewStartDate(new Date().toISOString().split('T')[0]);
+    setChangeDateDialogOpen(true);
+  };
+
   const canBlock = hasAccess('RIDER_MANAGEMENT/CUSTOMER/POST_CUSTOMER_BLOCK');
   const canUnblock = hasAccess('RIDER_MANAGEMENT/CUSTOMER/POST_CUSTOMER_UNBLOCK');
   const canDelete = hasAccess('RIDER_MANAGEMENT/CUSTOMER/DELETE_CUSTOMER_DELETE');
@@ -1011,7 +1049,7 @@ export function CustomerDetailPage() {
         </CardContent></Card>
 
         <Tabs defaultValue="rides" className="mt-6">
-          <TabsList><TabsTrigger value="rides"><Car className="h-4 w-4 mr-2" />Rides ({rides.length})</TabsTrigger><TabsTrigger value="journeys"><Ticket className="h-4 w-4 mr-2" />Tickets ({multimodalRides.length})</TabsTrigger><TabsTrigger value="dues"><CreditCard className="h-4 w-4 mr-2" />Dues</TabsTrigger></TabsList>
+          <TabsList><TabsTrigger value="rides"><Car className="h-4 w-4 mr-2" />Rides ({rides.length})</TabsTrigger><TabsTrigger value="journeys"><Ticket className="h-4 w-4 mr-2" />Tickets ({multimodalRides.length})</TabsTrigger><TabsTrigger value="dues"><CreditCard className="h-4 w-4 mr-2" />Dues</TabsTrigger><TabsTrigger value="passes"><QrCode className="h-4 w-4 mr-2" />Passes ({purchasedPasses?.length || 0})</TabsTrigger></TabsList>
 
           <TabsContent value="rides" className="mt-4"><Card>
             <CardHeader><CardTitle>Rides</CardTitle></CardHeader>
@@ -1075,7 +1113,126 @@ export function CustomerDetailPage() {
               ) : <p className="text-muted-foreground">No data</p>}
             </CardContent>
           </Card></TabsContent>
+
+          <TabsContent value="passes" className="mt-4">
+            <Card>
+              <CardHeader><CardTitle>Purchased Passes</CardTitle></CardHeader>
+              <CardContent>
+                {passesLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2].map(i => <Skeleton key={i} className="h-32 w-full" />)}
+                  </div>
+                ) : !purchasedPasses || purchasedPasses.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">No passes found</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {purchasedPasses.map((pass) => {
+                      const isDiamond = pass?.passEntity?.passDetails?.name?.toLowerCase().includes('2000');
+                      const goldGradient = 'bg-gradient-to-b from-[#D4AF37] via-[#F7E7CE] to-[#AA6C39] border-[#C5A028]';
+                      const silverGradient = 'bg-gradient-to-b from-[#E0E0E0] via-[#F5F5F5] to-[#BDBDBD] border-[#A0A0A0] text-gray-800';
+                      const bgClass = isDiamond ? silverGradient : goldGradient;
+                      const textColor = isDiamond ? 'text-gray-900' : 'text-[#5C4018]';
+                      const borderColor = isDiamond ? 'border-gray-400' : 'border-[#C5A028]';
+
+                      return (
+                        <div key={pass.id} className="flex flex-col items-center">
+                          <div className={`relative w-full max-w-[280px] h-auto min-h-[350px] rounded-[20px] p-4 shadow-xl flex flex-col items-center justify-between border-4 ${bgClass} font-sans mx-auto`}>
+                            {/* Header */}
+                            <div className="w-full flex justify-between items-start">
+                              <div className="bg-black/10 rounded-full p-1.5">
+                                <div className={`w-8 h-8 rounded-full border-2 ${borderColor} flex items-center justify-center font-bold text-xs ${textColor}`}>MTC</div>
+                              </div>
+                              <div className={`text-right ${textColor}`}>
+                                <div className="text-[10px] font-bold tracking-widest opacity-80">PASS NO</div>
+                                <div className="font-mono text-sm font-black">{pass.passNumber || '000000'}</div>
+                              </div>
+                            </div>
+
+                            <div className={`text-center mt-2 ${textColor}`}>
+                              <p className="text-xs font-medium opacity-90 uppercase tracking-wide">{pass.passEntity?.passDetails?.name}</p>
+                            </div>
+
+                            {/* Main Card */}
+                            <div className="relative bg-white rounded-[16px] w-full p-3 flex flex-col items-center shadow-inner mt-2 mb-3">
+                              <Avatar className="w-16 h-16 rounded-lg border-2 border-gray-100 shadow-sm mb-2">
+                                <AvatarImage src={pass.profilePicture || ''} alt="User" className="object-cover" />
+                                <AvatarFallback className="rounded-lg bg-gray-200 text-gray-400 text-lg">U</AvatarFallback>
+                              </Avatar>
+                              <div className="text-2xl font-black text-gray-800 mb-1">₹{pass.passEntity?.passDetails?.amount}</div>
+                              <div className="w-3/4 h-px bg-gray-200 my-1"></div>
+                              <div className="text-center">
+                                <p className="text-[9px] uppercase text-gray-400 font-bold tracking-widest">Valid Till</p>
+                                <p className="text-sm font-bold text-gray-900 uppercase">
+                                  {new Date(pass.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="w-full flex justify-between items-center">
+                              <QrCode className="w-6 h-6 text-gray-800" />
+                              <Badge variant={isDiamond ? 'secondary' : 'default'} className="text-xs">Active</Badge>
+                            </div>
+                          </div>
+
+                          {/* Change Start Date Button */}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="mt-4 gap-2"
+                            onClick={() => openChangeDateDialog(pass)}
+                          >
+                            <CalendarDays className="w-4 h-4" />
+                            Change Start Date
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
+
+        {/* Change Start Date Dialog */}
+        <Dialog open={changeDateDialogOpen} onOpenChange={setChangeDateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Change Pass Start Date</DialogTitle>
+              <DialogDescription>
+                Update the start date for this pass. The pass validity will be recalculated from the new date.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedPassForDateChange && (
+              <div className="space-y-4 py-4">
+                <div className="bg-muted p-4 rounded-lg">
+                  <p className="font-semibold">{selectedPassForDateChange.passEntity?.passDetails?.name}</p>
+                  <p className="text-sm text-muted-foreground">Pass #: {selectedPassForDateChange.passNumber}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>New Start Date</Label>
+                  <Input
+                    type="date"
+                    value={newStartDate}
+                    onChange={(e) => setNewStartDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setChangeDateDialogOpen(false)}>Cancel</Button>
+              <Button
+                onClick={handleChangeStartDate}
+                disabled={changeStartDateMutation.isPending || !newStartDate}
+              >
+                {changeStartDateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Update Start Date
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </PageContent>
 
       <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
