@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDashboardContext } from '../context/DashboardContext';
 import * as boothService from '../services/booth';
 import type {
@@ -103,6 +103,7 @@ export function usePaymentStatus(customerId: string | null, orderId: string | nu
 export function useChangePassStartDate() {
     const { merchantShortId, merchantId, cityId } = useDashboardContext();
     const apiMerchantId = merchantShortId || merchantId;
+    const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: ({
@@ -116,6 +117,10 @@ export function useChangePassStartDate() {
         }) => {
             if (!apiMerchantId || !cityId) return Promise.reject(new Error('Missing context'));
             return boothService.changePassStartDate(apiMerchantId, cityId, customerId, passNumber, startDay);
+        },
+        onSuccess: (_, { customerId }) => {
+            // Invalidate purchased passes to reload after date change
+            queryClient.invalidateQueries({ queryKey: ['booth', 'passes', 'purchased', apiMerchantId, cityId, customerId] });
         },
     });
 }
