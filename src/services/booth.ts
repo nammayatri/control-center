@@ -110,3 +110,20 @@ export async function checkPaymentStatus(
         url: path,
     });
 }
+
+export async function changePassStartDate(
+    merchantId: string,
+    cityId: string,
+    customerId: string,
+    passNumber: string,
+    startDay: string
+): Promise<void> {
+    // curl: /bap/:merchantId/:city/pass/customer/:customerId/activateToday/{passNumber}?startDay=YYYY-MM-DD
+    let path = buildPath('/{merchantId}/{city}/pass/customer/{customerId}/activateToday/{passNumber}', merchantId, cityId);
+    path = path.replace('{customerId}', customerId).replace('{passNumber}', passNumber);
+
+    return apiRequest(bapApi, {
+        method: 'POST',
+        url: `${path}?startDay=${startDay}`,
+    });
+}

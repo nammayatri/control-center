@@ -26,8 +26,9 @@ import {
     usePurchasedPasses,
     useSelectPass,
     usePaymentStatus,
+    useChangePassStartDate,
 } from '../../hooks/useBooth';
-import { Loader2, CheckCircle2, Ticket, QrCode, Camera, RefreshCw, Trash2, SwitchCamera } from 'lucide-react';
+import { Loader2, CheckCircle2, Ticket, QrCode, Camera, RefreshCw, Trash2, SwitchCamera, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PassDetails, PurchasedPass } from '../../types/booth';
 
@@ -56,6 +57,12 @@ export default function PassBookingPage() {
     const sendOtpMutation = useSendAuthOtp();
     const verifyOtpMutation = useVerifyAuthOtp();
     const selectPassMutation = useSelectPass();
+    const changeStartDateMutation = useChangePassStartDate();
+
+    // Change Start Date Dialog State
+    const [changeDateDialogOpen, setChangeDateDialogOpen] = useState(false);
+    const [selectedPassForDateChange, setSelectedPassForDateChange] = useState<PurchasedPass | null>(null);
+    const [newStartDate, setNewStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
     // Data Hooks
     const { data: availablePasses, isLoading: isLoadingPasses } = useAvailablePasses(customerId);
@@ -233,6 +240,34 @@ export default function PassBookingPage() {
         setSelectedPassForPurchase(null);
     };
 
+    const handleChangeStartDate = async () => {
+        if (!customerId || !selectedPassForDateChange?.passNumber || !newStartDate) return;
+
+        changeStartDateMutation.mutate(
+            {
+                customerId,
+                passNumber: selectedPassForDateChange.passNumber,
+                startDay: newStartDate,
+            },
+            {
+                onSuccess: () => {
+                    toast.success('Pass start date updated successfully');
+                    setChangeDateDialogOpen(false);
+                    setSelectedPassForDateChange(null);
+                },
+                onError: (error) => {
+                    toast.error(`Failed to update start date: ${(error as Error).message}`);
+                },
+            }
+        );
+    };
+
+    const openChangeDateDialog = (pass: PurchasedPass) => {
+        setSelectedPassForDateChange(pass);
+        setNewStartDate(new Date().toISOString().split('T')[0]);
+        setChangeDateDialogOpen(true);
+    };
+
     // Helper for Active Pass UI
     const renderActivePass = (pass: PurchasedPass) => {
         const isDiamond = pass?.passEntity?.passDetails?.name.toLowerCase().includes('2000');
@@ -246,444 +281,506 @@ export default function PassBookingPage() {
         const borderColor = isDiamond ? 'border-gray-400' : 'border-[#C5A028]';
 
         return (
-            <div key={pass.id} className={`relative w-full max-w-[340px] h-[520px] rounded-[30px] p-6 shadow-2xl flex flex-col items-center justify-between border-4 ${bgClass} font-sans mx-auto transition-transform hover:scale-105 duration-300`}>
-                {/* Header Section */}
-                <div className="w-full flex justify-between items-start z-10">
-                    <div className="bg-black/10 rounded-full p-2 backdrop-blur-sm">
-                        <div className={`w-10 h-10 rounded-full border-2 ${borderColor} flex items-center justify-center font-bold text-xs ${textColor}`}>MTC</div>
-                    </div>
-                    <div className={`text-right ${textColor}`}>
-                        <div className="text-xs font-bold tracking-widest opacity-80">PASS NO</div>
-                        <div className="font-mono text-lg font-black tracking-wider">{pass.passNumber || '000000'}</div>
-                    </div>
-                </div>
-
-                <div className={`text-center -mt-2 ${textColor}`}>
-                    <p className="text-xs font-medium opacity-90 uppercase tracking-wide">{pass.passEntity?.passDetails?.name}</p>
-                </div>
-
-                {/* Main White Card Area */}
-                <div className="relative bg-white rounded-[24px] w-full aspect-[3/4] p-4 flex flex-col items-center justify-center shadow-inner mt-2 mb-4 z-10">
-                    {/* User Image */}
-                    <Avatar className="w-24 h-24 rounded-xl border-4 border-gray-100 shadow-sm mb-3">
-                        <AvatarImage src={pass.profilePicture || ''} alt="User" className="object-cover" />
-                        <AvatarFallback className="rounded-xl bg-gray-200 text-gray-400 text-2xl">U</AvatarFallback>
-                    </Avatar>
-
-                    {/* Price */}
-                    <div className="text-4xl font-black text-gray-800 mb-1">
-                        ₹{pass.passEntity.passDetails.amount}
-                    </div>
-
-                    {/* Divider */}
-                    <div className="w-3/4 h-px bg-gray-200 my-2"></div>
-
-                    {/* Validity */}
-                    <div className="text-center">
-                        <p className="text-[10px] uppercase text-gray-400 font-bold tracking-widest mb-0.5">Valid Till</p>
-                        <p className="text-xl font-bold text-gray-900 uppercase">
-                            {new Date(pass.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Footer Section */}
-                <div className="w-full flex justify-between items-end z-10 mt-auto">
-                    {/* Time Ticker */}
-                    <div className="bg-white rounded-lg px-2 py-1 shadow-sm">
-                        <div className="text-[10px] text-gray-500 font-mono text-center leading-tight">
-                            {currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+            <div key={pass.id} className="flex flex-col items-center w-full max-w-[340px]">
+                <div className={`relative w-full max-w-[340px] h-[520px] rounded-[30px] p-6 shadow-2xl flex flex-col items-center justify-between border-4 ${bgClass} font-sans mx-auto transition-transform hover:scale-105 duration-300`}>
+                    {/* Header Section */}
+                    <div className="w-full flex justify-between items-start z-10">
+                        <div className="bg-black/10 rounded-full p-2 backdrop-blur-sm">
+                            <div className={`w-10 h-10 rounded-full border-2 ${borderColor} flex items-center justify-center font-bold text-xs ${textColor}`}>MTC</div>
                         </div>
-                        <div className="text-sm font-mono font-bold text-gray-800 leading-tight">
-                            {currentTime.toLocaleTimeString('en-GB', { hour12: false })}
+                        <div className={`text-right ${textColor}`}>
+                            <div className="text-xs font-bold tracking-widest opacity-80">PASS NO</div>
+                            <div className="font-mono text-lg font-black tracking-wider">{pass.passNumber || '000000'}</div>
                         </div>
                     </div>
 
-                    {/* Gold/Silver Seal Effect */}
-                    <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${isDiamond ? 'from-gray-100 to-gray-400' : 'from-yellow-200 to-yellow-600'} shadow-lg border-2 ${isDiamond ? 'border-gray-300' : 'border-yellow-400'} flex items-center justify-center -mb-2`}>
-                        <span className={`text-[10px] font-black ${isDiamond ? 'text-gray-600' : 'text-yellow-900'} opacity-60`}>MTC</span>
+                    <div className={`text-center -mt-2 ${textColor}`}>
+                        <p className="text-xs font-medium opacity-90 uppercase tracking-wide">{pass.passEntity?.passDetails?.name}</p>
                     </div>
 
-                    {/* QR Code */}
-                    <div className="bg-white p-1 rounded-lg shadow-sm">
-                        <QrCode className="w-8 h-8 text-black" />
+                    {/* Main White Card Area */}
+                    <div className="relative bg-white rounded-[24px] w-full aspect-[3/4] p-4 flex flex-col items-center justify-center shadow-inner mt-2 mb-4 z-10">
+                        {/* User Image */}
+                        <Avatar className="w-24 h-24 rounded-xl border-4 border-gray-100 shadow-sm mb-3">
+                            <AvatarImage src={pass.profilePicture || ''} alt="User" className="object-cover" />
+                            <AvatarFallback className="rounded-xl bg-gray-200 text-gray-400 text-2xl">U</AvatarFallback>
+                        </Avatar>
+
+                        {/* Price */}
+                        <div className="text-4xl font-black text-gray-800 mb-1">
+                            ₹{pass.passEntity.passDetails.amount}
+                        </div>
+
+                        {/* Divider */}
+                        <div className="w-3/4 h-px bg-gray-200 my-2"></div>
+
+                        {/* Validity */}
+                        <div className="text-center">
+                            <p className="text-[10px] uppercase text-gray-400 font-bold tracking-widest mb-0.5">Valid Till</p>
+                            <p className="text-xl font-bold text-gray-900 uppercase">
+                                {new Date(pass.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Footer Section */}
+                    <div className="w-full flex justify-between items-end z-10 mt-auto">
+                        {/* Time Ticker */}
+                        <div className="bg-white rounded-lg px-2 py-1 shadow-sm">
+                            <div className="text-[10px] text-gray-500 font-mono text-center leading-tight">
+                                {currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                            </div>
+                            <div className="text-sm font-mono font-bold text-gray-800 leading-tight">
+                                {currentTime.toLocaleTimeString('en-GB', { hour12: false })}
+                            </div>
+                        </div>
+
+                        {/* Gold/Silver Seal Effect */}
+                        <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${isDiamond ? 'from-gray-100 to-gray-400' : 'from-yellow-200 to-yellow-600'} shadow-lg border-2 ${isDiamond ? 'border-gray-300' : 'border-yellow-400'} flex items-center justify-center -mb-2`}>
+                            <span className={`text-[10px] font-black ${isDiamond ? 'text-gray-600' : 'text-yellow-900'} opacity-60`}>MTC</span>
+                        </div>
+
+                        {/* QR Code */}
+                        <div className="bg-white p-1 rounded-lg shadow-sm">
+                            <QrCode className="w-8 h-8 text-black" />
+                        </div>
+                    </div>
+
+                    {/* Verified Stamp (Floating) */}
+                    <div className={`absolute top-1/4 right-0 transform translate-x-2 -translate-y-4 rotate-12 w-16 h-16 border-2 ${isDiamond ? 'border-gray-500 text-gray-500' : 'border-yellow-700 text-yellow-700'} rounded-full flex items-center justify-center opacity-30 z-0 pointer-events-none`}>
+                        <span className="text-[8px] font-black uppercase tracking-widest border-t border-b border-current py-0.5">Verified</span>
                     </div>
                 </div>
 
-                {/* Verified Stamp (Floating) */}
-                <div className={`absolute top-1/4 right-0 transform translate-x-2 -translate-y-4 rotate-12 w-16 h-16 border-2 ${isDiamond ? 'border-gray-500 text-gray-500' : 'border-yellow-700 text-yellow-700'} rounded-full flex items-center justify-center opacity-30 z-0 pointer-events-none`}>
-                    <span className="text-[8px] font-black uppercase tracking-widest border-t border-b border-current py-0.5">Verified</span>
-                </div>
+                {/* Change Start Date Button - Below the card */}
+                <Button
+                    variant="default"
+                    size="sm"
+                    className="mt-10 gap-2"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        openChangeDateDialog(pass);
+                    }}
+                >
+                    <CalendarDays className="w-4 h-4" />
+                    Change Start Date
+                </Button>
             </div>
         );
     };
 
     return (
-        <div className="container mx-auto px-2 py-4 md:p-6 max-w-4xl min-h-screen">
-            <h1 className="text-3xl font-bold mb-8">Agent Booth - Pass Booking</h1>
+        <>
+            <div className="container mx-auto px-2 py-4 md:p-6 max-w-4xl min-h-screen">
+                <h1 className="text-3xl font-bold mb-8">Agent Booth - Pass Booking</h1>
 
-            {/* Steps Indicator */}
-            <div className="flex justify-between mb-8 max-w-xl mx-auto">
-                {['VERIFY', 'SELECT', 'PAYMENT', 'SUCCESS'].map((s, idx) => (
-                    <div
-                        key={s}
-                        className={`flex items-center space-x-2 ${['VERIFY', 'SELECT', 'PAYMENT', 'SUCCESS'].indexOf(step) >= idx
-                            ? 'text-primary font-semibold'
-                            : 'text-muted-foreground'
-                            }`}
-                    >
+                {/* Steps Indicator */}
+                <div className="flex justify-between mb-8 max-w-xl mx-auto">
+                    {['VERIFY', 'SELECT', 'PAYMENT', 'SUCCESS'].map((s, idx) => (
                         <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${['VERIFY', 'SELECT', 'PAYMENT', 'SUCCESS'].indexOf(step) >= idx
-                                ? 'border-primary bg-primary/10'
-                                : 'border-muted'
+                            key={s}
+                            className={`flex items-center space-x-2 ${['VERIFY', 'SELECT', 'PAYMENT', 'SUCCESS'].indexOf(step) >= idx
+                                ? 'text-primary font-semibold'
+                                : 'text-muted-foreground'
                                 }`}
                         >
-                            {idx + 1}
+                            <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${['VERIFY', 'SELECT', 'PAYMENT', 'SUCCESS'].indexOf(step) >= idx
+                                    ? 'border-primary bg-primary/10'
+                                    : 'border-muted'
+                                    }`}
+                            >
+                                {idx + 1}
+                            </div>
+                            <span className="text-sm hidden sm:block">{s}</span>
                         </div>
-                        <span className="text-sm hidden sm:block">{s}</span>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
 
-            {/* Step 1: Verification */}
-            {step === 'VERIFY' && (
-                <Card className="max-w-md mx-auto">
-                    <CardHeader>
-                        <CardTitle>Customer Verification</CardTitle>
-                        <CardDescription>Enter customer mobile number to verify</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Mobile Number</Label>
-                            <div className="flex gap-2">
+                {/* Step 1: Verification */}
+                {step === 'VERIFY' && (
+                    <Card className="max-w-md mx-auto">
+                        <CardHeader>
+                            <CardTitle>Customer Verification</CardTitle>
+                            <CardDescription>Enter customer mobile number to verify</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Mobile Number</Label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="Enter 10 digit number"
+                                        value={mobileNumber}
+                                        onChange={(e) => setMobileNumber(e.target.value)}
+                                        maxLength={10}
+                                        inputMode="numeric"
+                                    />
+                                    <Button
+                                        onClick={handleSendOtp}
+                                        disabled={sendOtpMutation.isPending || mobileNumber.length !== 10}
+                                    >
+                                        {sendOtpMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                        Send OTP
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>OTP</Label>
                                 <Input
-                                    placeholder="Enter 10 digit number"
-                                    value={mobileNumber}
-                                    onChange={(e) => setMobileNumber(e.target.value)}
-                                    maxLength={10}
+                                    placeholder="Enter OTP"
+                                    value={otp}
+                                    onChange={(e) => setOtp(e.target.value)}
                                     inputMode="numeric"
                                 />
-                                <Button
-                                    onClick={handleSendOtp}
-                                    disabled={sendOtpMutation.isPending || mobileNumber.length !== 10}
-                                >
-                                    {sendOtpMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                    Send OTP
-                                </Button>
                             </div>
-                        </div>
+                        </CardContent>
+                        <CardFooter>
+                            <Button
+                                className="w-full"
+                                onClick={handleVerifyOtp}
+                                disabled={verifyOtpMutation.isPending || !otp}
+                            >
+                                {verifyOtpMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Verify & Proceed
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                )}
 
-                        <div className="space-y-2">
-                            <Label>OTP</Label>
-                            <Input
-                                placeholder="Enter OTP"
-                                value={otp}
-                                onChange={(e) => setOtp(e.target.value)}
-                                inputMode="numeric"
-                            />
-                        </div>
-                    </CardContent>
-                    <CardFooter>
-                        <Button
-                            className="w-full"
-                            onClick={handleVerifyOtp}
-                            disabled={verifyOtpMutation.isPending || !otp}
-                        >
-                            {verifyOtpMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Verify & Proceed
-                        </Button>
-                    </CardFooter>
-                </Card>
-            )}
-
-            {/* Step 2: Pass Selection */}
-            {step === 'SELECT' && (
-                <div className="space-y-12">
-                    {/* Active Passes */}
-                    {purchasedPasses && purchasedPasses.length > 0 && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-semibold flex items-center gap-2">
-                                <Ticket className="w-5 h-5 text-green-600" /> Active Passes
-                            </h2>
-                            <div className="flex flex-wrap gap-8 justify-center pb-8 border-b">
-                                {purchasedPasses.map((pass) => renderActivePass(pass))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Available Passes */}
-                    <div className="space-y-4">
-                        <h2 className="text-xl font-semibold">Available Passes</h2>
-                        {isLoadingPasses ? (
-                            <div className="flex justify-center p-8">
-                                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-6">
-                                {availablePasses?.map((category) => (
-                                    <div key={category.passCategory.id} className="space-y-4">
-                                        <h3 className="text-lg font-medium text-muted-foreground">
-                                            {category.passCategory.name}
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {category.passes.map((pass) => (
-                                                <Card
-                                                    key={pass.id}
-                                                    className={`cursor-pointer transition-all hover:border-primary border-2 ${selectedPassForPurchase?.id === pass.id ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'
-                                                        } hover:shadow-lg`}
-                                                    onClick={() => initiatePassPurchase(pass)}
-                                                >
-                                                    <CardHeader>
-                                                        <CardTitle className="text-lg flex justify-between">
-                                                            <span>{pass.name}</span>
-                                                            <span className="text-primary font-bold flex items-center gap-2">
-                                                                {pass.originalAmount && pass.originalAmount > pass.amount && (
-                                                                    <span className="text-muted-foreground line-through text-sm font-normal">
-                                                                        ₹{pass.originalAmount}
-                                                                    </span>
-                                                                )}
-                                                                ₹{pass.amount}
-                                                            </span>
-                                                        </CardTitle>
-                                                        <CardDescription className="line-clamp-2">{pass.description}</CardDescription>
-                                                    </CardHeader>
-                                                    <CardContent className="space-y-2 text-sm">
-                                                        <div className="flex justify-between border-b pb-2 border-dashed">
-                                                            <span className="text-muted-foreground">Validity</span>
-                                                            <span className="font-medium">
-                                                                {pass.maxDays > 1000 ? 'Unlimited' : pass.maxDays} Days
-                                                            </span>
-                                                        </div>
-
-                                                        {pass.offer && (
-                                                            <div className="bg-green-100 text-green-800 p-2 rounded text-xs mt-2 font-medium text-center">
-                                                                {pass.offer.offerTitle}
-                                                            </div>
-                                                        )}
-                                                    </CardContent>
-                                                    <CardFooter>
-                                                        <Button
-                                                            className="w-full"
-                                                            variant="outline"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                initiatePassPurchase(pass);
-                                                            }}
-                                                        >
-                                                            Select
-                                                        </Button>
-                                                    </CardFooter>
-                                                </Card>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
+                {/* Step 2: Pass Selection */}
+                {step === 'SELECT' && (
+                    <div className="space-y-12">
+                        {/* Active Passes */}
+                        {purchasedPasses && purchasedPasses.length > 0 && (
+                            <div className="space-y-6">
+                                <h2 className="text-xl font-semibold flex items-center gap-2">
+                                    <Ticket className="w-5 h-5 text-green-600" /> Active Passes
+                                </h2>
+                                <div className="flex flex-wrap gap-8 justify-center pb-8 border-b">
+                                    {purchasedPasses.map((pass) => renderActivePass(pass))}
+                                </div>
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
 
-            {/* Date Selection Dialog */}
-            <Dialog open={!!selectedPassForPurchase} onOpenChange={(open) => !open && setSelectedPassForPurchase(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Confirm Pass Purchase</DialogTitle>
-                        <DialogDescription>
-                            Select start date for the pass.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {selectedPassForPurchase && (
-                        <div className="space-y-4 py-4">
-                            <div className="bg-muted p-4 rounded-lg flex justify-between items-center">
-                                <div>
-                                    <p className="font-semibold">{selectedPassForPurchase.name}</p>
-                                    <p className="text-sm text-muted-foreground">{selectedPassForPurchase.maxDays > 1000 ? 'Unlimited' : selectedPassForPurchase.maxDays} Days Validity</p>
+                        {/* Available Passes */}
+                        <div className="space-y-4">
+                            <h2 className="text-xl font-semibold">Available Passes</h2>
+                            {isLoadingPasses ? (
+                                <div className="flex justify-center p-8">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
                                 </div>
-                                <div className="text-xl font-bold flex items-center gap-2">
-                                    {selectedPassForPurchase.originalAmount && selectedPassForPurchase.originalAmount > selectedPassForPurchase.amount && (
-                                        <span className="text-muted-foreground line-through text-base font-normal">
-                                            ₹{selectedPassForPurchase.originalAmount}
-                                        </span>
-                                    )}
-                                    ₹{selectedPassForPurchase.amount}
-                                </div>
-                            </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-6">
+                                    {availablePasses?.map((category) => (
+                                        <div key={category.passCategory.id} className="space-y-4">
+                                            <h3 className="text-lg font-medium text-muted-foreground">
+                                                {category.passCategory.name}
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {category.passes.map((pass) => (
+                                                    <Card
+                                                        key={pass.id}
+                                                        className={`cursor-pointer transition-all hover:border-primary border-2 ${selectedPassForPurchase?.id === pass.id ? 'border-primary ring-2 ring-primary/20' : 'border-transparent'
+                                                            } hover:shadow-lg`}
+                                                        onClick={() => initiatePassPurchase(pass)}
+                                                    >
+                                                        <CardHeader>
+                                                            <CardTitle className="text-lg flex justify-between">
+                                                                <span>{pass.name}</span>
+                                                                <span className="text-primary font-bold flex items-center gap-2">
+                                                                    {pass.originalAmount && pass.originalAmount > pass.amount && (
+                                                                        <span className="text-muted-foreground line-through text-sm font-normal">
+                                                                            ₹{pass.originalAmount}
+                                                                        </span>
+                                                                    )}
+                                                                    ₹{pass.amount}
+                                                                </span>
+                                                            </CardTitle>
+                                                            <CardDescription className="line-clamp-2">{pass.description}</CardDescription>
+                                                        </CardHeader>
+                                                        <CardContent className="space-y-2 text-sm">
+                                                            <div className="flex justify-between border-b pb-2 border-dashed">
+                                                                <span className="text-muted-foreground">Validity</span>
+                                                                <span className="font-medium">
+                                                                    {pass.maxDays > 1000 ? 'Unlimited' : pass.maxDays} Days
+                                                                </span>
+                                                            </div>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <Label>Start Date</Label>
-                                    <div className="flex gap-2 mb-2 mt-1">
-                                        <Button
-                                            variant={bookingStartDate === new Date().toISOString().split('T')[0] ? "default" : "outline"}
-                                            size="sm"
-                                            onClick={() => setBookingStartDate(new Date().toISOString().split('T')[0])}
-                                            className="text-xs"
-                                        >
-                                            Today
-                                        </Button>
-                                        <Button
-                                            variant={bookingStartDate === (() => {
-                                                const d = new Date();
-                                                d.setDate(16);
-                                                if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
-                                                return d.toISOString().split('T')[0];
-                                            })() ? "default" : "outline"}
-                                            size="sm"
-                                            onClick={() => {
-                                                const d = new Date();
-                                                d.setDate(16);
-                                                if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
-                                                setBookingStartDate(d.toISOString().split('T')[0]);
-                                            }}
-                                            className="text-xs"
-                                        >
-                                            16th {(() => {
-                                                const d = new Date();
-                                                if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
-                                                return d.toLocaleString('default', { month: 'short' });
-                                            })()}
-                                        </Button>
-                                    </div>
-                                    <Input
-                                        type="date"
-                                        value={bookingStartDate}
-                                        min={new Date().toISOString().split('T')[0]} // Cannot select past dates
-                                        onChange={(e) => setBookingStartDate(e.target.value)}
-                                        className="w-full"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Customer Photo (Optional)</Label>
-                                    {!showCamera && !capturedImage && (
-                                        <Button
-                                            variant="outline"
-                                            className="w-full h-24 border-dashed border-2 flex flex-col gap-2"
-                                            onClick={() => handleStartCamera()}
-                                        >
-                                            <Camera className="w-6 h-6 text-muted-foreground" />
-                                            Capture Photo
-                                        </Button>
-                                    )}
-
-                                    {showCamera && (
-                                        <div className="space-y-2">
-                                            <div className="relative rounded-lg overflow-hidden bg-black aspect-square">
-                                                <video
-                                                    ref={videoRef}
-                                                    autoPlay
-                                                    playsInline
-                                                    muted
-                                                    className="w-full h-full object-cover"
-                                                />
-                                                {/* Face Guide Overlay */}
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                    <div className="w-48 h-60 border-4 border-white/50 rounded-[50%] shadow-lg">
-                                                        {/* Face outline */}
-                                                    </div>
-                                                </div>
-                                                <p className="absolute bottom-2 left-0 right-0 text-center text-white text-xs bg-black/40 py-1">
-                                                    Align face within the oval
-                                                </p>
-                                                {/* Switch Camera Button */}
-                                                <Button
-                                                    size="icon"
-                                                    variant="secondary"
-                                                    className="absolute top-2 right-2 h-10 w-10 rounded-full bg-white/20 backdrop-blur hover:bg-white/40"
-                                                    onClick={handleSwitchCamera}
-                                                >
-                                                    <SwitchCamera className="w-5 h-5 text-white" />
-                                                </Button>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Button onClick={handleCapturePhoto} className="flex-1">Capture</Button>
-                                                <Button variant="ghost" onClick={handleStopCamera}>Cancel</Button>
+                                                            {pass.offer && (
+                                                                <div className="bg-green-100 text-green-800 p-2 rounded text-xs mt-2 font-medium text-center">
+                                                                    {pass.offer.offerTitle}
+                                                                </div>
+                                                            )}
+                                                        </CardContent>
+                                                        <CardFooter>
+                                                            <Button
+                                                                className="w-full"
+                                                                variant="outline"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    initiatePassPurchase(pass);
+                                                                }}
+                                                            >
+                                                                Select
+                                                            </Button>
+                                                        </CardFooter>
+                                                    </Card>
+                                                ))}
                                             </div>
                                         </div>
-                                    )}
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
-                                    {capturedImage && (
-                                        <div className="space-y-2">
-                                            <div className="relative rounded-lg overflow-hidden border aspect-video bg-muted flex items-center justify-center">
-                                                <img src={capturedImage} alt="Captured" className="h-full object-contain" />
-                                                <Button
-                                                    size="icon"
-                                                    variant="destructive"
-                                                    className="absolute top-2 right-2 h-8 w-8"
-                                                    onClick={() => setCapturedImage(null)}
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                            <Button variant="outline" size="sm" onClick={() => handleStartCamera()} className="w-full">
-                                                <RefreshCw className="w-3 h-3 mr-2" /> Retake Photo
+                {/* Date Selection Dialog */}
+                <Dialog open={!!selectedPassForPurchase} onOpenChange={(open) => !open && setSelectedPassForPurchase(null)}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Confirm Pass Purchase</DialogTitle>
+                            <DialogDescription>
+                                Select start date for the pass.
+                            </DialogDescription>
+                        </DialogHeader>
+                        {selectedPassForPurchase && (
+                            <div className="space-y-4 py-4">
+                                <div className="bg-muted p-4 rounded-lg flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold">{selectedPassForPurchase.name}</p>
+                                        <p className="text-sm text-muted-foreground">{selectedPassForPurchase.maxDays > 1000 ? 'Unlimited' : selectedPassForPurchase.maxDays} Days Validity</p>
+                                    </div>
+                                    <div className="text-xl font-bold flex items-center gap-2">
+                                        {selectedPassForPurchase.originalAmount && selectedPassForPurchase.originalAmount > selectedPassForPurchase.amount && (
+                                            <span className="text-muted-foreground line-through text-base font-normal">
+                                                ₹{selectedPassForPurchase.originalAmount}
+                                            </span>
+                                        )}
+                                        ₹{selectedPassForPurchase.amount}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label>Start Date</Label>
+                                        <div className="flex gap-2 mb-2 mt-1">
+                                            <Button
+                                                variant={bookingStartDate === new Date().toISOString().split('T')[0] ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setBookingStartDate(new Date().toISOString().split('T')[0])}
+                                                className="text-xs"
+                                            >
+                                                Today
+                                            </Button>
+                                            <Button
+                                                variant={bookingStartDate === (() => {
+                                                    const d = new Date();
+                                                    d.setDate(16);
+                                                    if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
+                                                    return d.toISOString().split('T')[0];
+                                                })() ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => {
+                                                    const d = new Date();
+                                                    d.setDate(16);
+                                                    if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
+                                                    setBookingStartDate(d.toISOString().split('T')[0]);
+                                                }}
+                                                className="text-xs"
+                                            >
+                                                16th {(() => {
+                                                    const d = new Date();
+                                                    if (new Date().getDate() > 16) d.setMonth(d.getMonth() + 1);
+                                                    return d.toLocaleString('default', { month: 'short' });
+                                                })()}
                                             </Button>
                                         </div>
-                                    )}
-                                    <canvas ref={canvasRef} className="hidden" />
+                                        <Input
+                                            type="date"
+                                            value={bookingStartDate}
+                                            min={new Date().toISOString().split('T')[0]} // Cannot select past dates
+                                            onChange={(e) => setBookingStartDate(e.target.value)}
+                                            className="w-full"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Customer Photo (Optional)</Label>
+                                        {!showCamera && !capturedImage && (
+                                            <Button
+                                                variant="outline"
+                                                className="w-full h-24 border-dashed border-2 flex flex-col gap-2"
+                                                onClick={() => handleStartCamera()}
+                                            >
+                                                <Camera className="w-6 h-6 text-muted-foreground" />
+                                                Capture Photo
+                                            </Button>
+                                        )}
+
+                                        {showCamera && (
+                                            <div className="space-y-2">
+                                                <div className="relative rounded-lg overflow-hidden bg-black aspect-square">
+                                                    <video
+                                                        ref={videoRef}
+                                                        autoPlay
+                                                        playsInline
+                                                        muted
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                    {/* Face Guide Overlay */}
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                        <div className="w-48 h-60 border-4 border-white/50 rounded-[50%] shadow-lg">
+                                                            {/* Face outline */}
+                                                        </div>
+                                                    </div>
+                                                    <p className="absolute bottom-2 left-0 right-0 text-center text-white text-xs bg-black/40 py-1">
+                                                        Align face within the oval
+                                                    </p>
+                                                    {/* Switch Camera Button */}
+                                                    <Button
+                                                        size="icon"
+                                                        variant="secondary"
+                                                        className="absolute top-2 right-2 h-10 w-10 rounded-full bg-white/20 backdrop-blur hover:bg-white/40"
+                                                        onClick={handleSwitchCamera}
+                                                    >
+                                                        <SwitchCamera className="w-5 h-5 text-white" />
+                                                    </Button>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button onClick={handleCapturePhoto} className="flex-1">Capture</Button>
+                                                    <Button variant="ghost" onClick={handleStopCamera}>Cancel</Button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {capturedImage && (
+                                            <div className="space-y-2">
+                                                <div className="relative rounded-lg overflow-hidden border aspect-video bg-muted flex items-center justify-center">
+                                                    <img src={capturedImage} alt="Captured" className="h-full object-contain" />
+                                                    <Button
+                                                        size="icon"
+                                                        variant="destructive"
+                                                        className="absolute top-2 right-2 h-8 w-8"
+                                                        onClick={() => setCapturedImage(null)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                                <Button variant="outline" size="sm" onClick={() => handleStartCamera()} className="w-full">
+                                                    <RefreshCw className="w-3 h-3 mr-2" /> Retake Photo
+                                                </Button>
+                                            </div>
+                                        )}
+                                        <canvas ref={canvasRef} className="hidden" />
+                                    </div>
                                 </div>
+                            </div>
+                        )}
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setSelectedPassForPurchase(null)}>Cancel</Button>
+                            <Button onClick={confirmPassPurchase} disabled={selectPassMutation.isPending || !capturedImage}>
+                                {selectPassMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Proceed to Pay
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Step 3: Payment */}
+                {step === 'PAYMENT' && paymentUrl && (
+                    <div className="space-y-6">
+                        <Card className="max-w-3xl mx-auto h-[600px] flex flex-col">
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle>Complete Payment</CardTitle>
+                                <div className="flex items-center gap-2">
+                                    {paymentStatus?.status === 'PENDING' || paymentStatus?.status === 'NEW' ? (
+                                        <span className="flex items-center text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full text-sm">
+                                            <Loader2 className="w-3 h-3 mr-2 animate-spin" /> Waiting for payment...
+                                        </span>
+                                    ) : (
+                                        <span className="text-sm font-medium">Status: {paymentStatus?.status}</span>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="flex-1 p-0 overflow-hidden">
+                                <iframe
+                                    src={paymentUrl}
+                                    className="w-full h-full border-0"
+                                    title="Payment Page"
+                                />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Step 4: Success */}
+                {step === 'SUCCESS' && (
+                    <Card className="max-w-md mx-auto text-center py-12">
+                        <CardContent className="space-y-6">
+                            <div className="flex justify-center">
+                                <CheckCircle2 className="w-20 h-20 text-green-500" />
+                            </div>
+                            <div className="space-y-2">
+                                <CardTitle className="text-2xl">Payment Successful!</CardTitle>
+                                <CardDescription>
+                                    The pass has been successfully activated for the customer.
+                                    <br />
+                                    A confirmation message has been sent to their phone. Please check.
+                                </CardDescription>
+                            </div>
+                            <Button onClick={resetFlow} className="w-full">
+                                Process Another Booking
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+
+            {/* Change Start Date Dialog */}
+            <Dialog open={changeDateDialogOpen} onOpenChange={setChangeDateDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Change Pass Start Date</DialogTitle>
+                        <DialogDescription>
+                            Update the start date for this pass. The pass validity will be recalculated from the new date.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedPassForDateChange && (
+                        <div className="space-y-4 py-4">
+                            <div className="bg-muted p-4 rounded-lg">
+                                <p className="font-semibold">{selectedPassForDateChange.passEntity?.passDetails?.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Pass #: {selectedPassForDateChange.passNumber}
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>New Start Date</Label>
+                                <Input
+                                    type="date"
+                                    value={newStartDate}
+                                    onChange={(e) => setNewStartDate(e.target.value)}
+                                    min={new Date().toISOString().split('T')[0]}
+                                />
                             </div>
                         </div>
                     )}
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setSelectedPassForPurchase(null)}>Cancel</Button>
-                        <Button onClick={confirmPassPurchase} disabled={selectPassMutation.isPending || !capturedImage}>
-                            {selectPassMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Proceed to Pay
+                        <Button variant="outline" onClick={() => setChangeDateDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleChangeStartDate}
+                            disabled={changeStartDateMutation.isPending || !newStartDate}
+                        >
+                            {changeStartDateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Update Start Date
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-            {/* Step 3: Payment */}
-            {step === 'PAYMENT' && paymentUrl && (
-                <div className="space-y-6">
-                    <Card className="max-w-3xl mx-auto h-[600px] flex flex-col">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Complete Payment</CardTitle>
-                            <div className="flex items-center gap-2">
-                                {paymentStatus?.status === 'PENDING' || paymentStatus?.status === 'NEW' ? (
-                                    <span className="flex items-center text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full text-sm">
-                                        <Loader2 className="w-3 h-3 mr-2 animate-spin" /> Waiting for payment...
-                                    </span>
-                                ) : (
-                                    <span className="text-sm font-medium">Status: {paymentStatus?.status}</span>
-                                )}
-                            </div>
-                        </CardHeader>
-                        <CardContent className="flex-1 p-0 overflow-hidden">
-                            <iframe
-                                src={paymentUrl}
-                                className="w-full h-full border-0"
-                                title="Payment Page"
-                            />
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
-
-            {/* Step 4: Success */}
-            {step === 'SUCCESS' && (
-                <Card className="max-w-md mx-auto text-center py-12">
-                    <CardContent className="space-y-6">
-                        <div className="flex justify-center">
-                            <CheckCircle2 className="w-20 h-20 text-green-500" />
-                        </div>
-                        <div className="space-y-2">
-                            <CardTitle className="text-2xl">Payment Successful!</CardTitle>
-                            <CardDescription>
-                                The pass has been successfully activated for the customer.
-                                <br />
-                                A confirmation message has been sent to their phone. Please check.
-                            </CardDescription>
-                        </div>
-                        <Button onClick={resetFlow} className="w-full">
-                            Process Another Booking
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
-        </div>
+        </>
     );
 }
+

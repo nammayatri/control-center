@@ -99,3 +99,23 @@ export function usePaymentStatus(customerId: string | null, orderId: string | nu
         },
     });
 }
+
+export function useChangePassStartDate() {
+    const { merchantShortId, merchantId, cityId } = useDashboardContext();
+    const apiMerchantId = merchantShortId || merchantId;
+
+    return useMutation({
+        mutationFn: ({
+            customerId,
+            passNumber,
+            startDay,
+        }: {
+            customerId: string;
+            passNumber: string;
+            startDay: string;
+        }) => {
+            if (!apiMerchantId || !cityId) return Promise.reject(new Error('Missing context'));
+            return boothService.changePassStartDate(apiMerchantId, cityId, customerId, passNumber, startDay);
+        },
+    });
+}
