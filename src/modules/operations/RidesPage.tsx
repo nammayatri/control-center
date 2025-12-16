@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -35,19 +36,30 @@ import { Alert, AlertDescription } from '../../components/ui/alert';
 export function RidesPage() {
   const { merchantId, cityId, cityName } = useDashboardContext();
   const { loginModule } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Search State
-  const [shortRideId, setShortRideId] = useState('');
-  const [driverPhone, setDriverPhone] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [status, setStatus] = useState<RideStatusFilter | ''>('');
-  const [date, setDate] = useState<DateRange | undefined>(undefined);
+  // Initialize state from URL params for back navigation preservation
+  const [shortRideId, setShortRideId] = useState(searchParams.get('shortId') || '');
+  const [driverPhone, setDriverPhone] = useState(searchParams.get('driverPhone') || '');
+  const [customerPhone, setCustomerPhone] = useState(searchParams.get('customerPhone') || '');
+  const [status, setStatus] = useState<RideStatusFilter | ''>(
+    (searchParams.get('status') as RideStatusFilter) || ''
+  );
+  const [date, setDate] = useState<DateRange | undefined>(() => {
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    if (from && to) {
+      return { from: new Date(from), to: new Date(to) };
+    }
+    return undefined;
+  });
   
   // Data State
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<BPPRideListResponse['rides']>([]);
   const [error, setError] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = useState(searchParams.has('searched'));
 
   // Derived state for validation
   const isDateRequired = !!(driverPhone || customerPhone);
@@ -61,7 +73,7 @@ export function RidesPage() {
     // If Status is present -> Date/others optional? User didn't specify strictness for status-only.
     // I will enforce date if phones are used.
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (!merchantId) {
       setError('Merchant ID is missing');
       return;
@@ -75,6 +87,17 @@ export function RidesPage() {
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
+
+    // Update URL params for back navigation preservation
+    const newParams = new URLSearchParams();
+    if (shortRideId) newParams.set('shortId', shortRideId);
+    if (driverPhone) newParams.set('driverPhone', driverPhone);
+    if (customerPhone) newParams.set('customerPhone', customerPhone);
+    if (status) newParams.set('status', status);
+    if (date?.from) newParams.set('from', date.from.toISOString());
+    if (date?.to) newParams.set('to', date.to.toISOString());
+    newParams.set('searched', 'true');
+    setSearchParams(newParams, { replace: true });
 
     try {
       // Construct date range for the selected date
@@ -148,7 +171,16 @@ export function RidesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [merchantId, cityId, cityName, loginModule, shortRideId, driverPhone, customerPhone, status, date, isDateRequired, setSearchParams]);
+
+  // Auto-search on mount if URL has search params (for back navigation preservation)
+  useEffect(() => {
+    if (searchParams.has('searched') && !data.length && !isLoading) {
+      handleSearch();
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleReset = () => {
     setShortRideId('');
@@ -159,6 +191,8 @@ export function RidesPage() {
     setData([]);
     setError(null);
     setHasSearched(false);
+    // Clear URL params
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   const statusOptions: { label: string; value: RideStatusFilter }[] = [
@@ -355,7 +389,11 @@ export function RidesPage() {
                     }
                     if (data.length > 0) {
                       return data.map((ride) => (
-                        <TableRow key={ride.rideId} className="cursor-pointer hover:bg-muted/50">
+                        <TableRow 
+                          key={ride.rideId} 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => navigate(`/ops/rides/${ride.rideId}`)}
+                        >
                           <TableCell>
                             {ride.rideCreatedAt ? format(new Date(ride.rideCreatedAt), 'PP p') : '-'}
                           </TableCell>

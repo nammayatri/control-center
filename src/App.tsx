@@ -16,6 +16,7 @@ import { DriverDetailPage } from './modules/operations/DriverDetailPage';
 import { CustomersPage } from './modules/operations/CustomersPage';
 import { CustomerDetailPage } from './modules/operations/CustomerDetailPage';
 import { RidesPage } from './modules/operations/RidesPage';
+import { RideSummaryPage } from './modules/operations/RideSummaryPage';
 import { UsersPage } from './modules/access/UsersPage';
 import { UserDetailPage } from './modules/access/UserDetailPage';
 import { RolesPage } from './modules/access/RolesPage';
@@ -136,7 +137,7 @@ function AppRoutes() {
           <Route path="customers" element={<CustomersPage />} />
           <Route path="customers/:customerId" element={<CustomerDetailPage />} />
           <Route path="rides" element={<RidesPage />} />
-          <Route path="rides/:rideId" element={<PlaceholderPage title="Ride Details" />} />
+          <Route path="rides/:rideId" element={<RideSummaryPage />} />
           <Route path="comms" element={<PlaceholderPage title="Communications" />} />
           <Route path="issues" element={<IssuesListPage />} />
           <Route path="issues/:id" element={<IssueDetailPage />} />
