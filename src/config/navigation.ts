@@ -111,6 +111,14 @@ export const navConfig: NavItem[] = [
                 action: '*',
             },
             {
+                label: 'Executive Metrics',
+                path: '/analytics/executive',
+                icon: 'BarChart3',
+                resource: '*',
+                action: '*',
+                description: 'Business KPIs, conversion funnel, and trends',
+            },
+            {
                 label: 'Reports',
                 path: '/analytics/reports',
                 icon: 'BarChart3',

@@ -21,6 +21,7 @@ import { UserDetailPage } from './modules/access/UserDetailPage';
 import { RolesPage } from './modules/access/RolesPage';
 import { RoleDetailPage } from './modules/access/RoleDetailPage';
 import { AnalyticsOverviewPage } from './modules/analytics/AnalyticsOverviewPage';
+import { ExecutiveMetricsPage } from './modules/analytics/ExecutiveMetricsPage';
 import { NammaTagsPage } from './modules/config/NammaTagsPage';
 import PassBookingPage from './modules/agent/PassBookingPage';
 import { DynamicLogicPage } from './modules/config/DynamicLogicPage';
@@ -153,6 +154,7 @@ function AppRoutes() {
         <Route path="analytics">
           <Route index element={<Navigate to="/analytics/overview" replace />} />
           <Route path="overview" element={<AnalyticsOverviewPage />} />
+          <Route path="executive" element={<ExecutiveMetricsPage />} />
           <Route path="reports" element={<PlaceholderPage title="Reports" />} />
         </Route>
 

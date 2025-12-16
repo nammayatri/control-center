@@ -100,6 +100,50 @@ npm run build
 npm run preview
 ```
 
+### Backend Server
+
+The backend server is located in the `server/` directory and provides APIs with ClickHouse database integration.
+
+```bash
+# Navigate to server directory
+cd server
+
+# Install dependencies
+npm install
+
+# Copy environment template and configure
+cp .env.example .env
+
+# Start development server (with hot reload)
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+```
+
+#### Environment Variables
+
+Configure the following in `server/.env`:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CLICKHOUSE_HOST` | ClickHouse server host | `localhost` |
+| `CLICKHOUSE_PORT` | ClickHouse HTTP port | `8123` |
+| `CLICKHOUSE_USER` | ClickHouse username | `default` |
+| `CLICKHOUSE_PASSWORD` | ClickHouse password | (empty) |
+| `CLICKHOUSE_DATABASE` | ClickHouse database name | `default` |
+| `PORT` | Backend server port | `3001` |
+
+#### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Server health check |
+| `GET /health/clickhouse` | ClickHouse connection status |
+
 ## API Integration
 
 The dashboard integrates with two OpenAPI specifications:
