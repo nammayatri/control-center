@@ -15,6 +15,7 @@ import { DriversPage } from './modules/operations/DriversPage';
 import { DriverDetailPage } from './modules/operations/DriverDetailPage';
 import { CustomersPage } from './modules/operations/CustomersPage';
 import { CustomerDetailPage } from './modules/operations/CustomerDetailPage';
+import { RidesPage } from './modules/operations/RidesPage';
 import { UsersPage } from './modules/access/UsersPage';
 import { UserDetailPage } from './modules/access/UserDetailPage';
 import { RolesPage } from './modules/access/RolesPage';
@@ -40,7 +41,7 @@ export const queryClient = new QueryClient({
 });
 
 // Protected Route Wrapper
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -66,7 +67,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 // Public Route Wrapper (redirects to dashboard if already logged in)
-function PublicRoute({ children }: { children: React.ReactNode }) {
+function PublicRoute({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -88,7 +89,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 // Placeholder pages
-function PlaceholderPage({ title }: { title: string }) {
+function PlaceholderPage({ title }: Readonly<{ title: string }>) {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold">{title}</h1>
@@ -133,7 +134,7 @@ function AppRoutes() {
           <Route path="drivers/:driverId" element={<DriverDetailPage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="customers/:customerId" element={<CustomerDetailPage />} />
-          <Route path="rides" element={<PlaceholderPage title="Rides" />} />
+          <Route path="rides" element={<RidesPage />} />
           <Route path="rides/:rideId" element={<PlaceholderPage title="Ride Details" />} />
           <Route path="comms" element={<PlaceholderPage title="Communications" />} />
           <Route path="issues" element={<IssuesListPage />} />
@@ -145,6 +146,7 @@ function AppRoutes() {
           <Route index element={<Navigate to="/fleet/overview" replace />} />
           <Route path="overview" element={<PlaceholderPage title="Fleet Overview" />} />
           <Route path="vehicles" element={<PlaceholderPage title="Vehicles" />} />
+          <Route path="rides" element={<RidesPage />} />
         </Route>
 
         {/* Analytics */}
@@ -195,9 +197,9 @@ function App() {
       queryClient.invalidateQueries();
     };
 
-    window.addEventListener('merchant-city-switch', handleContextSwitch);
+    globalThis.addEventListener('merchant-city-switch', handleContextSwitch);
     return () => {
-      window.removeEventListener('merchant-city-switch', handleContextSwitch);
+      globalThis.removeEventListener('merchant-city-switch', handleContextSwitch);
     };
   }, []);
 

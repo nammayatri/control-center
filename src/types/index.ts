@@ -221,6 +221,14 @@ export type RideStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
+export type RideStatusFilter =
+  | 'UPCOMING'
+  | 'UPCOMING_6HRS'
+  | 'ONGOING'
+  | 'ONGOING_6HRS'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
 export type BookingStatus =
   | 'NEW'
   | 'CONFIRMED'
@@ -275,6 +283,11 @@ export interface Location {
 
 export interface RideListFilters {
   status?: RideStatus;
+  bookingStatus?: RideStatusFilter;
+  rideShortId?: string;
+  customerPhoneNo?: string;
+  driverPhoneNo?: string;
+  date?: string;
   from?: string;
   to?: string;
   limit?: number;

@@ -41,17 +41,34 @@ export async function listRides(
   filters: RideListFilters = {}
 ): Promise<RideListResponse> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bap/{merchantId}/{city}/ride/list`
-    : `/bap/{merchantId}/ride/list`;
+    ? `/{merchantId}/{city}/ride/list`
+    : `/{merchantId}/ride/list`;
   
   const path = buildPath(basePath, merchantId, cityId);
-  const query = buildQueryParams({
-    status: filters.status,
-    from: filters.from,
-    to: filters.to,
+  
+  // Map our filters to API query params
+  const params: Record<string, string | number | boolean | null | undefined> = {
     limit: filters.limit || 20,
     offset: filters.offset || 0,
-  });
+  };
+
+  if (filters.status) params.status = filters.status;
+  if (filters.bookingStatus) {
+    // BAP uses different status values: CANCELLED→RCANCELLED, COMPLETED→RCOMPLETED
+    let mappedStatus: string = filters.bookingStatus;
+    if (filters.bookingStatus === 'CANCELLED') {
+      mappedStatus = 'RCANCELLED';
+    } else if (filters.bookingStatus === 'COMPLETED') {
+      mappedStatus = 'RCOMPLETED';
+    }
+    params.status = mappedStatus;
+  }
+  if (filters.rideShortId) params.rideShortId = filters.rideShortId;
+  if (filters.customerPhoneNo) params.customerPhoneNo = filters.customerPhoneNo;
+  if (filters.from) params.from = filters.from;
+  if (filters.to) params.to = filters.to;
+
+  const query = buildQueryParams(params);
   
   return apiRequest(bapApi, {
     method: 'GET',
@@ -111,8 +128,8 @@ export async function getRideInfo(
   cityId?: string
 ): Promise<RideInfoResponse> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bap/{merchantId}/{city}/ride/{rideId}/info`
-    : `/bap/{merchantId}/ride/{rideId}/info`;
+    ? `/{merchantId}/{city}/ride/{rideId}/info`
+    : `/{merchantId}/ride/{rideId}/info`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -134,8 +151,8 @@ export async function cancelRide(
   cityId?: string
 ): Promise<void> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bap/{merchantId}/{city}/ride/cancel`
-    : `/bap/{merchantId}/ride/cancel`;
+    ? `/{merchantId}/{city}/ride/cancel`
+    : `/{merchantId}/ride/cancel`;
   
   const path = buildPath(basePath, merchantId, cityId);
   
@@ -152,8 +169,8 @@ export async function syncRide(
   cityId?: string
 ): Promise<void> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bap/{merchantId}/{city}/ride/sync`
-    : `/bap/{merchantId}/ride/sync`;
+    ? `/{merchantId}/{city}/ride/sync`
+    : `/{merchantId}/ride/sync`;
   
   const path = buildPath(basePath, merchantId, cityId);
   
@@ -170,8 +187,8 @@ export async function waiveCancellationCharges(
   cityId?: string
 ): Promise<void> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bap/{merchantId}/{city}/ride/cancellationChargesWaiveOff/{rideId}`
-    : `/bap/{merchantId}/ride/cancellationChargesWaiveOff/{rideId}`;
+    ? `/{merchantId}/{city}/ride/cancellationChargesWaiveOff/{rideId}`
+    : `/{merchantId}/ride/cancellationChargesWaiveOff/{rideId}`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -186,29 +203,25 @@ export async function waiveCancellationCharges(
 // ============================================
 
 export interface BPPRideListResponse {
-  list: Array<{
-    id: string;
-    bppRideId: string;
-    status: string;
-    createdAt: string;
-    driverId: string;
+  rides: Array<{
+    rideId: string;
+    rideShortId: string;
+    bookingStatus: string;
+    rideCreatedAt: string;
     driverName?: string;
-    vehicleNumber?: string;
-    fromLocation?: {
-      lat: number;
-      lon: number;
-      area?: string;
+    driverPhoneNo?: string;
+    vehicleNo?: string;
+    customerName?: string;
+    customerPhoneNo?: string;
+    tripCategory?: string;
+    fareDiff?: number;
+    fareDiffWithCurrency?: {
+      amount: number;
+      currency: string;
     };
-    toLocation?: {
-      lat: number;
-      lon: number;
-      area?: string;
-    };
-    fare?: number;
-    distance?: number;
-    duration?: number;
   }>;
   summary: Summary;
+  totalItems: number;
 }
 
 export async function listBPPRides(
@@ -217,17 +230,40 @@ export async function listBPPRides(
   filters: RideListFilters = {}
 ): Promise<BPPRideListResponse> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/list`
-    : `/bpp/driver-offer/{merchantId}/ride/list`;
+    ? `/driver-offer/{merchantId}/{city}/ride/list`
+    : `/driver-offer/{merchantId}/ride/list`;
   
   const path = buildPath(basePath, merchantId, cityId);
-  const query = buildQueryParams({
-    status: filters.status,
-    from: filters.from,
-    to: filters.to,
+  
+  // Map our filters to API query params
+  const params: Record<string, string | number | boolean | null | undefined> = {
     limit: filters.limit || 20,
     offset: filters.offset || 0,
-  });
+  };
+
+  if (filters.bookingStatus) params.bookingStatus = `"${filters.bookingStatus}"`; // The curl example shows quotes around the status
+  if (filters.rideShortId) params.rideShortId = filters.rideShortId; // Or rideId if that's what the API expects for short id search? User said "searching with short ride id"
+  // User curl shows: customerPhoneNo=9930081991
+  if (filters.customerPhoneNo) params.customerPhoneNo = filters.customerPhoneNo;
+  if (filters.driverPhoneNo) params.driverPhoneNo = filters.driverPhoneNo;
+  
+  // Date handling
+  // User requirement: "If we are searching with any driver number or phone number, date is mandatory"
+  // API curl shows: from=2025-11-01T00:00:00Z&to=2025-12-16T00:00:00Z
+  if (filters.date) {
+    // Assuming filters.date is a specific day, we need to generate start/end of that day or range
+    // If the UI picks a date specific, we might send from/to for that day?
+    // Or if the UI sends from/to directly. 
+    // The plan said "Input: Date". 
+    // Let's assume filters.from and filters.to are passed if range, or we construct them from filters.date
+  }
+  
+  if (filters.from) params.from = filters.from;
+  if (filters.to) params.to = filters.to;
+
+  // If using generic search param from other pages? No, this is specific page.
+  
+  const query = buildQueryParams(params);
   
   return apiRequest(bppApi, {
     method: 'GET',
@@ -241,8 +277,8 @@ export async function getBPPRideInfo(
   cityId?: string
 ): Promise<RideInfoResponse> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/{rideId}/info`
-    : `/bpp/driver-offer/{merchantId}/ride/{rideId}/info`;
+    ? `/driver-offer/{merchantId}/{city}/ride/{rideId}/info`
+    : `/driver-offer/{merchantId}/ride/{rideId}/info`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -259,8 +295,8 @@ export async function startRide(
   cityId?: string
 ): Promise<void> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/{rideId}/start`
-    : `/bpp/driver-offer/{merchantId}/ride/{rideId}/start`;
+    ? `/driver-offer/{merchantId}/{city}/ride/{rideId}/start`
+    : `/driver-offer/{merchantId}/ride/{rideId}/start`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -278,8 +314,8 @@ export async function endRide(
   cityId?: string
 ): Promise<void> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/{rideId}/end`
-    : `/bpp/driver-offer/{merchantId}/ride/{rideId}/end`;
+    ? `/driver-offer/{merchantId}/{city}/ride/{rideId}/end`
+    : `/driver-offer/{merchantId}/ride/{rideId}/end`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -298,8 +334,8 @@ export async function cancelBPPRide(
   cityId?: string
 ): Promise<void> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/{rideId}/cancel`
-    : `/bpp/driver-offer/{merchantId}/ride/{rideId}/cancel`;
+    ? `/driver-offer/{merchantId}/{city}/ride/{rideId}/cancel`
+    : `/driver-offer/{merchantId}/ride/{rideId}/cancel`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -316,8 +352,8 @@ export async function syncBPPRide(
   cityId?: string
 ): Promise<void> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/{rideId}/sync`
-    : `/bpp/driver-offer/{merchantId}/ride/{rideId}/sync`;
+    ? `/driver-offer/{merchantId}/{city}/ride/{rideId}/sync`
+    : `/driver-offer/{merchantId}/ride/{rideId}/sync`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -333,8 +369,8 @@ export async function getRideFareBreakup(
   cityId?: string
 ): Promise<Array<{ title: string; price: number }>> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/{rideId}/fareBreakUp`
-    : `/bpp/driver-offer/{merchantId}/ride/{rideId}/fareBreakUp`;
+    ? `/driver-offer/{merchantId}/{city}/ride/{rideId}/fareBreakUp`
+    : `/driver-offer/{merchantId}/ride/{rideId}/fareBreakUp`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
@@ -350,8 +386,8 @@ export async function getRideRoute(
   cityId?: string
 ): Promise<Array<{ lat: number; lon: number; timestamp: string }>> {
   const basePath = cityId && cityId !== 'all'
-    ? `/bpp/driver-offer/{merchantId}/{city}/ride/{rideId}/route`
-    : `/bpp/driver-offer/{merchantId}/ride/{rideId}/route`;
+    ? `/driver-offer/{merchantId}/{city}/ride/{rideId}/route`
+    : `/driver-offer/{merchantId}/ride/{rideId}/route`;
   
   const path = buildPath(basePath, merchantId, cityId).replace('{rideId}', rideId);
   
