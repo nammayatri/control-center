@@ -149,7 +149,7 @@ export const addIssueComment = async (
 export const sendIssuePush = async (
     merchantId: string,
     cityId: string,
-    rideId: string,
+    customerId: string,
     message: string,
     title: string,
     module: LoginModule = 'BAP'
@@ -159,7 +159,7 @@ export const sendIssuePush = async (
     // This is a different path structure than issueV2.
     // Assuming rideBooking aligns with bapApi base.
     const response = await api.post(
-        `/${merchantId}/${cityId}/rideBooking/multiModal/sendMessage/${rideId}/`,
+        `/${merchantId}/${cityId}/rideBooking/multiModal/sendMessage/${customerId}/`,
         {
             title,
             message,

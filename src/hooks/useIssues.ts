@@ -83,7 +83,7 @@ export const useSendIssuePush = () => {
     const { loginModule } = useAuth();
 
     return useMutation({
-        mutationFn: ({ rideId, message, title }: { rideId: string; message: string; title: string }) =>
-            sendIssuePush(merchantShortId || merchantId!, cityId!, rideId, message, title, loginModule || undefined),
+        mutationFn: ({ customerId, message, title }: { customerId: string; message: string; title: string }) =>
+            sendIssuePush(merchantShortId || merchantId!, cityId!, customerId, message, title, loginModule || undefined),
     });
 };

@@ -87,7 +87,7 @@ export default function IssueDetailPage() {
     const handleSendPush = () => {
         if (!pushTitle.trim() || !pushMessage.trim()) return;
         toast.promise(sendPushMutation.mutateAsync({
-            rideId: issue?.rideId!,
+            customerId: issue?.personDetail?.personId!,
             title: pushTitle,
             message: pushMessage
         }), {
