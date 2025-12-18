@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { DriverSummary } from '../../components/domain/DriverBadge';
+import { DriverDocumentsTab } from '../../components/domain/DriverDocumentsTab';
 import { VerificationStatusBadge } from '../../components/domain/StatusBadge';
 import { useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver } from '../../hooks/useDrivers';
 import { useDashboardContext } from '../../context/DashboardContext';
@@ -571,37 +572,10 @@ export function DriverDetailPage() {
           </TabsContent>
 
           <TabsContent value="documents" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Driver License</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {driver.driverLicenseDetails ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">License Number</p>
-                        <p className="font-mono">{driver.driverLicenseDetails.licenseNumber}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Expiry</p>
-                        <p>{formatDate(driver.driverLicenseDetails.licenseExpiry)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Status</p>
-                        <VerificationStatusBadge status={driver.driverLicenseDetails.verificationStatus} />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Vehicle Classes</p>
-                        <p>{driver.driverLicenseDetails.classOfVehicles?.join(', ') || '-'}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">No license information available</p>
-                )}
-              </CardContent>
-            </Card>
+            <DriverDocumentsTab 
+              driverId={driver.driverId} 
+              selectedServiceTiers={driver.selectedServiceTiers}
+            />
           </TabsContent>
 
           <TabsContent value="vehicles" className="mt-4">

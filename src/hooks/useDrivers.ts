@@ -206,3 +206,123 @@ export function useBlockReasonList() {
     enabled: !!merchantId && hasAccess,
   });
 }
+
+export function useDriverDocumentsList(driverId: string) {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+
+  const apiMerchantId = merchantShortId || merchantId;
+
+  // Only enable for BPP or FLEET login
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['driverDocumentsList', merchantId, cityId, driverId],
+    queryFn: () => driversService.getDriverDocumentsList(
+      apiMerchantId!,
+      driverId,
+      cityId || undefined
+    ),
+    enabled: !!driverId && !!merchantId && hasAccess,
+    refetchOnMount: 'always',
+  });
+}
+
+export function useDocumentConfigs() {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+
+  const apiMerchantId = merchantShortId || merchantId;
+
+  // Only enable for BPP or FLEET login
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['documentConfigs', merchantId, cityId],
+    queryFn: () => driversService.getDocumentConfigs(
+      apiMerchantId!,
+      cityId || undefined
+    ),
+    enabled: !!merchantId && hasAccess,
+    refetchOnMount: 'always',
+  });
+}
+
+export function useGetDocument(documentId: string | null) {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+
+  const apiMerchantId = merchantShortId || merchantId;
+
+  // Only enable for BPP or FLEET login
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['document', merchantId, cityId, documentId],
+    queryFn: () => driversService.getDocument(
+      apiMerchantId!,
+      documentId!,
+      cityId || undefined
+    ),
+    enabled: !!documentId && !!merchantId && hasAccess,
+  });
+}
+
+export function useUploadDocument() {
+  const queryClient = useQueryClient();
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: ({
+      driverId,
+      documentType,
+      imageBase64,
+    }: {
+      driverId: string;
+      documentType: string;
+      imageBase64: string;
+    }) =>
+      driversService.uploadDocument(
+        apiMerchantId!,
+        driverId,
+        documentType,
+        imageBase64,
+        cityId || undefined
+      ),
+    onSuccess: (_, variables) => {
+      // Invalidate the documents list for this driver
+      queryClient.invalidateQueries({
+        queryKey: ['driverDocumentsList', merchantId, cityId, variables.driverId],
+      });
+      // Also invalidate document configs as counts might change? Unlikely but safe.
+      queryClient.invalidateQueries({
+        queryKey: ['documentConfigs', merchantId, cityId],
+      });
+      // Invalidate additional documents (ProfilePhoto, Aadhaar, Pan)
+      queryClient.invalidateQueries({
+        queryKey: ['panAadharSelfieDetails', merchantId, cityId, variables.driverId],
+      });
+    },
+  });
+}
+
+export function usePanAadharSelfieDetails(driverId: string, docType: string) {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+  const apiMerchantId = merchantShortId || merchantId;
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['panAadharSelfieDetails', merchantId, cityId, driverId, docType],
+    queryFn: () => driversService.getPanAadharSelfieDetails(
+      apiMerchantId!,
+      driverId,
+      docType,
+      cityId || undefined
+    ),
+    enabled: !!driverId && !!merchantId && hasAccess && !!docType,
+    refetchOnMount: 'always',
+  });
+}
