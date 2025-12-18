@@ -92,12 +92,14 @@ export interface DriverInfoResponse {
   blockStateModifier?: string | null;
   softBlockExpiryTime?: string | null;
   softBlockReasonFlag?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   softBlockStiers?: any; // or string[] if known
 
   // Other Info
   alternateNumber?: string | null;
   lastOfflineTime?: string | null;
   reactVersion?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   windowSize?: any;
 
   blockedInfo?: Array<{
@@ -121,7 +123,9 @@ export interface DriverInfoResponse {
     build: number | null;
     preRelease: number | null;
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   aadharAssociationDetails?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   panCardDetails?: any;
 }
 
@@ -271,6 +275,137 @@ export async function getDriverDocuments(
     : `/driver-offer/{merchantId}/driver/{driverId}/documents/info`;
 
   const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path,
+  });
+}
+
+// ============================================
+// Driver Documents List API (for Documents Tab)
+// ============================================
+
+export interface DriverLicenseDetail {
+  classOfVehicles: string[];
+  createdAt: string;
+  dateOfIssue: string | null;
+  driverDateOfBirth: string;
+  driverLicenseNumber: string;
+  driverName: string;
+  imageId1: string;
+  imageId2: string | null;
+  operatingCity: string;
+}
+
+export interface VehicleRegistrationCertificateDetail {
+  airConditioned: boolean | null;
+  createdAt: string;
+  dateOfRegistration: string | null;
+  failedRules: string[];
+  imageId: string;
+  operatingCity: string;
+  oxygen: boolean | null;
+  vehicleCategory: string | null;
+  vehicleColor: string;
+  vehicleDoors: number | null;
+  vehicleManufacturer: string;
+  vehicleModel: string;
+  vehicleModelYear: number | null;
+  vehicleRegistrationCertNumber: string;
+  vehicleSeatBelts: number | null;
+  ventilator: boolean | null;
+}
+
+export interface DriverDocumentsListResponse {
+  aadhaar: string[];
+  businessLicense: string[];
+  commonDocuments: string[];
+  driverLicense: string[][];
+  driverLicenseDetails: DriverLicenseDetail[];
+  gstCertificate: string[];
+  odometer: string[];
+  pan: string[];
+  profilePhoto: string[];
+  ssn: string[] | null;
+  uploadProfile: string[];
+  vehicleBack: string[];
+  vehicleBackInterior: string[];
+  vehicleFitnessCertificate: string[];
+  vehicleFront: string[];
+  vehicleFrontInterior: string[];
+  vehicleInspectionForm: string[];
+  vehicleInsurance: string[];
+  vehicleLeft: string[];
+  vehicleNOC: string[];
+  vehiclePUC: string[];
+  vehiclePermit: string[];
+  vehicleRegistrationCertificate: string[];
+  vehicleRegistrationCertificateDetails: VehicleRegistrationCertificateDetail[];
+  vehicleRight: string[];
+  [key: string]: string[] | string[][] | DriverLicenseDetail[] | VehicleRegistrationCertificateDetail[] | null;
+}
+
+export async function getDriverDocumentsList(
+  merchantId: string,
+  driverId: string,
+  cityId?: string
+): Promise<DriverDocumentsListResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/documents/list`
+    : `/driver-offer/{merchantId}/driver/{driverId}/documents/list`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path,
+  });
+}
+
+// ============================================
+// Document Configs API (for Documents Tab)
+// ============================================
+
+export interface DocumentConfigItem {
+  applicableTo: string;
+  checkExpiry: boolean;
+  checkExtraction: boolean;
+  dependencyDocumentType: string[];
+  description: string | null;
+  disableWarning: string;
+  documentCategory: string | null;
+  documentFields: string | null;
+  documentType: string;
+  filterForOldApks: boolean;
+  isDisabled: boolean;
+  isHidden: boolean;
+  isMandatory: boolean;
+  isMandatoryForEnabling: boolean;
+  rcNumberPrefixList: string[];
+  title: string;
+}
+
+export interface DocumentConfigsResponse {
+  ambulances: DocumentConfigItem[] | null;
+  autos: DocumentConfigItem[] | null;
+  bikes: DocumentConfigItem[] | null;
+  boat: DocumentConfigItem[] | null;
+  bus: DocumentConfigItem[] | null;
+  cabs: DocumentConfigItem[] | null;
+  fleet: DocumentConfigItem[] | null;
+  trucks: DocumentConfigItem[] | null;
+}
+
+export async function getDocumentConfigs(
+  merchantId: string,
+  cityId?: string
+): Promise<DocumentConfigsResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/onboarding/document/configs`
+    : `/driver-offer/{merchantId}/onboarding/document/configs`;
+
+  const path = buildPath(basePath, merchantId, cityId);
 
   return apiRequest(bppApi, {
     method: 'GET',
@@ -449,3 +584,106 @@ export async function getBlockReasonList(
   });
 }
 
+// ============================================
+// Pan/Aadhar/Selfie Details
+// ============================================
+
+export interface PanAadharSelfieDetail {
+  createdAt: string;
+  failureReason: string | null;
+  imageId1: string | null;
+  imageId2: string | null;
+  transactionId: string;
+  updatedAt: string;
+  verificationStatus: string;
+}
+
+export type PanAadharSelfieDetailsResponse = PanAadharSelfieDetail[];
+
+export async function getPanAadharSelfieDetails(
+  merchantId: string,
+  driverId: string,
+  docType: string,
+  cityId?: string
+): Promise<PanAadharSelfieDetailsResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/driver/panAadharSelfieDetailsList`
+    : `/driver-offer/{merchantId}/driver/panAadharSelfieDetailsList`;
+
+  const path = buildPath(basePath, merchantId, cityId);
+  const query = `?docType=${docType}&driverId=${driverId}`;
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path + query,
+  });
+}
+
+// ============================================
+// Document Image API
+// ============================================
+
+export interface GetDocumentResponse {
+  imageBase64: string;
+  status: string;
+}
+
+export async function getDocument(
+  merchantId: string,
+  documentId: string,
+  cityId?: string
+): Promise<GetDocumentResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/driver/getDocument/${documentId}`
+    : `/driver-offer/{merchantId}/driver/getDocument/${documentId}`;
+
+  const path = buildPath(basePath, merchantId, cityId);
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path,
+  });
+}
+
+// Helper to map UI/Config document document types to the specific ImageType enum expected by the backend
+function mapToImageType(documentType: string): string {
+  const mapping: Record<string, string> = {
+    'ProfilePhoto': 'ProfilePhotoImage',
+    'VehicleInsurance': 'VehicleInsuranceImage', 
+    'VehiclePermit': 'VehiclePermitImage', 
+    'VehiclePUC': 'VehiclePUCImage',
+    'VehicleFitness': 'VehicleFitnessCertificateImage',
+    'VehicleInspection': 'VehicleInspectionImage',
+  };
+
+  return mapping[documentType] || documentType;
+}
+
+export async function uploadDocument(
+  merchantId: string,
+  driverId: string,
+  documentType: string,
+  imageBase64: string,
+  cityId?: string
+): Promise<void> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/document/upload`
+    : `/driver-offer/{merchantId}/driver/{driverId}/document/upload`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  // Appending documentType to query to differentiate
+  const query = `?documentType=${documentType}`;
+  
+  const imageType = mapToImageType(documentType);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path + query,
+    data: {
+      imageBase64,
+      imageType,
+      documentType, 
+    },
+  });
+}
