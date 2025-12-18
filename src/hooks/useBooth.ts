@@ -124,3 +124,14 @@ export function useChangePassStartDate() {
         },
     });
 }
+
+export function usePassTransactions(customerId: string | null, limit?: number, offset?: number) {
+    const { merchantShortId, merchantId, cityId } = useDashboardContext();
+    const apiMerchantId = merchantShortId || merchantId;
+
+    return useQuery({
+        queryKey: ['booth', 'passTransactions', apiMerchantId, cityId, customerId, limit, offset],
+        queryFn: () => boothService.getPassTransactions(apiMerchantId!, cityId!, customerId!, limit, offset),
+        enabled: !!apiMerchantId && !!cityId && !!customerId,
+    });
+}

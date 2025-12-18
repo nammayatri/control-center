@@ -127,3 +127,25 @@ export async function changePassStartDate(
         url: `${path}?startDay=${startDay}`,
     });
 }
+
+export async function getPassTransactions(
+    merchantId: string,
+    cityId: string,
+    customerId: string,
+    limit?: number,
+    offset?: number
+): Promise<import('../types/booth').PassTransactionsResponse> {
+    // curl: /bap/:merchantId/:city/pass/customer/:customerId/transactions?limit&offset
+    let path = buildPath('/{merchantId}/{city}/pass/customer/{customerId}/transactions', merchantId, cityId);
+    path = path.replace('{customerId}', customerId);
+
+    const params: Record<string, any> = {};
+    if (limit !== undefined) params.limit = limit;
+    if (offset !== undefined) params.offset = offset;
+
+    return apiRequest(bapApi, {
+        method: 'GET',
+        url: path,
+        params,
+    });
+}

@@ -34,7 +34,7 @@ import {
   useDeleteCustomer,
   useSyncCancellationDues,
 } from '../../hooks/useCustomers';
-import { usePurchasedPasses, useChangePassStartDate } from '../../hooks/useBooth';
+import { usePurchasedPasses, useChangePassStartDate, usePassTransactions } from '../../hooks/useBooth';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { usePermissions } from '../../context/PermissionsContext';
 import { useAuth } from '../../context/AuthContext';
@@ -858,6 +858,8 @@ export function CustomerDetailPage() {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const journeyPageSize = 5;
+  const [transactionsPage, setTransactionsPage] = useState(0);
+  const transactionsPageSize = 10;
 
   const hasCustomerAccess = loginModule === 'BAP';
   const apiMerchantId = merchantShortId || currentMerchant?.shortId || merchantId;
@@ -915,6 +917,13 @@ export function CustomerDetailPage() {
   // Purchased Passes
   const { data: purchasedPasses, isLoading: passesLoading } = usePurchasedPasses(customerId || null);
   const changeStartDateMutation = useChangePassStartDate();
+
+  // Pass Transactions
+  const { data: passTransactions, isLoading: transactionsLoading } = usePassTransactions(
+    customerId || null,
+    transactionsPageSize,
+    transactionsPage * transactionsPageSize
+  );
 
   // Change Date Dialog State
   const [changeDateDialogOpen, setChangeDateDialogOpen] = useState(false);
@@ -1192,7 +1201,37 @@ export function CustomerDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Pass Transactions */}
+            <Card className="mt-6">
+              <CardHeader><CardTitle>Pass Transactions</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                {transactionsLoading ? (
+                  <div className="p-4 space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
+                ) : !passTransactions || passTransactions.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">No transactions found</div>
+                ) : (
+                  <>
+                    <Table><TableHeader><TableRow><TableHead>Pass Name</TableHead><TableHead>Pass Code</TableHead><TableHead>Status</TableHead><TableHead>Start Date</TableHead><TableHead>End Date</TableHead><TableHead>Amount</TableHead><TableHead>Created At</TableHead></TableRow></TableHeader><TableBody>
+                      {passTransactions.map((transaction, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium">{transaction.passName}</TableCell>
+                          <TableCell className="font-mono text-xs">{transaction.passCode}</TableCell>
+                          <TableCell><StatusBadge status={transaction.status} /></TableCell>
+                          <TableCell>{new Date(transaction.startDate).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(transaction.endDate).toLocaleDateString()}</TableCell>
+                          <TableCell>{formatCurrency(transaction.amount)}</TableCell>
+                          <TableCell>{formatDateTime(transaction.createdAt)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody></Table>
+                    <div className="flex items-center justify-between px-4 py-3 border-t"><span className="text-sm text-muted-foreground">Page {transactionsPage + 1}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={transactionsPage === 0} onClick={() => setTransactionsPage(p => p - 1)}><ChevronLeft className="h-4 w-4" /></Button><Button variant="outline" size="sm" disabled={!passTransactions || passTransactions.length < transactionsPageSize} onClick={() => setTransactionsPage(p => p + 1)}><ChevronRight className="h-4 w-4" /></Button></div></div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
+
         </Tabs>
 
         {/* Change Start Date Dialog */}

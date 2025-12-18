@@ -171,3 +171,20 @@ export interface PaymentStatusResponse {
     | 'FulfillmentRefunded';
     validTill?: string;
 }
+
+// ============================================
+// Pass Transaction Types
+// ============================================
+
+export interface PassTransaction {
+    amount: number;
+    createdAt: string;
+    endDate: string;
+    passCode: string;
+    passName: string;
+    startDate: string;
+    status: string;
+}
+
+export type PassTransactionsResponse = PassTransaction[];
+
