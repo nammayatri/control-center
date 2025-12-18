@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { Badge } from '../ui/badge';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, Calendar, MapPin, FileText, Car, User } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, Calendar, MapPin, FileText, Car } from 'lucide-react';
 import { useGetDocument } from '../../hooks/useDrivers';
 import type { DriverLicenseDetail, VehicleRegistrationCertificateDetail } from '../../services/drivers';
 
