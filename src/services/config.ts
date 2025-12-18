@@ -12,9 +12,9 @@ export async function getServiceUsageConfig(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/serviceUsageConfig`
     : `/bpp/driver-offer/{merchantId}/merchant/serviceUsageConfig`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: path,
@@ -43,13 +43,27 @@ export async function updateFarePolicy(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/config/farePolicy/{farePolicyId}/update`
     : `/bpp/driver-offer/{merchantId}/merchant/config/farePolicy/{farePolicyId}/update`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{farePolicyId}', farePolicyId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
     data,
+  });
+}
+
+export async function exportFarePolicy(
+  merchantId: string,
+  cityId: string
+): Promise<string> {
+  // Note: bppApi base URL already includes /bpp, so path should start with /driver-offer
+  const basePath = `/driver-offer/{merchantId}/{city}/merchant/config/farePolicy/export`;
+  const path = buildPath(basePath, merchantId, cityId);
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path,
   });
 }
 
@@ -72,9 +86,9 @@ export async function getDriverPoolConfig(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/config/driverPool`
     : `/bpp/driver-offer/{merchantId}/merchant/config/driverPool`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: path,
@@ -89,9 +103,9 @@ export async function updateDriverPoolConfig(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/config/driverPool/update`
     : `/bpp/driver-offer/{merchantId}/merchant/config/driverPool/update`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -120,9 +134,9 @@ export async function getCommonConfig(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/config/common`
     : `/bpp/driver-offer/{merchantId}/merchant/config/common`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: path,
@@ -137,9 +151,9 @@ export async function updateCommonConfig(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/config/common/update`
     : `/bpp/driver-offer/{merchantId}/merchant/config/common/update`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -166,9 +180,9 @@ export async function getOnboardingDocumentConfig(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/config/onboardingDocument`
     : `/bpp/driver-offer/{merchantId}/merchant/config/onboardingDocument`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'GET',
     url: path,
@@ -193,9 +207,9 @@ export async function triggerSchedulerJob(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/scheduler/trigger`
     : `/bpp/driver-offer/{merchantId}/merchant/scheduler/trigger`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -223,9 +237,9 @@ export async function upsertSpecialLocation(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/specialLocation/upsert`
     : `/bpp/driver-offer/{merchantId}/merchant/specialLocation/upsert`;
-  
+
   const path = buildPath(basePath, merchantId, cityId);
-  
+
   return apiRequest(bppApi, {
     method: 'POST',
     url: path,
@@ -241,9 +255,9 @@ export async function deleteSpecialLocation(
   const basePath = cityId && cityId !== 'all'
     ? `/bpp/driver-offer/{merchantId}/{city}/merchant/specialLocation/{specialLocationId}/delete`
     : `/bpp/driver-offer/{merchantId}/merchant/specialLocation/{specialLocationId}/delete`;
-  
+
   const path = buildPath(basePath, merchantId, cityId).replace('{specialLocationId}', specialLocationId);
-  
+
   return apiRequest(bppApi, {
     method: 'DELETE',
     url: path,
