@@ -1,5 +1,6 @@
 import { bapApi, bppApi, apiRequest } from './api';
 import type { User, LoginModule, FleetConfig, UserAccessMatrix, Role } from '../types';
+import { getCityName } from '../lib/cityUtils';
 
 // ============================================
 // BAP (Customer Dashboard) Login - Password Based
@@ -245,20 +246,6 @@ export interface AccessMatrixItem {
   userAccessType: string;
 }
 
-// City code to name mapping for STD codes
-const CITY_NAME_MAP: Record<string, string> = {
-  'std:080': 'Bangalore',
-  'std:044': 'Chennai',
-  'std:033': 'Kolkata',
-  'std:011': 'Delhi',
-  'std:0484': 'Kochi',
-  'std:040': 'Hyderabad',
-  'std:022': 'Mumbai',
-  'std:0821': 'Mysore',
-  'std:0816': 'Tumkur',
-  'std:0353': 'Siliguri',
-};
-
 // Merchant short ID to display name mapping
 const MERCHANT_NAME_MAP: Record<string, string> = {
   'NAMMA_YATRI': 'Namma Yatri',
@@ -270,10 +257,6 @@ const MERCHANT_NAME_MAP: Record<string, string> = {
   'JATRI_SAATHI_PARTNER': 'Jatri Saathi Partner',
   'Y_PARTNER': 'Y Partner',
 };
-
-function getCityName(cityCode: string): string {
-  return CITY_NAME_MAP[cityCode] || cityCode.replace('std:', '');
-}
 
 function getMerchantName(merchantShortId: string): string {
   return MERCHANT_NAME_MAP[merchantShortId] || merchantShortId.replace(/_/g, ' ');
