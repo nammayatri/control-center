@@ -48,6 +48,7 @@ import {
     useRoleList,
 } from '../../hooks/useAdmin';
 import { formatDateTime, getInitials } from '../../lib/utils';
+import { getCityName } from '../../lib/cityUtils';
 import type { AccessMatrix } from '../../types';
 import { toast } from 'sonner';
 import {
@@ -77,33 +78,7 @@ import {
     DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 
-// City code to name mapping
-const CITY_NAME_MAP: Record<string, string> = {
-    'std:080': 'Bangalore',
-    'std:044': 'Chennai',
-    'std:033': 'Kolkata',
-    'std:011': 'Delhi',
-    'std:0484': 'Kochi',
-    'std:040': 'Hyderabad',
-    'std:022': 'Mumbai',
-    'std:0821': 'Mysore',
-    'std:0816': 'Tumkur',
-    'std:0353': 'Siliguri',
-    'Bangalore': 'Bangalore',
-    'Chennai': 'Chennai',
-    'Kolkata': 'Kolkata',
-    'Delhi': 'Delhi',
-    'Kochi': 'Kochi',
-    'Hyderabad': 'Hyderabad',
-    'Mumbai': 'Mumbai',
-    'Mysore': 'Mysore',
-    'Tumkur': 'Tumkur',
-    'Siliguri': 'Siliguri',
-};
 
-function getCityName(cityCode: string): string {
-    return CITY_NAME_MAP[cityCode] || cityCode.replace('std:', '');
-}
 
 export function UserDetailPage() {
     const { userId } = useParams<{ userId: string }>();
