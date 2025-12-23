@@ -34,7 +34,7 @@ import {
   useDeleteCustomer,
   useSyncCancellationDues,
 } from '../../hooks/useCustomers';
-import { usePurchasedPasses, useChangePassStartDate, usePassTransactions } from '../../hooks/useBooth';
+import { useResetDeviceSwitchCount, usePurchasedPasses, useChangePassStartDate, usePassTransactions } from '../../hooks/useBooth';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { usePermissions } from '../../context/PermissionsContext';
 import { useAuth } from '../../context/AuthContext';
@@ -913,6 +913,7 @@ export function CustomerDetailPage() {
   const unblockMutation = useUnblockCustomer();
   const deleteMutation = useDeleteCustomer();
   const syncDuesMutation = useSyncCancellationDues();
+  const resetDeviceSwitchCountMutation = useResetDeviceSwitchCount();
 
   // Purchased Passes
   const { data: purchasedPasses, isLoading: passesLoading } = usePurchasedPasses(customerId || null);
@@ -951,6 +952,18 @@ export function CustomerDetailPage() {
     setSelectedPassForDateChange(pass);
     setNewStartDate(new Date().toISOString().split('T')[0]);
     setChangeDateDialogOpen(true);
+  };
+
+  const onResetDeviceSwitchCount = async (custId: string, passId: string) => {
+    if (!custId || !passId) return;
+    resetDeviceSwitchCountMutation.mutate({ customerId: custId, passId }, {
+      onSuccess: () => {
+        toast.success('Device switch count reset successfully');
+      },
+      onError: (error) => {
+        toast.error(`Failed to reset device switch count: ${(error as Error).message}`);
+      },
+    });
   };
 
   const canBlock = hasAccess('RIDER_MANAGEMENT/CUSTOMER/POST_CUSTOMER_BLOCK');
@@ -1193,6 +1206,14 @@ export function CustomerDetailPage() {
                           >
                             <CalendarDays className="w-4 h-4" />
                             Change Start Date
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 gap-2"
+                            onClick={() => onResetDeviceSwitchCount(customerId!, pass.id!)}
+                          >
+                            Reset Switch Count
                           </Button>
                         </div>
                       );

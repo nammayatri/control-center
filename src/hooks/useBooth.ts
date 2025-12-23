@@ -135,3 +135,23 @@ export function usePassTransactions(customerId: string | null, limit?: number, o
         enabled: !!apiMerchantId && !!cityId && !!customerId,
     });
 }
+
+export function useResetDeviceSwitchCount() {
+  const queryClient = useQueryClient();
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  
+  const apiMerchantId = merchantShortId || merchantId;
+  
+  return useMutation({
+    mutationFn: ({ customerId, passId }: { customerId: string; passId: string }) => {
+      if (!apiMerchantId || !cityId) return Promise.reject(new Error('Missing context'));
+      return boothService.resetDeviceSwitchCount(apiMerchantId, customerId, passId, cityId || undefined);
+    },
+    onSuccess: (_, { customerId }) => {
+      // Invalidate purchased passes so UI reflects the reset device switch count
+      queryClient.invalidateQueries({ queryKey: ['booth', 'passes', 'purchased', apiMerchantId, cityId, customerId] });
+      // Also refresh customer info where applicable
+      queryClient.invalidateQueries({ queryKey: ['customer'] });
+    },
+  });
+}

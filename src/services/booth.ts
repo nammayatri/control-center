@@ -149,3 +149,18 @@ export async function getPassTransactions(
         params,
     });
 }
+
+export async function resetDeviceSwitchCount(
+  merchantId: string,
+  customerId: string,
+  passId: string,
+  cityId?: string
+): Promise<void> {
+  let path = buildPath('/{merchantId}/{city}/pass/customer/{customerId}/pass/{passId}/resetDeviceSwitchCount', merchantId, cityId);
+  path = path.replace('{customerId}', customerId).replace('{passId}', passId);
+
+  return apiRequest(bapApi, {
+    method: 'POST',
+    url: path,
+  });
+}
