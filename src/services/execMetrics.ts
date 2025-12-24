@@ -1,14 +1,4 @@
-import axios from 'axios';
-
-// Backend server URL - configurable via environment variable
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-
-const api = axios.create({
-    baseURL: `${BACKEND_URL}/api/metrics`,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
+import { adminApi, apiRequest, buildQueryParams as buildApiQueryParams } from './api';
 
 // ============================================
 // Types
@@ -18,54 +8,48 @@ export interface MetricsFilters {
     dateFrom?: string;
     dateTo?: string;
     city?: string[];
+    state?: string[];
+    merchantId?: string[];
     flowType?: string[];
     tripTag?: string[];
-    variant?: string[];
+    serviceTier?: string[];
+    vehicleCategory?: 'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny';
+    vehicleSubCategory?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
-    groupBy?: 'city' | 'flow_type' | 'trip_tag' | 'variant';
+    groupBy?: 'city' | 'merchant_id' | 'flow_type' | 'trip_tag' | 'service_tier';
 }
+
+export type ServiceTierType = 'tier-less' | 'tier' | 'bookany';
 
 export interface ExecutiveMetricsResponse {
     totals: {
         searches: number;
         searchGotEstimates: number;
-        searchForQuotes: number;
-        searchGotQuotes: number;
+        quotesRequested: number;
+        quotesAccepted: number;
         bookings: number;
-        completedRides: number;
         rides: number;
+        completedRides: number;
+        cancelledRides: number;
         earnings: number;
-        distance: number;
-        cancelledBookings: number;
-        driverCancelledBookings: number;
-        userCancelledBookings: number;
-    };
-    drivers: {
-        enabledDrivers: number;
-        cabEnabledDrivers: number;
-        autoEnabledDrivers: number;
-        bikeEnabledDrivers: number;
-    };
-    riders: {
-        registeredRiders: number;
-    };
-    filters: MetricsFilters;
-}
-
-export interface ConversionMetricsResponse {
-    funnel: {
-        searchToEstimate: number;
-        estimateToQuote: number;
-        quoteToBooking: number;
-        bookingToCompletion: number;
-    };
-    cancellation: {
-        overall: number;
-        byDriver: number;
-        byUser: number;
+        userCancellations: number;
+        driverCancellations: number;
+        otherCancellations: number;
+        // Calculated metrics
+        conversionRate: number;
+        riderFareAcceptanceRate?: number; // RFA - only for tier-less/bookany
+        driverQuoteAcceptanceRate?: number; // DQA - only for tier-less/bookany
+        driverAcceptanceRate?: number; // For tier (Rental/InterCity)
+        cancellationRate: number;
+        userCancellationRate: number;
+        driverCancellationRate: number;
+        otherCancellationRate: number;
+        // Search tries: sum of searches for selected vehicle category
+        searchTries?: number;
     };
     filters: MetricsFilters;
+    tierType: ServiceTierType;
 }
 
 export interface ComparisonMetricsResponse {
@@ -74,21 +58,33 @@ export interface ComparisonMetricsResponse {
         bookings: number;
         completedRides: number;
         earnings: number;
-        cancelledBookings: number;
+        userCancellations: number;
+        driverCancellations: number;
+        searchForQuotes?: number;
+        cancelledRides?: number;
+        othersCancellation?: number;
     };
     previous: {
         searches: number;
         bookings: number;
         completedRides: number;
         earnings: number;
-        cancelledBookings: number;
+        userCancellations: number;
+        driverCancellations: number;
+        searchForQuotes?: number;
+        cancelledRides?: number;
+        othersCancellation?: number;
     };
     change: {
         searches: { absolute: number; percent: number };
         bookings: { absolute: number; percent: number };
         completedRides: { absolute: number; percent: number };
         earnings: { absolute: number; percent: number };
-        cancelledBookings: { absolute: number; percent: number };
+        userCancellations: { absolute: number; percent: number };
+        driverCancellations: { absolute: number; percent: number };
+        quotesRequested?: { absolute: number; percent: number };
+        cancelledRides?: { absolute: number; percent: number };
+        quotesAccepted?: { absolute: number; percent: number };
     };
     currentPeriod: { from: string; to: string };
     previousPeriod: { from: string; to: string };
@@ -100,7 +96,11 @@ export interface TimeSeriesDataPoint {
     bookings: number;
     completedRides: number;
     earnings: number;
-    cancelledBookings: number;
+    searchForQuotes?: number;
+    quotesAccepted?: number;
+    cancelledRides?: number;
+    userCancellations?: number;
+    driverCancellations?: number;
 }
 
 export interface TimeSeriesResponse {
@@ -110,9 +110,15 @@ export interface TimeSeriesResponse {
 
 export interface FilterOptionsResponse {
     cities: string[];
+    states: string[];
+    cityStateMap?: Record<string, string[]>; // state -> cities[]
+    cityToStateMap?: Record<string, string>; // city -> state
+    merchants: { id: string; name: string }[];
     flowTypes: string[];
     tripTags: string[];
-    variants: string[];
+    serviceTiers: string[];
+    vehicleCategories: Array<{ value: 'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny'; label: string }>;
+    vehicleSubCategories: Record<'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny', string[]>;
     dateRange: {
         min: string;
         max: string;
@@ -125,8 +131,11 @@ export interface GroupedMetricsRow {
     bookings: number;
     completedRides: number;
     earnings: number;
-    cancelledBookings: number;
     conversionRate: number;
+    searchForQuotes?: number;
+    riderFareAcceptanceRate?: number;
+    driverQuoteAcceptanceRate?: number;
+    driverAcceptanceRate?: number;
 }
 
 export interface GroupedMetricsResponse {
@@ -135,36 +144,73 @@ export interface GroupedMetricsResponse {
     filters: MetricsFilters;
 }
 
+export type Dimension =
+    | 'service_tier'
+    | 'vehicle_category'
+    | 'vehicle_sub_category'
+    | 'flow_type'
+    | 'trip_tag'
+    | 'user_os_type'
+    | 'user_bundle_version'
+    | 'user_sdk_version'
+    | 'user_backend_app_version'
+    | 'dynamic_pricing_logic_version'
+    | 'pooling_logic_version'
+    | 'pooling_config_version';
+
+export type Granularity = 'hour' | 'day';
+
+export interface DimensionalTimeSeriesDataPoint {
+    timestamp: string;
+    dimensionValue: string;
+    searches: number;
+    completedRides: number;
+    conversion: number;
+    searchForQuotes?: number;
+}
+
+export interface DimensionalTimeSeriesResponse {
+    data: DimensionalTimeSeriesDataPoint[];
+    dimension: Dimension | 'none';
+    granularity: Granularity;
+    filters: MetricsFilters;
+}
+
 // ============================================
 // API Functions
 // ============================================
 
-function buildQueryParams(filters: MetricsFilters): URLSearchParams {
-    const params = new URLSearchParams();
+/**
+ * Helper to build query string for master conversion metrics
+ */
+function buildMasterQueryParams(filters: MetricsFilters): string {
+    const params: Record<string, string | number | boolean | undefined | null> = {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
+        groupBy: filters.groupBy,
+    };
 
-    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params.append('dateTo', filters.dateTo);
-    if (filters.city?.length) params.append('city', filters.city.join(','));
-    if (filters.flowType?.length) params.append('flowType', filters.flowType.join(','));
-    if (filters.tripTag?.length) params.append('tripTag', filters.tripTag.join(','));
-    if (filters.variant?.length) params.append('variant', filters.variant.join(','));
-    if (filters.sortBy) params.append('sortBy', filters.sortBy);
-    if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
-    if (filters.groupBy) params.append('groupBy', filters.groupBy);
+    // Add array filters as comma-separated strings if they have values
+    if (filters.city?.length) params.city = filters.city.join(',');
+    if (filters.state?.length) params.state = filters.state.join(',');
+    if (filters.merchantId?.length) params.merchantId = filters.merchantId.join(',');
+    if (filters.flowType?.length) params.flowType = filters.flowType.join(',');
+    if (filters.tripTag?.length) params.tripTag = filters.tripTag.join(',');
+    if (filters.serviceTier?.length) params.serviceTier = filters.serviceTier.join(',');
+    if (filters.vehicleCategory) params.vehicleCategory = filters.vehicleCategory;
+    if (filters.vehicleSubCategory) params.vehicleSubCategory = filters.vehicleSubCategory;
 
-    return params;
+    return buildApiQueryParams(params);
 }
 
 export async function getExecutiveMetrics(filters: MetricsFilters = {}): Promise<ExecutiveMetricsResponse> {
-    const params = buildQueryParams(filters);
-    const response = await api.get<ExecutiveMetricsResponse>(`/executive?${params}`);
-    return response.data;
-}
-
-export async function getConversionMetrics(filters: MetricsFilters = {}): Promise<ConversionMetricsResponse> {
-    const params = buildQueryParams(filters);
-    const response = await api.get<ConversionMetricsResponse>(`/conversion?${params}`);
-    return response.data;
+    const query = buildMasterQueryParams(filters);
+    return apiRequest(adminApi, {
+        method: 'GET',
+        url: `/master-conversion/executive${query}`,
+    });
 }
 
 export async function getComparisonMetrics(
@@ -174,32 +220,57 @@ export async function getComparisonMetrics(
     previousTo: string,
     filters: MetricsFilters = {}
 ): Promise<ComparisonMetricsResponse> {
-    const params = buildQueryParams(filters);
-    params.append('currentFrom', currentFrom);
-    params.append('currentTo', currentTo);
-    params.append('previousFrom', previousFrom);
-    params.append('previousTo', previousTo);
+    const query = buildMasterQueryParams(filters);
+    const prefix = query ? '&' : '?';
+    const periodParams = `currentFrom=${currentFrom}&currentTo=${currentTo}&previousFrom=${previousFrom}&previousTo=${previousTo}`;
 
-    const response = await api.get<ComparisonMetricsResponse>(`/comparison?${params}`);
-    return response.data;
+    return apiRequest(adminApi, {
+        method: 'GET',
+        url: `/master-conversion/comparison${query}${prefix}${periodParams}`,
+    });
 }
 
-export async function getTimeSeries(filters: MetricsFilters = {}): Promise<TimeSeriesResponse> {
-    const params = buildQueryParams(filters);
-    const response = await api.get<TimeSeriesResponse>(`/timeseries?${params}`);
-    return response.data;
+export async function getTimeSeries(
+    filters: MetricsFilters = {},
+    granularity: Granularity = 'day'
+): Promise<TimeSeriesResponse> {
+    const query = buildMasterQueryParams(filters);
+    const prefix = query ? '&' : '?';
+
+    return apiRequest(adminApi, {
+        method: 'GET',
+        url: `/master-conversion/timeseries${query}${prefix}granularity=${granularity}`,
+    });
 }
 
 export async function getFilterOptions(): Promise<FilterOptionsResponse> {
-    const response = await api.get<FilterOptionsResponse>('/filters');
-    return response.data;
+    return apiRequest(adminApi, {
+        method: 'GET',
+        url: '/master-conversion/filters',
+    });
 }
 
 export async function getGroupedMetrics(
-    groupBy: 'city' | 'flow_type' | 'trip_tag' | 'variant',
+    groupBy: 'city' | 'merchant_id' | 'flow_type' | 'trip_tag' | 'service_tier',
     filters: MetricsFilters = {}
 ): Promise<GroupedMetricsResponse> {
-    const params = buildQueryParams({ ...filters, groupBy });
-    const response = await api.get<GroupedMetricsResponse>(`/grouped?${params}`);
-    return response.data;
+    const query = buildMasterQueryParams({ ...filters, groupBy });
+    return apiRequest(adminApi, {
+        method: 'GET',
+        url: `/master-conversion/grouped${query}`,
+    });
+}
+
+export async function getTrendData(
+    dimension: Dimension | 'none',
+    granularity: Granularity,
+    filters: MetricsFilters = {}
+): Promise<DimensionalTimeSeriesResponse> {
+    const query = buildMasterQueryParams(filters);
+    const prefix = query ? '&' : '?';
+
+    return apiRequest(adminApi, {
+        method: 'GET',
+        url: `/master-conversion/trend${query}${prefix}dimension=${dimension}&granularity=${granularity}`,
+    });
 }
