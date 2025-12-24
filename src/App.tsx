@@ -29,6 +29,8 @@ import { DynamicLogicPage } from './modules/config/DynamicLogicPage';
 import { FarePolicyPage } from './modules/config/FarePolicyPage';
 import IssuesListPage from './modules/operations/IssuesListPage';
 import IssueDetailPage from './modules/operations/IssueDetailPage';
+import { IssueConfigPage } from './modules/config/IssueConfigPage';
+import { CategoryDetailPage } from './modules/config/CategoryDetailPage';
 import { UserProfilePage } from './modules/profile/UserProfilePage';
 import { Toaster } from 'sonner';
 
@@ -169,6 +171,8 @@ function AppRoutes() {
           <Route path="namma-tags" element={<NammaTagsPage />} />
           <Route path="dynamic-logic" element={<DynamicLogicPage />} />
           <Route path="fare-policy" element={<FarePolicyPage />} />
+          <Route path="issue-config" element={<IssueConfigPage />} />
+          <Route path="issue-config/:categoryId" element={<CategoryDetailPage />} />
           <Route path="settings" element={<PlaceholderPage title="Settings" />} />
         </Route>
 

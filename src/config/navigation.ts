@@ -177,6 +177,16 @@ export const navConfig: NavItem[] = [
                 showLocked: true,
             },
             {
+                label: 'Issue Config',
+                path: '/config/issue-config',
+                icon: 'MessageSquare',
+                resource: 'DSL',
+                action: '*',
+                allowedModules: ['BAP'],
+                showLocked: true,
+                description: 'Manage issue categories, messages, and options',
+            },
+            {
                 label: 'Settings',
                 path: '/config/settings',
                 icon: 'Settings',
