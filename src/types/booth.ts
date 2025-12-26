@@ -95,6 +95,7 @@ export interface PurchasedPass {
     id: string;
     passCode: string;
     passNumber: string;
+    deviceSwitchAllowed: boolean;
     status: 'Active' | 'Pending' | 'Expired';
     startDate: string;
     expiryDate: string;
