@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIssuesList } from '../../hooks/useIssues';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
@@ -50,22 +50,53 @@ export default function IssuesListPage() {
     const [page, setPage] = useState(0);
     const [status, setStatus] = useState<string>('OPEN');
 
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchType, setSearchType] = useState<'phone' | 'category' | 'description'>('phone');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
     // Filter states (local, not applied yet)
-    const [phoneNumber, setPhoneNumber] = useState('');
     const [assignee, setAssignee] = useState('');
 
     // Applied filters (used for query)
     const [appliedFilters, setAppliedFilters] = useState({
-        phoneNumber: '',
+        search: '',
+        searchType: 'phone' as 'phone' | 'category' | 'description',
         assignee: ''
     });
 
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery, searchType]); // Also depend on type
+
+    useEffect(() => {
+        setPage(0);
+        setAppliedFilters(prev => ({ ...prev, search: debouncedSearch, searchType }));
+    }, [debouncedSearch, searchType]);
+
+    const getSearchParams = (query: string, type: string) => {
+        if (!query.trim()) return {};
+        const trimmed = query.trim();
+        switch (type) {
+            case 'category':
+                return { categoryName: trimmed };
+            case 'description':
+                return { description: trimmed };
+            case 'phone':
+            default:
+                return { phoneNumber: trimmed };
+        }
+    };
+
     // Derived params for query
+    const searchParams = getSearchParams(appliedFilters.search, appliedFilters.searchType);
     const queryParams = {
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
         status,
-        phoneNumber: appliedFilters.phoneNumber || undefined,
+        ...searchParams,
         assignee: appliedFilters.assignee || undefined,
     };
 
@@ -73,18 +104,20 @@ export default function IssuesListPage() {
 
     const handleSearch = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        console.log('Searching with:', { phoneNumber, assignee });
+        console.log('Searching with:', { searchQuery, searchType, assignee });
         setPage(0); // Reset page on new search
         setAppliedFilters({
-            phoneNumber,
+            search: searchQuery,
+            searchType,
             assignee
         });
     };
 
     const resetFilters = () => {
-        setPhoneNumber('');
+        setSearchQuery('');
+        setSearchType('phone');
         setAssignee('');
-        setAppliedFilters({ phoneNumber: '', assignee: '' });
+        setAppliedFilters({ search: '', searchType: 'phone', assignee: '' });
         setPage(0);
     };
 
@@ -119,14 +152,24 @@ export default function IssuesListPage() {
                                     </Select>
 
                                     <form onSubmit={handleSearch} className="flex gap-2 items-center">
+                                        <Select value={searchType} onValueChange={(val: 'phone' | 'category' | 'description') => setSearchType(val)}>
+                                            <SelectTrigger className="w-[120px]">
+                                                <SelectValue placeholder="Type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="phone">Phone</SelectItem>
+                                                <SelectItem value="category">Category</SelectItem>
+                                                <SelectItem value="description">Description</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <div className="relative">
                                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                             <Input
                                                 type="search"
-                                                placeholder="Phone..."
-                                                className="pl-8 w-[140px]"
-                                                value={phoneNumber}
-                                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                                placeholder={`Search by ${searchType}...`}
+                                                className="pl-8 w-[200px]"
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
                                             />
                                         </div>
                                         <div className="relative">
