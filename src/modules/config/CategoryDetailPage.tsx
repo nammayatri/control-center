@@ -1272,7 +1272,7 @@ export function CategoryDetailPage() {
                                                 {categoryDetail.category.categoryType}
                                             </Badge>
                                             {categoryDetail.category.isRideRequired && (
-                                                <Badge variant="outline">Ride Required</Badge>
+                                                <Badge variant="outline">Ride/Ticket Required</Badge>
                                             )}
                                         </div>
                                         {categoryDetail.category.label && (

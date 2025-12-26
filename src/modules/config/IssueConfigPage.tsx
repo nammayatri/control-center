@@ -313,7 +313,7 @@ function CategoryFormDialog({
                             checked={isRideRequired}
                             onCheckedChange={setIsRideRequired}
                         />
-                        <Label htmlFor="isRideRequired">Ride Required</Label>
+                        <Label htmlFor="isRideRequired">Ride/Ticket Required</Label>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -532,7 +532,7 @@ function CategoriesTab() {
                                     <TableHead>Name</TableHead>
                                     <TableHead>Type</TableHead>
                                     <TableHead>Label</TableHead>
-                                    <TableHead>Ride Required</TableHead>
+                                    <TableHead>Ride/Ticket Required</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
