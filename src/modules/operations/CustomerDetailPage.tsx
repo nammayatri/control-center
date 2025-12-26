@@ -577,6 +577,28 @@ function MultiModalDetailView({ journey }: { journey: MultiModalRideContents }) 
                             </div>
                           )}
                         </div>
+
+                        {/* Refund Info for Failed Tickets */}
+                        {metroInfo?.refund && (
+                          <div className={`mt-3 p-3 rounded-lg border ${metroInfo.refund.status === 'SUCCESS' ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertTriangle className={`h-4 w-4 ${metroInfo.refund.status === 'SUCCESS' ? 'text-green-600' : 'text-red-600'}`} />
+                              <span className="font-medium text-sm">Refund Information</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Refund Amount</p>
+                                <p className="font-bold text-lg">{formatCurrency(metroInfo.refund.amount)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Refund Status</p>
+                                <Badge variant={metroInfo.refund.status === 'SUCCESS' ? 'default' : 'destructive'} className="mt-1">
+                                  {metroInfo.refund.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -792,6 +814,28 @@ function MultiModalDetailView({ journey }: { journey: MultiModalRideContents }) 
                           <div className="mt-3 p-2 bg-muted/50 rounded-lg">
                             <p className="text-xs text-muted-foreground">Booking ID</p>
                             <p className="font-mono text-xs break-all">{busInfo.bookingId}</p>
+                          </div>
+                        )}
+
+                        {/* Refund Info for Failed Tickets */}
+                        {busInfo?.refund && (
+                          <div className={`mt-3 p-3 rounded-lg border ${busInfo.refund.status === 'SUCCESS' ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertTriangle className={`h-4 w-4 ${busInfo.refund.status === 'SUCCESS' ? 'text-green-600' : 'text-red-600'}`} />
+                              <span className="font-medium text-sm">Refund Information</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Refund Amount</p>
+                                <p className="font-bold text-lg">{formatCurrency(busInfo.refund.amount)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Refund Status</p>
+                                <Badge variant={busInfo.refund.status === 'SUCCESS' ? 'default' : 'destructive'} className="mt-1">
+                                  {busInfo.refund.status}
+                                </Badge>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
