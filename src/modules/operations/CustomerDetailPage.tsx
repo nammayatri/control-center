@@ -1002,6 +1002,7 @@ export function CustomerDetailPage() {
     if (!custId || !passId) return;
     resetDeviceSwitchCountMutation.mutate({ customerId: custId, passId }, {
       onSuccess: () => {
+        console.log("Purchased passes before reset:", purchasedPasses);
         toast.success('Device switch count reset successfully');
       },
       onError: (error) => {
@@ -1237,7 +1238,17 @@ export function CustomerDetailPage() {
                             {/* Footer */}
                             <div className="w-full flex justify-between items-center">
                               <QrCode className="w-6 h-6 text-gray-800" />
-                              <Badge variant={isDiamond ? 'secondary' : 'default'} className="text-xs">Active</Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={isDiamond ? 'secondary' : 'default'} className="text-xs">Active</Badge>
+                                <Badge
+                                  variant={pass.deviceSwitchAllowed ? 'secondary' : 'destructive'}
+                                  className="text-xs px-2 py-0.5 gap-1 flex items-center"
+                                  title={pass.deviceSwitchAllowed ? 'Device switch allowed' : 'Device switch disabled'}
+                                >
+                                  {pass.deviceSwitchAllowed ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                                  {pass.deviceSwitchAllowed ? 'Switch: Allowed' : 'Switch: Used'}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
 
