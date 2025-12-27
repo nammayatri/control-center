@@ -151,10 +151,11 @@ function MessageFormDialog({
 
         try {
             // Backend requires either categoryId OR optionId (not both)
+            // When editing a message under an option, use the parentOptionId
             const data: UpsertIssueMessageReq = {
-                messageId: editMessage?.messageId,
+                issueMessageId: editMessage?.messageId,
                 categoryId: parentOptionId ? undefined : categoryId, // Only if no parent option
-                optionId: parentOptionId, // Only if message is under an option
+                optionId: parentOptionId, // Pass optionId when message is under an option
                 message: message.trim(),
                 messageTitle: messageTitle.trim() || undefined,
                 messageAction: messageAction.trim() || undefined,

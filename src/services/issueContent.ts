@@ -151,7 +151,7 @@ export const upsertMessage = async (
     const formData = new FormData();
 
     // Append each field individually
-    if (data.messageId) formData.append('messageId', data.messageId);
+    if (data.issueMessageId) formData.append('issueMessageId', data.issueMessageId);
     if (data.categoryId) formData.append('categoryId', data.categoryId);
     if (data.optionId) formData.append('optionId', data.optionId);
     formData.append('message', data.message);

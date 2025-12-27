@@ -209,7 +209,7 @@ export interface IssueMessageListRes {
 }
 
 export interface UpsertIssueMessageReq {
-    messageId?: string;
+    issueMessageId?: string;
     categoryId?: string;
     optionId?: string;
     message: string;
