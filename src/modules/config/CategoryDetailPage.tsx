@@ -358,6 +358,7 @@ function OptionFormDialog({
     const [messages, setMessages] = useState<CreateIssueMessageReq[]>([]);
     const [newMessageText, setNewMessageText] = useState('');
     const [newMessageTitle, setNewMessageTitle] = useState('');
+    const [newMessageLabel, setNewMessageLabel] = useState('');
     const [newMessageType, setNewMessageType] = useState<MessageType>('Intermediate');
     const [newMessagePriority, setNewMessagePriority] = useState(1);
 
@@ -374,6 +375,7 @@ function OptionFormDialog({
         setMessages([]);
         setNewMessageText('');
         setNewMessageTitle('');
+        setNewMessageLabel('');
         setNewMessageType('Intermediate');
         setNewMessagePriority(1);
     };
@@ -386,6 +388,7 @@ function OptionFormDialog({
         const newMsg: CreateIssueMessageReq = {
             message: newMessageText.trim(),
             messageTitle: newMessageTitle.trim() || undefined,
+            label: newMessageLabel.trim() || undefined,
             messageType: newMessageType,
             priority: newMessagePriority,
             messageTranslations: [],
@@ -396,6 +399,7 @@ function OptionFormDialog({
         setMessages([...messages, newMsg]);
         setNewMessageText('');
         setNewMessageTitle('');
+        setNewMessageLabel('');
         setNewMessageType('Intermediate');
         setNewMessagePriority(messages.length + 2);
     };
@@ -654,11 +658,16 @@ function OptionFormDialog({
                                         placeholder="Message content..."
                                     />
                                 </div>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-4 gap-2">
                                     <Input
                                         value={newMessageTitle}
                                         onChange={(e) => setNewMessageTitle(e.target.value)}
                                         placeholder="Title (optional)"
+                                    />
+                                    <Input
+                                        value={newMessageLabel}
+                                        onChange={(e) => setNewMessageLabel(e.target.value)}
+                                        placeholder="Label (optional)"
                                     />
                                     <Select value={newMessageType} onValueChange={(v: MessageType) => setNewMessageType(v)}>
                                         <SelectTrigger>
