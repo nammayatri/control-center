@@ -200,7 +200,7 @@ export default function IssuesListPage() {
                         )}
 
                         {/* Pagination */}
-                        {data && data.summary.totalCount > PAGE_SIZE && (
+                        {data && (
                             <div className="flex items-center justify-end space-x-2 py-4">
                                 <Button
                                     variant="outline"
@@ -212,13 +212,13 @@ export default function IssuesListPage() {
                                     Previous
                                 </Button>
                                 <div className="text-sm text-muted-foreground">
-                                    Page {page + 1} of {Math.ceil(data.summary.totalCount / PAGE_SIZE)}
+                                    Page {page + 1}
                                 </div>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setPage(p => p + 1)}
-                                    disabled={(page + 1) * PAGE_SIZE >= data.summary.totalCount}
+                                    disabled={data.issues.length < PAGE_SIZE}
                                 >
                                     Next
                                     <ChevronRight className="h-4 w-4" />
