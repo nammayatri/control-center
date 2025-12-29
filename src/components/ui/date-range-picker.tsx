@@ -17,52 +17,72 @@ interface DateRangePickerProps {
 }
 
 const PREDEFINED_RANGES = [
-  { label: "Last 30 Mins", getValue: () => {
-    const to = new Date();
-    const from = subMinutes(to, 30);
-    return { from, to };
-  }},
-  { label: "Last 1 Hour", getValue: () => {
-    const to = new Date();
-    const from = subHours(to, 1);
-    return { from, to };
-  }},
-  { label: "Last 6 Hours", getValue: () => {
-    const to = new Date();
-    const from = subHours(to, 6);
-    return { from, to };
-  }},
-  { label: "Last 24 Hours", getValue: () => {
-    const to = new Date();
-    const from = subHours(to, 24);
-    return { from, to };
-  }},
-  { label: "Today", getValue: () => {
-    const now = new Date();
-    return { from: startOfDay(now), to: endOfDay(now) };
-  }},
-  { label: "Yesterday", getValue: () => {
-    const yesterday = subDays(new Date(), 1);
-    return { from: startOfDay(yesterday), to: endOfDay(yesterday) };
-  }},
-  { label: "Last 7 Days", getValue: () => {
-    const to = endOfDay(new Date());
-    const from = startOfDay(subDays(to, 6));
-    return { from, to };
-  }},
-  { label: "Last 30 Days", getValue: () => {
-    const to = endOfDay(new Date());
-    const from = startOfDay(subDays(to, 29));
-    return { from, to };
-  }},
-  { label: "This Month", getValue: () => {
-    const now = new Date();
-    return { from: startOfMonth(now), to: endOfMonth(now) };
-  }},
-  { label: "Last Month", getValue: () => {
-    const lastMonth = subDays(startOfMonth(new Date()), 1);
-    return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
-  }},
+  {
+    label: "Last 30 Mins", getValue: () => {
+      const to = new Date();
+      const from = subMinutes(to, 30);
+      return { from, to };
+    }
+  },
+  {
+    label: "Last 1 Hour", getValue: () => {
+      const to = new Date();
+      const from = subHours(to, 1);
+      return { from, to };
+    }
+  },
+  {
+    label: "Last 6 Hours", getValue: () => {
+      const to = new Date();
+      const from = subHours(to, 6);
+      return { from, to };
+    }
+  },
+  {
+    label: "Last 24 Hours", getValue: () => {
+      const to = new Date();
+      const from = subHours(to, 24);
+      return { from, to };
+    }
+  },
+  {
+    label: "Today", getValue: () => {
+      const now = new Date();
+      return { from: startOfDay(now), to: endOfDay(now) };
+    }
+  },
+  {
+    label: "Yesterday", getValue: () => {
+      const yesterday = subDays(new Date(), 1);
+      return { from: startOfDay(yesterday), to: endOfDay(yesterday) };
+    }
+  },
+  {
+    label: "Last 7 Days", getValue: () => {
+      const to = endOfDay(new Date());
+      const from = startOfDay(subDays(to, 6));
+      return { from, to };
+    }
+  },
+  {
+    label: "Last 30 Days", getValue: () => {
+      const to = endOfDay(new Date());
+      const from = startOfDay(subDays(to, 29));
+      return { from, to };
+    }
+  },
+  {
+    label: "This Month", getValue: () => {
+      const now = new Date();
+      return { from: startOfMonth(now), to: endOfMonth(now) };
+    }
+  },
+  {
+    label: "Last Month", getValue: () => {
+      const lastMonth = subDays(startOfMonth(new Date()), 1);
+      return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+    }
+  },
 ];
 
 export function DateRangePicker({
@@ -150,7 +170,7 @@ export function DateRangePicker({
     });
   };
 
-  const handleDateSelect = (range: { from: Date | undefined; to: Date | undefined } | undefined) => {
+  const handleDateSelect = (range: { from?: Date; to?: Date } | undefined) => {
     if (!range) {
       // If range is undefined, keep current selection
       return;
