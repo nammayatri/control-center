@@ -113,12 +113,15 @@ function RolloutSection({ domain }: { domain: LogicDomain }) {
     };
 
     const handleSave = async () => {
-        if (!rolloutData?.[0]) return;
+        if (editableRollout.length === 0) {
+            setResult({ success: false, message: 'Please add at least one rollout entry' });
+            return;
+        }
 
-        const updatedEntry: LogicRolloutEntry = {
-            ...rolloutData[0],
-            rollout: editableRollout,
-        };
+        // If we have existing data, merge with it; otherwise create new entry
+        const updatedEntry: LogicRolloutEntry = hasExistingData
+            ? { ...rolloutData![0], rollout: editableRollout }
+            : { domain, rollout: editableRollout, modifiedBy: '', timeBounds: '' };
 
         try {
             await upsertMutation.mutateAsync([updatedEntry]);
@@ -132,14 +135,7 @@ function RolloutSection({ domain }: { domain: LogicDomain }) {
         return <Skeleton className="h-48 w-full" />;
     }
 
-    if (!rolloutData?.length) {
-        return (
-            <div className="text-center py-8 text-muted-foreground">
-                <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                No rollout data found for this domain
-            </div>
-        );
-    }
+    const hasExistingData = rolloutData && rolloutData.length > 0;
 
     return (
         <div className="space-y-4">
@@ -154,65 +150,75 @@ function RolloutSection({ domain }: { domain: LogicDomain }) {
                 </div>
             )}
 
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-24">Version</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="w-28">Rollout %</TableHead>
-                        <TableHead className="w-16">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {editableRollout.map((item, idx) => (
-                        <TableRow key={idx}>
-                            <TableCell>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    value={item.version}
-                                    onChange={e => handleVersionChange(idx, parseInt(e.target.value) || 1)}
-                                    className="w-20"
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <Input
-                                    value={item.versionDescription}
-                                    onChange={e => handleDescriptionChange(idx, e.target.value)}
-                                    placeholder="Version description"
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <Input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    value={item.rolloutPercentage}
-                                    onChange={e => handlePercentageChange(idx, parseInt(e.target.value) || 0)}
-                                    className="w-20"
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRemoveRow(idx)}
-                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </TableCell>
+            {!hasExistingData && editableRollout.length === 0 && (
+                <div className="text-center py-4 text-muted-foreground border border-dashed rounded-lg">
+                    <AlertTriangle className="h-6 w-6 mx-auto mb-2" />
+                    <p>No rollout data found for this domain.</p>
+                    <p className="text-sm">Click "Add Row" below to create a new rollout configuration.</p>
+                </div>
+            )}
+
+            {editableRollout.length > 0 && (
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-24">Version</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="w-28">Rollout %</TableHead>
+                            <TableHead className="w-16">Actions</TableHead>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+                    </TableHeader>
+                    <TableBody>
+                        {editableRollout.map((item, idx) => (
+                            <TableRow key={idx}>
+                                <TableCell>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={item.version}
+                                        onChange={e => handleVersionChange(idx, parseInt(e.target.value) || 1)}
+                                        className="w-20"
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Input
+                                        value={item.versionDescription}
+                                        onChange={e => handleDescriptionChange(idx, e.target.value)}
+                                        placeholder="Version description"
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        value={item.rolloutPercentage}
+                                        onChange={e => handlePercentageChange(idx, parseInt(e.target.value) || 0)}
+                                        className="w-20"
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveRow(idx)}
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            )}
 
             <div className="flex justify-between">
                 <Button variant="outline" onClick={handleAddRow}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Row
                 </Button>
-                <Button onClick={handleSave} disabled={upsertMutation.isPending}>
+                <Button onClick={handleSave} disabled={upsertMutation.isPending || editableRollout.length === 0}>
                     {upsertMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save Changes
                 </Button>
