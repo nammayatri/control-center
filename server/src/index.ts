@@ -2,7 +2,6 @@ import express, { Request, Response, NextFunction } from 'express';
 import { env } from './config/env.js';
 import { getClickHouseClient, testConnection, closeConnection } from './db/clickhouse.js';
 import metricsRouter from './routes/metrics.js';
-import masterConversionRouter from './routes/masterConversionMetrics.js';
 
 const app = express();
 
@@ -23,7 +22,6 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
 // API Routes
 app.use('/api/metrics', metricsRouter);
-app.use('/api/master-conversion', masterConversionRouter);
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {

@@ -1,11 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import * as execMetricsService from '../services/execMetrics';
-import type { MetricsFilters, Dimension, Granularity } from '../services/execMetrics';
+import type { MetricsFilters } from '../services/execMetrics';
 
 export function useExecutiveMetrics(filters: MetricsFilters = {}) {
     return useQuery({
         queryKey: ['execMetrics', 'executive', filters],
         queryFn: () => execMetricsService.getExecutiveMetrics(filters),
+    });
+}
+
+export function useConversionMetrics(filters: MetricsFilters = {}) {
+    return useQuery({
+        queryKey: ['execMetrics', 'conversion', filters],
+        queryFn: () => execMetricsService.getConversionMetrics(filters),
     });
 }
 
@@ -30,24 +37,10 @@ export function useComparisonMetrics(
     });
 }
 
-export function useTimeSeries(
-    filters: MetricsFilters = {},
-    granularity: Granularity = 'day'
-) {
+export function useTimeSeries(filters: MetricsFilters = {}) {
     return useQuery({
-        queryKey: ['execMetrics', 'timeseries', filters, granularity],
-        queryFn: () => execMetricsService.getTimeSeries(filters, granularity),
-    });
-}
-
-export function useTrendData(
-    dimension: Dimension | 'none',
-    granularity: Granularity,
-    filters: MetricsFilters = {}
-) {
-    return useQuery({
-        queryKey: ['execMetrics', 'trend', dimension, granularity, filters],
-        queryFn: () => execMetricsService.getTrendData(dimension, granularity, filters),
+        queryKey: ['execMetrics', 'timeseries', filters],
+        queryFn: () => execMetricsService.getTimeSeries(filters),
     });
 }
 
@@ -60,7 +53,7 @@ export function useFilterOptions() {
 }
 
 export function useGroupedMetrics(
-    groupBy: 'city' | 'merchant_id' | 'flow_type' | 'trip_tag' | 'service_tier',
+    groupBy: 'city' | 'flow_type' | 'trip_tag' | 'variant',
     filters: MetricsFilters = {},
     enabled = true
 ) {
