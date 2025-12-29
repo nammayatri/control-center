@@ -27,18 +27,6 @@ export default defineConfig(({ mode }) => {
           secure: true,
           rewrite: rewrite,
         },
-        // Proxy Admin API requests (including master-conversion) to local backend in dev
-        // Note: This should come AFTER /api/bap and /api/bpp to avoid conflicts
-        '/api/metrics': {
-          target: 'http://localhost:3001',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/api/master-conversion': {
-          target: 'http://localhost:3001',
-          changeOrigin: true,
-          secure: false,
-        },
       },
     },
   }
