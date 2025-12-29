@@ -71,15 +71,31 @@ import { useNavigate } from 'react-router-dom';
 // ============================================
 // Rollout Section
 // ============================================
+// Extended rollout item with timeBounds for local editing
+interface EditableRolloutItem extends RolloutItem {
+    timeBounds: string;
+}
+
 function RolloutSection({ domain }: { domain: LogicDomain }) {
     const { data: rolloutData, isLoading } = useLogicRollout(domain);
+    const { data: timeBoundsData, isLoading: timeBoundsLoading } = useTimeBounds(domain);
     const upsertMutation = useUpsertLogicRollout();
-    const [editableRollout, setEditableRollout] = useState<RolloutItem[]>([]);
+    const [editableRollout, setEditableRollout] = useState<EditableRolloutItem[]>([]);
     const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
     useEffect(() => {
-        if (rolloutData?.[0]?.rollout) {
-            setEditableRollout(rolloutData[0].rollout);
+        if (rolloutData?.length) {
+            // Flatten all rollout entries into editable rows with their timeBounds
+            const allRows: EditableRolloutItem[] = [];
+            rolloutData.forEach(entry => {
+                entry.rollout.forEach(item => {
+                    allRows.push({
+                        ...item,
+                        timeBounds: entry.timeBounds || '',
+                    });
+                });
+            });
+            setEditableRollout(allRows);
         }
     }, [rolloutData]);
 
@@ -101,10 +117,16 @@ function RolloutSection({ domain }: { domain: LogicDomain }) {
         setEditableRollout(updated);
     };
 
+    const handleTimeBoundChange = (index: number, value: string) => {
+        const updated = [...editableRollout];
+        updated[index].timeBounds = value;
+        setEditableRollout(updated);
+    };
+
     const handleAddRow = () => {
         setEditableRollout([
             ...editableRollout,
-            { version: 1, rolloutPercentage: 0, versionDescription: '' }
+            { version: 1, rolloutPercentage: 0, versionDescription: '', timeBounds: '' }
         ]);
     };
 
@@ -118,20 +140,37 @@ function RolloutSection({ domain }: { domain: LogicDomain }) {
             return;
         }
 
-        // If we have existing data, merge with it; otherwise create new entry
-        const updatedEntry: LogicRolloutEntry = hasExistingData
-            ? { ...rolloutData![0], rollout: editableRollout }
-            : { domain, rollout: editableRollout, modifiedBy: '', timeBounds: '' };
+        // Group rows by timeBounds to create separate entries
+        const groupedByTimeBound = editableRollout.reduce((acc, item) => {
+            const key = item.timeBounds || '';
+            if (!acc[key]) {
+                acc[key] = [];
+            }
+            acc[key].push({
+                version: item.version,
+                rolloutPercentage: item.rolloutPercentage,
+                versionDescription: item.versionDescription,
+            });
+            return acc;
+        }, {} as Record<string, RolloutItem[]>);
+
+        // Create LogicRolloutEntry for each timeBound group
+        const entries: LogicRolloutEntry[] = Object.entries(groupedByTimeBound).map(([timeBounds, rollout]) => ({
+            domain,
+            rollout,
+            modifiedBy: '',
+            timeBounds,
+        }));
 
         try {
-            await upsertMutation.mutateAsync([updatedEntry]);
+            await upsertMutation.mutateAsync(entries);
             setResult({ success: true, message: 'Rollout updated successfully!' });
         } catch (error: any) {
             setResult({ success: false, message: error.message || 'Failed to update rollout' });
         }
     };
 
-    if (isLoading) {
+    if (isLoading || timeBoundsLoading) {
         return <Skeleton className="h-48 w-full" />;
     }
 
@@ -165,6 +204,7 @@ function RolloutSection({ domain }: { domain: LogicDomain }) {
                             <TableHead className="w-24">Version</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead className="w-28">Rollout %</TableHead>
+                            <TableHead className="w-40">Time Bound</TableHead>
                             <TableHead className="w-16">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -196,6 +236,22 @@ function RolloutSection({ domain }: { domain: LogicDomain }) {
                                         onChange={e => handlePercentageChange(idx, parseInt(e.target.value) || 0)}
                                         className="w-20"
                                     />
+                                </TableCell>
+                                <TableCell>
+                                    <Select
+                                        value={item.timeBounds || 'Unbounded'}
+                                        onValueChange={(val) => handleTimeBoundChange(idx, val)}
+                                    >
+                                        <SelectTrigger className="w-32">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Unbounded">Unbounded</SelectItem>
+                                            {timeBoundsData?.map(tb => (
+                                                <SelectItem key={tb.name} value={tb.name}>{tb.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </TableCell>
                                 <TableCell>
                                     <Button
