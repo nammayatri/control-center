@@ -8,27 +8,48 @@ export interface MetricsFilters {
     dateFrom?: string;
     dateTo?: string;
     city?: string[];
+    state?: string[];
     merchantId?: string[];
     flowType?: string[];
     tripTag?: string[];
     serviceTier?: string[];
+    vehicleCategory?: 'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny';
+    vehicleSubCategory?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     groupBy?: 'city' | 'merchant_id' | 'flow_type' | 'trip_tag' | 'service_tier';
 }
 
+export type ServiceTierType = 'tier-less' | 'tier' | 'bookany';
+
 export interface ExecutiveMetricsResponse {
     totals: {
         searches: number;
+        searchGotEstimates: number;
         quotesRequested: number;
         quotesAccepted: number;
         bookings: number;
+        rides: number;
         completedRides: number;
+        cancelledRides: number;
         earnings: number;
         userCancellations: number;
         driverCancellations: number;
+        otherCancellations: number;
+        // Calculated metrics
+        conversionRate: number;
+        riderFareAcceptanceRate?: number; // RFA - only for tier-less/bookany
+        driverQuoteAcceptanceRate?: number; // DQA - only for tier-less/bookany
+        driverAcceptanceRate?: number; // For tier (Rental/InterCity)
+        cancellationRate: number;
+        userCancellationRate: number;
+        driverCancellationRate: number;
+        otherCancellationRate: number;
+        // Search tries: sum of searches for selected vehicle category
+        searchTries?: number;
     };
     filters: MetricsFilters;
+    tierType: ServiceTierType;
 }
 
 export interface ComparisonMetricsResponse {
@@ -39,6 +60,9 @@ export interface ComparisonMetricsResponse {
         earnings: number;
         userCancellations: number;
         driverCancellations: number;
+        searchForQuotes?: number;
+        cancelledRides?: number;
+        othersCancellation?: number;
     };
     previous: {
         searches: number;
@@ -47,6 +71,9 @@ export interface ComparisonMetricsResponse {
         earnings: number;
         userCancellations: number;
         driverCancellations: number;
+        searchForQuotes?: number;
+        cancelledRides?: number;
+        othersCancellation?: number;
     };
     change: {
         searches: { absolute: number; percent: number };
@@ -55,6 +82,9 @@ export interface ComparisonMetricsResponse {
         earnings: { absolute: number; percent: number };
         userCancellations: { absolute: number; percent: number };
         driverCancellations: { absolute: number; percent: number };
+        quotesRequested?: { absolute: number; percent: number };
+        cancelledRides?: { absolute: number; percent: number };
+        quotesAccepted?: { absolute: number; percent: number };
     };
     currentPeriod: { from: string; to: string };
     previousPeriod: { from: string; to: string };
@@ -66,6 +96,11 @@ export interface TimeSeriesDataPoint {
     bookings: number;
     completedRides: number;
     earnings: number;
+    searchForQuotes?: number;
+    quotesAccepted?: number;
+    cancelledRides?: number;
+    userCancellations?: number;
+    driverCancellations?: number;
 }
 
 export interface TimeSeriesResponse {
@@ -75,10 +110,15 @@ export interface TimeSeriesResponse {
 
 export interface FilterOptionsResponse {
     cities: string[];
+    states: string[];
+    cityStateMap?: Record<string, string[]>; // state -> cities[]
+    cityToStateMap?: Record<string, string>; // city -> state
     merchants: { id: string; name: string }[];
     flowTypes: string[];
     tripTags: string[];
     serviceTiers: string[];
+    vehicleCategories: Array<{ value: 'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny'; label: string }>;
+    vehicleSubCategories: Record<'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny', string[]>;
     dateRange: {
         min: string;
         max: string;
@@ -92,6 +132,10 @@ export interface GroupedMetricsRow {
     completedRides: number;
     earnings: number;
     conversionRate: number;
+    searchForQuotes?: number;
+    riderFareAcceptanceRate?: number;
+    driverQuoteAcceptanceRate?: number;
+    driverAcceptanceRate?: number;
 }
 
 export interface GroupedMetricsResponse {
@@ -102,6 +146,8 @@ export interface GroupedMetricsResponse {
 
 export type Dimension =
     | 'service_tier'
+    | 'vehicle_category'
+    | 'vehicle_sub_category'
     | 'flow_type'
     | 'trip_tag'
     | 'user_os_type'
@@ -120,6 +166,7 @@ export interface DimensionalTimeSeriesDataPoint {
     searches: number;
     completedRides: number;
     conversion: number;
+    searchForQuotes?: number;
 }
 
 export interface DimensionalTimeSeriesResponse {
@@ -147,10 +194,13 @@ function buildMasterQueryParams(filters: MetricsFilters): string {
 
     // Add array filters as comma-separated strings if they have values
     if (filters.city?.length) params.city = filters.city.join(',');
+    if (filters.state?.length) params.state = filters.state.join(',');
     if (filters.merchantId?.length) params.merchantId = filters.merchantId.join(',');
     if (filters.flowType?.length) params.flowType = filters.flowType.join(',');
     if (filters.tripTag?.length) params.tripTag = filters.tripTag.join(',');
     if (filters.serviceTier?.length) params.serviceTier = filters.serviceTier.join(',');
+    if (filters.vehicleCategory) params.vehicleCategory = filters.vehicleCategory;
+    if (filters.vehicleSubCategory) params.vehicleSubCategory = filters.vehicleSubCategory;
 
     return buildApiQueryParams(params);
 }

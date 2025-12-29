@@ -30,3 +30,12 @@ dist-ssr
 
 # Server build output
 server/dist
+
+# Documentation files
+api_curl_commands.md
+Frontend_updates_summary.md
+implementation_summary.md
+MASTER_CONVERSION_CHANGES_ANALYSIS.md
+FRONTEND_UPDATES_SUMMARY.md
+API_CURL_COMMANDS.md
+IMPLEMENTATION_SUMMARY.md

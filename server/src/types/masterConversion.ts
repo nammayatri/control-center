@@ -2,10 +2,13 @@ export interface MasterConversionFilters {
     dateFrom?: string;
     dateTo?: string;
     city?: string[];
+    state?: string[];
     merchantId?: string[];
     flowType?: string[];
     tripTag?: string[];
     serviceTier?: string[];
+    vehicleCategory?: 'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny';
+    vehicleSubCategory?: string;
 }
 
 export interface SortOptions {
@@ -13,29 +16,63 @@ export interface SortOptions {
     sortOrder?: 'asc' | 'desc';
 }
 
-export interface MasterConversionExecutiveTotals {
+// Service tier type indicator
+export type ServiceTierType = 'tier-less' | 'tier' | 'bookany';
+
+// New fields for conversion funnel
+export interface ConversionFunnelFields {
     searches: number;
+    searchGotEstimates: number;
     quotesRequested: number;
     quotesAccepted: number;
     bookings: number;
+    rides: number;
     completedRides: number;
+    cancelledRides: number;
     earnings: number;
     userCancellations: number;
     driverCancellations: number;
+    otherCancellations: number;
+}
+
+// Calculated metrics based on tier type
+export interface ConversionMetrics {
+    conversionRate: number;
+    riderFareAcceptanceRate?: number; // RFA - only for tier-less
+    driverQuoteAcceptanceRate?: number; // DQA - only for tier-less
+    driverAcceptanceRate?: number; // For tier (Rental/InterCity)
+    cancellationRate: number;
+    userCancellationRate: number;
+    driverCancellationRate: number;
+    otherCancellationRate: number;
+}
+
+export interface MasterConversionExecutiveTotals extends ConversionFunnelFields, ConversionMetrics {
+    // Legacy fields for backward compatibility
+    quotesRequested: number;
+    quotesAccepted: number;
+    // Search tries: sum of searches for the selected vehicle category (from "All" tier data)
+    searchTries?: number;
 }
 
 export interface MasterConversionExecutiveResponse {
     totals: MasterConversionExecutiveTotals;
     filters: MasterConversionFilters;
+    tierType: ServiceTierType; // Indicates which tier logic was used
 }
 
-export interface MasterConversionComparisonPeriodData {
+export interface MasterConversionComparisonPeriodData extends Partial<ConversionFunnelFields> {
     searches: number;
     bookings: number;
     completedRides: number;
     earnings: number;
     userCancellations: number;
     driverCancellations: number;
+    // Optional new fields
+    searchForQuotes?: number;
+    cancelledRides?: number;
+    othersCancellation?: number;
+    quotesAccepted?: number;
 }
 
 export interface MasterConversionComparisonChanges {
@@ -45,6 +82,9 @@ export interface MasterConversionComparisonChanges {
     earnings: { absolute: number; percent: number };
     userCancellations: { absolute: number; percent: number };
     driverCancellations: { absolute: number; percent: number };
+    quotesRequested?: { absolute: number; percent: number };
+    cancelledRides?: { absolute: number; percent: number };
+    quotesAccepted?: { absolute: number; percent: number };
 }
 
 export interface MasterConversionComparisonResponse {
@@ -61,6 +101,11 @@ export interface MasterConversionTimeSeriesDataPoint {
     bookings: number;
     completedRides: number;
     earnings: number;
+    searchForQuotes?: number; // For tier calculations
+    quotesAccepted?: number;
+    cancelledRides?: number;
+    userCancellations?: number;
+    driverCancellations?: number;
 }
 
 export interface MasterConversionTimeSeriesResponse {
@@ -70,10 +115,15 @@ export interface MasterConversionTimeSeriesResponse {
 
 export interface MasterConversionFilterOptionsResponse {
     cities: string[];
+    states: string[];
+    cityStateMap?: Record<string, string[]>; // state -> cities[]
+    cityToStateMap?: Record<string, string>; // city -> state
     merchants: { id: string; name: string }[];
     flowTypes: string[];
     tripTags: string[];
     serviceTiers: string[];
+    vehicleCategories: Array<{ value: 'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny'; label: string }>;
+    vehicleSubCategories: Record<'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny', string[]>;
     dateRange: {
         min: string;
         max: string;
@@ -83,10 +133,15 @@ export interface MasterConversionFilterOptionsResponse {
 export interface GroupedMasterConversionRow {
     dimension: string;
     searches: number;
+    searchForQuotes?: number; // For tier calculations
     bookings: number;
     completedRides: number;
     earnings: number;
     conversionRate: number;
+    // Additional metrics based on tier type
+    riderFareAcceptanceRate?: number;
+    driverQuoteAcceptanceRate?: number;
+    driverAcceptanceRate?: number;
 }
 
 export interface GroupedMasterConversionResponse {
@@ -97,6 +152,8 @@ export interface GroupedMasterConversionResponse {
 
 export type Dimension =
     | 'service_tier'
+    | 'vehicle_category'
+    | 'vehicle_sub_category'
     | 'flow_type'
     | 'trip_tag'
     | 'user_os_type'
@@ -113,6 +170,7 @@ export interface DimensionalTimeSeriesDataPoint {
     timestamp: string;
     dimensionValue: string;
     searches: number;
+    searchForQuotes?: number; // For tier calculations
     completedRides: number;
     conversion: number;
 }

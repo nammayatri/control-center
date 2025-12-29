@@ -39,14 +39,22 @@ function parseFilters(query: Record<string, unknown>): MasterConversionFilters {
         return undefined;
     };
 
+    const vehicleCategory = query.vehicleCategory as 'Bike' | 'Auto' | 'Cab' | 'Others' | 'All' | 'BookAny' | undefined;
+    const vehicleSubCategory = query.vehicleSubCategory ? String(query.vehicleSubCategory) : undefined;
+
     return {
         dateFrom: query.dateFrom ? String(query.dateFrom) : undefined,
         dateTo: query.dateTo ? String(query.dateTo) : undefined,
         city: parseArray(query.city),
+        state: parseArray(query.state),
         merchantId: parseArray(query.merchantId),
         flowType: parseArray(query.flowType),
         tripTag: parseArray(query.tripTag),
         serviceTier: parseArray(query.serviceTier),
+        vehicleCategory: vehicleCategory && ['Bike', 'Auto', 'Cab', 'Others', 'All', 'BookAny'].includes(vehicleCategory) 
+            ? vehicleCategory 
+            : undefined,
+        vehicleSubCategory,
     };
 }
 
@@ -65,10 +73,22 @@ router.get('/executive', async (req: Request, res: Response) => {
     try {
         const filters = parseFilters(req.query);
         const totals = await getExecutiveMetrics(filters);
+        
+        // Determine tier type for response
+        const hasServiceTier = filters.serviceTier && filters.serviceTier.length > 0;
+        let tierType: 'tier-less' | 'tier' | 'bookany' = 'tier-less';
+        if (hasServiceTier) {
+            if (filters.serviceTier!.includes('BookAny')) {
+                tierType = 'bookany';
+            } else if (filters.serviceTier!.some(t => t !== 'All' && t !== 'BookAny')) {
+                tierType = 'tier';
+            }
+        }
 
         const response: MasterConversionExecutiveResponse = {
             totals,
             filters,
+            tierType,
         };
 
         res.json(response);
@@ -130,7 +150,19 @@ router.get('/timeseries', async (req: Request, res: Response) => {
     try {
         const filters = parseFilters(req.query);
         const sort = parseSortOptions(req.query);
-        const data = await getTimeSeries(filters, sort);
+        const { granularity = 'day' } = req.query;
+        const validGranularities: Granularity[] = ['day', 'hour'];
+
+        // Basic validation
+        if (!validGranularities.includes(String(granularity) as Granularity)) {
+            res.status(400).json({
+                error: 'Invalid granularity',
+                message: 'granularity must be "day" or "hour"',
+            });
+            return;
+        }
+
+        const data = await getTimeSeries(filters, sort, String(granularity) as Granularity);
 
         const response: MasterConversionTimeSeriesResponse = {
             data,

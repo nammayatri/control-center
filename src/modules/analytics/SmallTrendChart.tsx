@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { format } from 'date-fns';
 import { useTrendData } from '../../hooks/useExecMetrics';
 import type { Dimension, Granularity, MetricsFilters, DimensionalTimeSeriesDataPoint } from '../../services/execMetrics';
@@ -83,6 +83,20 @@ export const SmallTrendChart: React.FC<SmallTrendChartProps> = ({ dimension, lab
                                     labelFormatter={(v) => format(new Date(v), 'MMM d, HH:mm')}
                                     formatter={(v: number) => [`${v.toFixed(1)}%`]}
                                     contentStyle={{ fontSize: '12px' }}
+                                />
+                                <Legend 
+                                    wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }}
+                                    iconType="line"
+                                    formatter={(value: string) => {
+                                        // Calculate average percentage for this variant from chartData
+                                        const values = chartData
+                                            .map((point: Record<string, number | string>) => point[value] as number)
+                                            .filter((v) => typeof v === 'number' && !isNaN(v));
+                                        const avgValue = values.length > 0
+                                            ? values.reduce((sum: number, v: number) => sum + v, 0) / values.length
+                                            : 0;
+                                        return `${value} (${avgValue.toFixed(2)}%)`;
+                                    }}
                                 />
                                 {trendKeys.map((key, index) => (
                                     <Line
