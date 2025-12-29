@@ -67,6 +67,25 @@ export async function exportFarePolicy(
   });
 }
 
+export async function upsertFarePolicy(
+  merchantId: string,
+  cityId: string,
+  file: File
+): Promise<void> {
+  const basePath = `/driver-offer/{merchantId}/{city}/merchant/config/farePolicy/upsert`;
+  const path = buildPath(basePath, merchantId, cityId);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
 // ============================================
 // Driver Pool Config APIs
 // ============================================

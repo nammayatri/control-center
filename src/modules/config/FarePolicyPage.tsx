@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
-import { exportFarePolicy } from '../../services/config';
+import { exportFarePolicy, upsertFarePolicy } from '../../services/config';
 import { handleApiError } from '../../services/api';
 import {
   Download,
+  Upload,
   Loader2,
   CheckCircle,
   XCircle,
@@ -63,15 +64,18 @@ export function FarePolicyPage() {
   const { loginModule, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasAccess = loginModule === 'BPP';
+  const isLoading = isExporting || isUploading;
 
   const handleExport = async () => {
     if (!merchantId || !cityId) return;
 
-    setIsLoading(true);
+    setIsExporting(true);
     setResult(null);
 
     try {
@@ -89,7 +93,39 @@ export function FarePolicyPage() {
       const message = handleApiError(error);
       setResult({ success: false, message: `Failed to export fare policy: ${message}` });
     } finally {
-      setIsLoading(false);
+      setIsExporting(false);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !merchantId || !cityId) return;
+
+    // Validate file type
+    if (!file.name.endsWith('.csv')) {
+      setResult({ success: false, message: 'Please select a CSV file' });
+      return;
+    }
+
+    setIsUploading(true);
+    setResult(null);
+
+    try {
+      await upsertFarePolicy(merchantId, cityId, file);
+      setResult({ success: true, message: `Fare policy uploaded successfully from ${file.name}` });
+    } catch (error) {
+      const message = handleApiError(error);
+      setResult({ success: false, message: `Failed to upload fare policy: ${message}` });
+    } finally {
+      setIsUploading(false);
+      // Reset file input so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -152,7 +188,7 @@ export function FarePolicyPage() {
     <Page>
       <PageHeader
         title="Fare Policy"
-        description="Export the currently live fare policy configuration for this city"
+        description="Export or update fare policy configuration for this city"
         breadcrumbs={[
           { label: 'Config', href: '/config' },
           { label: 'Fare Policy' },
@@ -163,12 +199,11 @@ export function FarePolicyPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5" />
-              Export Fare Policy
+              Fare Policy Management
             </CardTitle>
             <CardDescription>
-              Download the current fare policy configuration as a CSV file.
-              This file contains all fare rules including base fare, distance rates,
-              night shift charges, waiting charges, and more for the selected city.
+              Export the current fare policy configuration as a CSV file, or upload a modified CSV to update fare policies.
+              The file contains all fare rules including base fare, distance rates, night shift charges, waiting charges, and more.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -196,13 +231,22 @@ export function FarePolicyPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-4">
+            {/* Hidden file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".csv"
+              className="hidden"
+            />
+
+            <div className="flex items-center gap-4 flex-wrap">
               <Button
                 onClick={handleExport}
                 disabled={isLoading}
                 size="lg"
               >
-                {isLoading ? (
+                {isExporting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Exporting...
@@ -210,7 +254,25 @@ export function FarePolicyPage() {
                 ) : (
                   <>
                     <Download className="h-4 w-4 mr-2" />
-                    Export Fare Policy CSV
+                    Export CSV
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleUploadClick}
+                disabled={isLoading}
+                size="lg"
+                variant="outline"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload CSV
                   </>
                 )}
               </Button>
