@@ -48,7 +48,7 @@ import {
     useRoleList,
 } from '../../hooks/useAdmin';
 import { formatDateTime, getInitials } from '../../lib/utils';
-import { getCityName } from '../../lib/cityUtils';
+import { getCityName, CITY_NAME_MAP } from '../../lib/cityUtils';
 import type { AccessMatrix } from '../../types';
 import { toast } from 'sonner';
 import {
@@ -813,7 +813,7 @@ export function UserDetailPage() {
 
             {/* Assign Merchant/City Access Dialog */}
             <Dialog open={accessDialogOpen} onOpenChange={setAccessDialogOpen}>
-                <DialogContent>
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Assign Merchant/City Access</DialogTitle>
                         <DialogDescription>
@@ -823,21 +823,112 @@ export function UserDetailPage() {
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Merchant ID</label>
-                            <Input
-                                value={accessForm.merchantId}
-                                onChange={(e) => setAccessForm({ ...accessForm, merchantId: e.target.value })}
-                                placeholder="e.g., NAMMA_YATRI_PARTNER"
-                            />
-                            <p className="text-xs text-muted-foreground">Enter the merchant short ID</p>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        className="w-full justify-between font-normal"
+                                    >
+                                        {accessForm.merchantId || 'Select or type merchant...'}
+                                        <Building2 className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[350px] p-0" align="start">
+                                    <Command>
+                                        <CommandInput
+                                            placeholder="Search or type merchant..."
+                                            value={accessForm.merchantId}
+                                            onValueChange={(val) => setAccessForm({ ...accessForm, merchantId: val })}
+                                        />
+                                        <CommandList>
+                                            <CommandEmpty>
+                                                <div className="p-2 text-sm text-muted-foreground">
+                                                    Type a custom merchant ID or select from list
+                                                </div>
+                                            </CommandEmpty>
+                                            <CommandGroup heading="BAP (Customer)">
+                                                {['NAMMA_YATRI', 'YATRI', 'JATRI_SATHI', 'BHARAT_TAXI', 'BRIDGE'].map((m) => (
+                                                    <CommandItem
+                                                        key={m}
+                                                        value={m}
+                                                        onSelect={() => setAccessForm({ ...accessForm, merchantId: m })}
+                                                    >
+                                                        <Building2 className="mr-2 h-4 w-4" />
+                                                        {m}
+                                                        {accessForm.merchantId === m && (
+                                                            <Check className="ml-auto h-4 w-4 text-primary" />
+                                                        )}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                            <CommandGroup heading="BPP (Driver/Partner)">
+                                                {['NAMMA_YATRI_PARTNER', 'YATRI_PARTNER', 'JATRI_SATHI_PARTNER', 'BHARAT_TAXI_PARTNER', 'BRIDGE_PARTNER'].map((m) => (
+                                                    <CommandItem
+                                                        key={m}
+                                                        value={m}
+                                                        onSelect={() => setAccessForm({ ...accessForm, merchantId: m })}
+                                                    >
+                                                        <Building2 className="mr-2 h-4 w-4" />
+                                                        {m}
+                                                        {accessForm.merchantId === m && (
+                                                            <Check className="ml-auto h-4 w-4 text-primary" />
+                                                        )}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <p className="text-xs text-muted-foreground">Select from list or type a custom merchant ID</p>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Operating City</label>
-                            <Input
-                                value={accessForm.operatingCity}
-                                onChange={(e) => setAccessForm({ ...accessForm, operatingCity: e.target.value })}
-                                placeholder="e.g., Bangalore"
-                            />
-                            <p className="text-xs text-muted-foreground">Enter the city name</p>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        className="w-full justify-between font-normal"
+                                    >
+                                        {accessForm.operatingCity || 'Select or type city...'}
+                                        <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[350px] p-0" align="start">
+                                    <Command>
+                                        <CommandInput
+                                            placeholder="Search or type city..."
+                                            value={accessForm.operatingCity}
+                                            onValueChange={(val) => setAccessForm({ ...accessForm, operatingCity: val })}
+                                        />
+                                        <CommandList>
+                                            <CommandEmpty>
+                                                <div className="p-2 text-sm text-muted-foreground">
+                                                    Type a custom city name or select from list
+                                                </div>
+                                            </CommandEmpty>
+                                            <CommandGroup heading="All Cities">
+                                                {[...new Set(Object.values(CITY_NAME_MAP))].sort().map((city) => (
+                                                    <CommandItem
+                                                        key={city}
+                                                        value={city}
+                                                        onSelect={() => setAccessForm({ ...accessForm, operatingCity: city })}
+                                                    >
+                                                        <MapPin className="mr-2 h-4 w-4" />
+                                                        {city}
+                                                        {accessForm.operatingCity === city && (
+                                                            <Check className="ml-auto h-4 w-4 text-primary" />
+                                                        )}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <p className="text-xs text-muted-foreground">Select from list or type a custom city name</p>
                         </div>
                     </div>
                     <DialogFooter>
