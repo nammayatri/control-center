@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '../../lib/utils';
 import { useIssuesList } from '../../hooks/useIssues';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -50,47 +51,155 @@ export default function IssuesListPage() {
     const [page, setPage] = useState(0);
     const [status, setStatus] = useState<string>('OPEN');
 
-    // Filter states (local, not applied yet)
-    const [phoneNumber, setPhoneNumber] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchType, setSearchType] = useState<'phone' | 'category' | 'description'>('phone');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    const [fromDate, setFromDate] = useState('');
+    const [toDate, setToDate] = useState('');
     const [assignee, setAssignee] = useState('');
 
     // Applied filters (used for query)
     const [appliedFilters, setAppliedFilters] = useState({
-        phoneNumber: '',
-        assignee: ''
+        search: '',
+        searchType: 'phone' as 'phone' | 'category' | 'description',
+        assignee: '',
+        fromDate: '',
+        toDate: ''
     });
 
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery, searchType]); // Also depend on type
+
+    useEffect(() => {
+        setPage(0);
+        setAppliedFilters(prev => ({ ...prev, search: debouncedSearch, searchType }));
+    }, [debouncedSearch, searchType]);
+
+    const getSearchParams = (query: string, type: string) => {
+        if (!query.trim()) return {};
+        const trimmed = query.trim();
+        switch (type) {
+            case 'category':
+                return { categoryName: trimmed };
+            case 'description':
+                return { description: trimmed };
+            case 'phone':
+            default:
+                return { phoneNumber: trimmed };
+        }
+    };
+
+    const toUtcString = (dateStr: string, isEndOfDay = false) => {
+        if (!dateStr) return undefined;
+        const date = new Date(dateStr);
+        if (isEndOfDay) {
+            date.setHours(23, 59, 59, 999);
+        } else {
+            date.setHours(0, 0, 0, 0);
+        }
+        return date.toISOString();
+    };
+
     // Derived params for query
+    const searchParams = getSearchParams(appliedFilters.search, appliedFilters.searchType);
     const queryParams = {
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
         status,
-        phoneNumber: appliedFilters.phoneNumber || undefined,
+        ...searchParams,
         assignee: appliedFilters.assignee || undefined,
+        fromDate: appliedFilters.fromDate || undefined,
+        toDate: appliedFilters.toDate || undefined,
     };
 
     const { data, isLoading, isError, isFetching } = useIssuesList(queryParams);
 
+    // Auto-apply dates when they change
+    useEffect(() => {
+        if (!fromDate && !toDate) {
+            setAppliedFilters(prev => ({ ...prev, fromDate: '', toDate: '' }));
+            return;
+        }
+
+        if (fromDate && toDate && new Date(fromDate) > new Date(toDate)) {
+            alert('From Date cannot be later than To Date');
+            return;
+        }
+
+        setAppliedFilters(prev => ({
+            ...prev,
+            fromDate: toUtcString(fromDate) || '',
+            toDate: toUtcString(toDate, true) || ''
+        }));
+        setPage(0);
+    }, [fromDate, toDate]);
+
     const handleSearch = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        console.log('Searching with:', { phoneNumber, assignee });
+
+        console.log('Searching with:', { searchQuery, searchType, assignee });
         setPage(0); // Reset page on new search
-        setAppliedFilters({
-            phoneNumber,
-            assignee
-        });
+        setAppliedFilters(prev => ({
+            ...prev,
+            search: searchQuery.trim(),
+            searchType,
+            assignee: assignee.trim()
+        }));
     };
 
     const resetFilters = () => {
-        setPhoneNumber('');
+        setSearchQuery('');
+        setSearchType('phone');
         setAssignee('');
-        setAppliedFilters({ phoneNumber: '', assignee: '' });
+        setFromDate('');
+        setToDate('');
+        setAppliedFilters({ search: '', searchType: 'phone', assignee: '', fromDate: '', toDate: '' });
         setPage(0);
     };
 
     return (
         <Page>
-            <PageHeader title="Issue Management" description="Track and resolve customer support issues" />
+            <PageHeader
+                title="Issue Management"
+                description="Track and resolve customer support issues"
+                actions={
+                    <div className="flex items-center gap-2">
+                        <div className={cn(
+                            "flex items-center gap-1 border rounded-md px-2 py-1 bg-background shadow-sm transition-colors",
+                            fromDate && toDate && new Date(fromDate) > new Date(toDate) ? "border-red-500 bg-red-50/50" : "border-input"
+                        )}>
+                            <span className="text-xs font-medium text-muted-foreground">From:</span>
+                            <input
+                                type="date"
+                                className="text-sm bg-transparent border-none outline-none focus:ring-0"
+                                value={fromDate}
+                                onChange={(e) => setFromDate(e.target.value)}
+                            />
+                            <span className="text-xs font-medium text-muted-foreground ml-1">To:</span>
+                            <input
+                                type="date"
+                                className="text-sm bg-transparent border-none outline-none focus:ring-0"
+                                value={toDate}
+                                onChange={(e) => setToDate(e.target.value)}
+                            />
+                            {(fromDate || toDate) && (
+                                <button
+                                    onClick={() => { setFromDate(''); setToDate(''); }}
+                                    className="ml-1 text-muted-foreground hover:text-foreground p-0.5"
+                                    title="Clear Dates"
+                                >
+                                    <RotateCcw className="h-3 w-3" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                }
+            />
             <PageContent>
                 <Card>
                     <CardHeader>
@@ -119,14 +228,24 @@ export default function IssuesListPage() {
                                     </Select>
 
                                     <form onSubmit={handleSearch} className="flex gap-2 items-center">
+                                        <Select value={searchType} onValueChange={(val: 'phone' | 'category' | 'description') => setSearchType(val)}>
+                                            <SelectTrigger className="w-[120px]">
+                                                <SelectValue placeholder="Type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="phone">Phone</SelectItem>
+                                                <SelectItem value="category">Category</SelectItem>
+                                                <SelectItem value="description">Description</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <div className="relative">
                                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                             <Input
                                                 type="search"
-                                                placeholder="Phone..."
-                                                className="pl-8 w-[140px]"
-                                                value={phoneNumber}
-                                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                                placeholder={`Search by ${searchType}...`}
+                                                className="pl-8 w-[200px]"
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
                                             />
                                         </div>
                                         <div className="relative">
