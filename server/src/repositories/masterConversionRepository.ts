@@ -112,9 +112,38 @@ function buildWhereClause(filters: MasterConversionFilters): string {
     const states = filters.state.map((s) => `'${s}'`).join(",");
     conditions.push(`state IN (${states})`);
   }
+  // Handle merchant filters - support both old merchantId (backward compatibility) and new separate filters
   if (filters.merchantId && filters.merchantId.length > 0) {
-    const merchants = filters.merchantId.map((m) => `'${m}'`).join(",");
-    conditions.push(`bpp_merchant_id IN (${merchants})`);
+    // Backward compatibility: treat as BPP merchants
+    const validMerchants = filters.merchantId.filter(
+      (m) => m && m !== "__all__"
+    );
+    if (validMerchants.length > 0) {
+      const merchants = validMerchants.map((m) => `'${m}'`).join(",");
+      conditions.push(`bpp_merchant_id IN (${merchants})`);
+    }
+  }
+  if (filters.bapMerchantId && filters.bapMerchantId.length > 0) {
+    const validBapMerchants = filters.bapMerchantId.filter(
+      (m) => m && m !== "__all__"
+    );
+    if (validBapMerchants.length > 0) {
+      const bapMerchants = validBapMerchants.map((m) => `'${m}'`).join(",");
+      // Filter by BAP merchant name and ensure it's not NULL or empty
+      // Use trim to handle any whitespace issues
+      conditions.push(
+        `trim(bap_merchant_name) IN (${bapMerchants}) AND bap_merchant_name IS NOT NULL AND bap_merchant_name != ''`
+      );
+    }
+  }
+  if (filters.bppMerchantId && filters.bppMerchantId.length > 0) {
+    const validBppMerchants = filters.bppMerchantId.filter(
+      (m) => m && m !== "__all__"
+    );
+    if (validBppMerchants.length > 0) {
+      const bppMerchants = validBppMerchants.map((m) => `'${m}'`).join(",");
+      conditions.push(`bpp_merchant_id IN (${bppMerchants})`);
+    }
   }
   if (filters.flowType && filters.flowType.length > 0) {
     const flowTypes = filters.flowType.map((f) => `'${f}'`).join(",");
@@ -123,6 +152,75 @@ function buildWhereClause(filters: MasterConversionFilters): string {
   if (filters.tripTag && filters.tripTag.length > 0) {
     const tripTags = filters.tripTag.map((t) => `'${t}'`).join(",");
     conditions.push(`trip_tag IN (${tripTags})`);
+  }
+  if (filters.userOsType && filters.userOsType.length > 0) {
+    const validUserOsTypes = filters.userOsType.filter(
+      (t) => t && t !== "__all__"
+    );
+    if (validUserOsTypes.length > 0) {
+      const userOsTypes = validUserOsTypes.map((t) => `'${t}'`).join(",");
+      conditions.push(`user_os_type IN (${userOsTypes})`);
+    }
+  }
+  if (filters.userSdkVersion && filters.userSdkVersion.length > 0) {
+    const validVersions = filters.userSdkVersion.filter(
+      (t) => t && t !== "__all__"
+    );
+    if (validVersions.length > 0) {
+      const versions = validVersions.map((t) => `'${t}'`).join(",");
+      conditions.push(`user_sdk_version IN (${versions})`);
+    }
+  }
+  if (filters.userBundleVersion && filters.userBundleVersion.length > 0) {
+    const validVersions = filters.userBundleVersion.filter(
+      (t) => t && t !== "__all__"
+    );
+    if (validVersions.length > 0) {
+      const versions = validVersions.map((t) => `'${t}'`).join(",");
+      conditions.push(`user_bundle_version IN (${versions})`);
+    }
+  }
+  if (
+    filters.userBackendAppVersion &&
+    filters.userBackendAppVersion.length > 0
+  ) {
+    const validVersions = filters.userBackendAppVersion.filter(
+      (t) => t && t !== "__all__"
+    );
+    if (validVersions.length > 0) {
+      const versions = validVersions.map((t) => `'${t}'`).join(",");
+      conditions.push(`user_backend_app_version IN (${versions})`);
+    }
+  }
+  if (
+    filters.dynamicPricingLogicVersion &&
+    filters.dynamicPricingLogicVersion.length > 0
+  ) {
+    const validVersions = filters.dynamicPricingLogicVersion.filter(
+      (t) => t && t !== "__all__"
+    );
+    if (validVersions.length > 0) {
+      const versions = validVersions.map((t) => `'${t}'`).join(",");
+      conditions.push(`dynamic_pricing_logic_version IN (${versions})`);
+    }
+  }
+  if (filters.poolingLogicVersion && filters.poolingLogicVersion.length > 0) {
+    const validVersions = filters.poolingLogicVersion.filter(
+      (t) => t && t !== "__all__"
+    );
+    if (validVersions.length > 0) {
+      const versions = validVersions.map((t) => `'${t}'`).join(",");
+      conditions.push(`pooling_logic_version IN (${versions})`);
+    }
+  }
+  if (filters.poolingConfigVersion && filters.poolingConfigVersion.length > 0) {
+    const validVersions = filters.poolingConfigVersion.filter(
+      (t) => t && t !== "__all__"
+    );
+    if (validVersions.length > 0) {
+      const versions = validVersions.map((t) => `'${t}'`).join(",");
+      conditions.push(`pooling_config_version IN (${versions})`);
+    }
   }
 
   // Handle vehicle category filters - convert to service_tier filters
@@ -288,6 +386,15 @@ export async function getExecutiveMetrics(
   const whereClause = buildWhereClause(filters);
   const tierType = getServiceTierType(filters);
 
+  // Debug: Log the WHERE clause for troubleshooting
+  if (filters.bapMerchantId || filters.bppMerchantId) {
+    console.log("Merchant filters:", {
+      bapMerchantId: filters.bapMerchantId,
+      bppMerchantId: filters.bppMerchantId,
+    });
+    console.log("WHERE clause:", whereClause);
+  }
+
   // Debug: Log the query for troubleshooting
   const query = `
     SELECT
@@ -362,9 +469,35 @@ export async function getExecutiveMetrics(
         const cities = filters.city.map((c) => `'${c}'`).join(",");
         searchTriesConditions.push(`city IN (${cities})`);
       }
+      // Handle merchant filters for searchTries
       if (filters.merchantId && filters.merchantId.length > 0) {
-        const merchants = filters.merchantId.map((m) => `'${m}'`).join(",");
-        searchTriesConditions.push(`bpp_merchant_id IN (${merchants})`);
+        const validMerchants = filters.merchantId.filter(
+          (m) => m && m !== "__all__"
+        );
+        if (validMerchants.length > 0) {
+          const merchants = validMerchants.map((m) => `'${m}'`).join(",");
+          searchTriesConditions.push(`bpp_merchant_id IN (${merchants})`);
+        }
+      }
+      if (filters.bapMerchantId && filters.bapMerchantId.length > 0) {
+        const validBapMerchants = filters.bapMerchantId.filter(
+          (m) => m && m !== "__all__"
+        );
+        if (validBapMerchants.length > 0) {
+          const bapMerchants = validBapMerchants.map((m) => `'${m}'`).join(",");
+          searchTriesConditions.push(
+            `trim(bap_merchant_name) IN (${bapMerchants}) AND bap_merchant_name IS NOT NULL AND bap_merchant_name != ''`
+          );
+        }
+      }
+      if (filters.bppMerchantId && filters.bppMerchantId.length > 0) {
+        const validBppMerchants = filters.bppMerchantId.filter(
+          (m) => m && m !== "__all__"
+        );
+        if (validBppMerchants.length > 0) {
+          const bppMerchants = validBppMerchants.map((m) => `'${m}'`).join(",");
+          searchTriesConditions.push(`bpp_merchant_id IN (${bppMerchants})`);
+        }
       }
       if (filters.flowType && filters.flowType.length > 0) {
         const flowTypes = filters.flowType.map((f) => `'${f}'`).join(",");
@@ -373,6 +506,85 @@ export async function getExecutiveMetrics(
       if (filters.tripTag && filters.tripTag.length > 0) {
         const tripTags = filters.tripTag.map((t) => `'${t}'`).join(",");
         searchTriesConditions.push(`trip_tag IN (${tripTags})`);
+      }
+      if (filters.userOsType && filters.userOsType.length > 0) {
+        const validUserOsTypes = filters.userOsType.filter(
+          (t) => t && t !== "__all__"
+        );
+        if (validUserOsTypes.length > 0) {
+          const userOsTypes = validUserOsTypes.map((t) => `'${t}'`).join(",");
+          searchTriesConditions.push(`user_os_type IN (${userOsTypes})`);
+        }
+      }
+      if (filters.userSdkVersion && filters.userSdkVersion.length > 0) {
+        const validVersions = filters.userSdkVersion.filter(
+          (t) => t && t !== "__all__"
+        );
+        if (validVersions.length > 0) {
+          const versions = validVersions.map((t) => `'${t}'`).join(",");
+          searchTriesConditions.push(`user_sdk_version IN (${versions})`);
+        }
+      }
+      if (filters.userBundleVersion && filters.userBundleVersion.length > 0) {
+        const validVersions = filters.userBundleVersion.filter(
+          (t) => t && t !== "__all__"
+        );
+        if (validVersions.length > 0) {
+          const versions = validVersions.map((t) => `'${t}'`).join(",");
+          searchTriesConditions.push(`user_bundle_version IN (${versions})`);
+        }
+      }
+      if (
+        filters.userBackendAppVersion &&
+        filters.userBackendAppVersion.length > 0
+      ) {
+        const validVersions = filters.userBackendAppVersion.filter(
+          (t) => t && t !== "__all__"
+        );
+        if (validVersions.length > 0) {
+          const versions = validVersions.map((t) => `'${t}'`).join(",");
+          searchTriesConditions.push(
+            `user_backend_app_version IN (${versions})`
+          );
+        }
+      }
+      if (
+        filters.dynamicPricingLogicVersion &&
+        filters.dynamicPricingLogicVersion.length > 0
+      ) {
+        const validVersions = filters.dynamicPricingLogicVersion.filter(
+          (t) => t && t !== "__all__"
+        );
+        if (validVersions.length > 0) {
+          const versions = validVersions.map((t) => `'${t}'`).join(",");
+          searchTriesConditions.push(
+            `dynamic_pricing_logic_version IN (${versions})`
+          );
+        }
+      }
+      if (
+        filters.poolingLogicVersion &&
+        filters.poolingLogicVersion.length > 0
+      ) {
+        const validVersions = filters.poolingLogicVersion.filter(
+          (t) => t && t !== "__all__"
+        );
+        if (validVersions.length > 0) {
+          const versions = validVersions.map((t) => `'${t}'`).join(",");
+          searchTriesConditions.push(`pooling_logic_version IN (${versions})`);
+        }
+      }
+      if (
+        filters.poolingConfigVersion &&
+        filters.poolingConfigVersion.length > 0
+      ) {
+        const validVersions = filters.poolingConfigVersion.filter(
+          (t) => t && t !== "__all__"
+        );
+        if (validVersions.length > 0) {
+          const versions = validVersions.map((t) => `'${t}'`).join(",");
+          searchTriesConditions.push(`pooling_config_version IN (${versions})`);
+        }
       }
 
       // Use "All" tier data to get total searches
@@ -642,10 +854,17 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
     SELECT
       groupArray(DISTINCT city) as cities,
       groupArray(DISTINCT state) as states,
-      groupArray(DISTINCT bpp_merchant_id) as merchant_ids,
-      groupArray(DISTINCT bpp_merchant_name) as merchant_names,
+      groupArray(DISTINCT bpp_merchant_id) as bpp_merchant_ids,
+      groupArray(DISTINCT bpp_merchant_name) as bpp_merchant_names,
       groupArray(DISTINCT flow_type) as flow_types,
       groupArray(DISTINCT trip_tag) as trip_tags,
+      groupArray(DISTINCT user_os_type) as user_os_types,
+      groupArray(DISTINCT user_sdk_version) as user_sdk_versions,
+      groupArray(DISTINCT user_bundle_version) as user_bundle_versions,
+      groupArray(DISTINCT user_backend_app_version) as user_backend_app_versions,
+      groupArray(DISTINCT dynamic_pricing_logic_version) as dynamic_pricing_logic_versions,
+      groupArray(DISTINCT pooling_logic_version) as pooling_logic_versions,
+      groupArray(DISTINCT pooling_config_version) as pooling_config_versions,
       groupArray(DISTINCT service_tier) as service_tiers,
       min(local_time) as min_date,
       max(local_time) as max_date
@@ -657,6 +876,48 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
     executeQuery(cityStateQuery),
   ]);
   const row = rows[0] || {};
+
+  // Try to get BAP merchants separately if columns exist
+  let bapMerchantIds: string[] = [];
+  let bapMerchantNames: string[] = [];
+  try {
+    // Fetch all BAP merchants - use bap_merchant_name as the column name
+    // If bap_merchant_id doesn't exist, we'll use the name as the ID
+    const bapQuery = `
+      SELECT
+        groupArray(DISTINCT bap_merchant_name) as bap_merchant_names
+      FROM ${FULL_TABLE}
+      WHERE bap_merchant_name IS NOT NULL AND bap_merchant_name != ''
+    `;
+    const bapRows = await executeQuery(bapQuery);
+    if (bapRows && bapRows.length > 0) {
+      bapMerchantNames = (bapRows[0].bap_merchant_names as string[]) || [];
+      // If bap_merchant_id column exists, try to get it too
+      try {
+        const bapIdQuery = `
+          SELECT
+            groupArray(DISTINCT bap_merchant_id) as bap_merchant_ids
+          FROM ${FULL_TABLE}
+          WHERE bap_merchant_id IS NOT NULL AND bap_merchant_id != ''
+        `;
+        const bapIdRows = await executeQuery(bapIdQuery);
+        if (bapIdRows && bapIdRows.length > 0) {
+          bapMerchantIds = (bapIdRows[0].bap_merchant_ids as string[]) || [];
+        }
+      } catch {
+        // bap_merchant_id doesn't exist, use names as IDs
+        bapMerchantIds = bapMerchantNames;
+      }
+      console.log(
+        `Found ${bapMerchantNames.length} BAP merchants:`,
+        bapMerchantNames
+      );
+    }
+  } catch (error: any) {
+    // BAP columns don't exist or query failed - log the full error for debugging
+    const errorMsg = error?.message || String(error);
+    console.error("Error fetching BAP merchants. Full error:", errorMsg);
+  }
 
   // Build city-state mapping
   const cityStateMap: Record<string, string[]> = {}; // state -> cities[]
@@ -673,14 +934,39 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
     cityToStateMap[city] = state;
   });
 
-  const merchantIds = (row.merchant_ids as string[]) || [];
-  const merchantNames = (row.merchant_names as string[]) || [];
+  const bppMerchantIds = (row.bpp_merchant_ids as string[]) || [];
+  const bppMerchantNames = (row.bpp_merchant_names as string[]) || [];
 
-  // Combine IDs and Names
-  const merchantList = merchantIds.map((id, index) => ({
+  // Combine BPP IDs and Names
+  const bppMerchantList = bppMerchantIds.map((id, index) => ({
     id,
-    name: merchantNames[index] || id,
+    name: bppMerchantNames[index] || id,
+    source: "BPP" as const,
   }));
+
+  // Combine BAP IDs and Names (from separate query if available)
+  const bapMerchantList = bapMerchantIds.map((id, index) => ({
+    id,
+    name: bapMerchantNames[index] || id,
+    source: "BAP" as const,
+  }));
+
+  // Combine all merchants - BAP and BPP are separate entities
+  // A BAP merchant can send requests to a BPP merchant, so we show all of them
+  type MerchantItem = { id: string; name: string; source: "BPP" | "BAP" };
+  const merchantMap = new Map<string, MerchantItem>();
+
+  // Add all BPP merchants
+  bppMerchantList.forEach((m) => {
+    merchantMap.set(m.id, m);
+  });
+
+  // Add all BAP merchants (they are separate entities, not filtered by name)
+  bapMerchantList.forEach((m) => {
+    merchantMap.set(m.id, m);
+  });
+
+  const merchantList = Array.from(merchantMap.values());
 
   // Sort merchants: NAMMA_YATRI first, then BHARAT_TAXI, JATRI_SATHI, ANNA_APP, then others
   const merchantPriority = [
@@ -691,14 +977,14 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
   ];
   const merchants = [
     ...merchantList
-      .filter((m) => merchantPriority.includes(m.id))
+      .filter((m) => merchantPriority.includes(m.name))
       .sort((a, b) => {
-        const indexA = merchantPriority.indexOf(a.id);
-        const indexB = merchantPriority.indexOf(b.id);
+        const indexA = merchantPriority.indexOf(a.name);
+        const indexB = merchantPriority.indexOf(b.name);
         return indexA - indexB;
       }),
     ...merchantList
-      .filter((m) => !merchantPriority.includes(m.id))
+      .filter((m) => !merchantPriority.includes(m.name))
       .sort((a, b) => a.name.localeCompare(b.name)),
   ];
 
@@ -742,14 +1028,32 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
     ...cities.filter((c) => !cityPriority.includes(c)).sort(),
   ];
 
+  // Separate BAP and BPP merchants
+  const bapMerchants = merchantList
+    .filter((m) => m.source === "BAP")
+    .map(({ id, name }) => ({ id, name }));
+  const bppMerchants = merchantList
+    .filter((m) => m.source === "BPP")
+    .map(({ id, name }) => ({ id, name }));
+
   return {
     cities: sortedCities,
     states: (row.states as string[]) || [],
     cityStateMap, // Mapping of state -> cities[]
     cityToStateMap, // Mapping of city -> state
-    merchants,
+    merchants, // Keep for backward compatibility
+    bapMerchants,
+    bppMerchants,
     flowTypes: (row.flow_types as string[]) || [],
     tripTags: (row.trip_tags as string[]) || [],
+    userOsTypes: (row.user_os_types as string[]) || [],
+    userSdkVersions: (row.user_sdk_versions as string[]) || [],
+    userBundleVersions: (row.user_bundle_versions as string[]) || [],
+    userBackendAppVersions: (row.user_backend_app_versions as string[]) || [],
+    dynamicPricingLogicVersions:
+      (row.dynamic_pricing_logic_versions as string[]) || [],
+    poolingLogicVersions: (row.pooling_logic_versions as string[]) || [],
+    poolingConfigVersions: (row.pooling_config_versions as string[]) || [],
     serviceTiers: (row.service_tiers as string[]) || [],
     vehicleCategories,
     vehicleSubCategories,
@@ -799,9 +1103,35 @@ export async function getGroupedMasterConversionMetrics(
       const cities = baseFilters.city.map((c) => `'${c}'`).join(",");
       conditions.push(`city IN (${cities})`);
     }
+    // Handle merchant filters
     if (baseFilters.merchantId && baseFilters.merchantId.length > 0) {
-      const merchants = baseFilters.merchantId.map((m) => `'${m}'`).join(",");
-      conditions.push(`bpp_merchant_id IN (${merchants})`);
+      const validMerchants = baseFilters.merchantId.filter(
+        (m) => m && m !== "__all__"
+      );
+      if (validMerchants.length > 0) {
+        const merchants = validMerchants.map((m) => `'${m}'`).join(",");
+        conditions.push(`bpp_merchant_id IN (${merchants})`);
+      }
+    }
+    if (baseFilters.bapMerchantId && baseFilters.bapMerchantId.length > 0) {
+      const validBapMerchants = baseFilters.bapMerchantId.filter(
+        (m) => m && m !== "__all__"
+      );
+      if (validBapMerchants.length > 0) {
+        const bapMerchants = validBapMerchants.map((m) => `'${m}'`).join(",");
+        conditions.push(
+          `trim(bap_merchant_name) IN (${bapMerchants}) AND bap_merchant_name IS NOT NULL AND bap_merchant_name != ''`
+        );
+      }
+    }
+    if (baseFilters.bppMerchantId && baseFilters.bppMerchantId.length > 0) {
+      const validBppMerchants = baseFilters.bppMerchantId.filter(
+        (m) => m && m !== "__all__"
+      );
+      if (validBppMerchants.length > 0) {
+        const bppMerchants = validBppMerchants.map((m) => `'${m}'`).join(",");
+        conditions.push(`bpp_merchant_id IN (${bppMerchants})`);
+      }
     }
     if (baseFilters.flowType && baseFilters.flowType.length > 0) {
       const flowTypes = baseFilters.flowType.map((f) => `'${f}'`).join(",");
@@ -810,6 +1140,84 @@ export async function getGroupedMasterConversionMetrics(
     if (baseFilters.tripTag && baseFilters.tripTag.length > 0) {
       const tripTags = baseFilters.tripTag.map((t) => `'${t}'`).join(",");
       conditions.push(`trip_tag IN (${tripTags})`);
+    }
+    if (baseFilters.userOsType && baseFilters.userOsType.length > 0) {
+      const validUserOsTypes = baseFilters.userOsType.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validUserOsTypes.length > 0) {
+        const userOsTypes = validUserOsTypes.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_os_type IN (${userOsTypes})`);
+      }
+    }
+    if (baseFilters.userSdkVersion && baseFilters.userSdkVersion.length > 0) {
+      const validVersions = baseFilters.userSdkVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_sdk_version IN (${versions})`);
+      }
+    }
+    if (
+      baseFilters.userBundleVersion &&
+      baseFilters.userBundleVersion.length > 0
+    ) {
+      const validVersions = baseFilters.userBundleVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_bundle_version IN (${versions})`);
+      }
+    }
+    if (
+      baseFilters.userBackendAppVersion &&
+      baseFilters.userBackendAppVersion.length > 0
+    ) {
+      const validVersions = baseFilters.userBackendAppVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_backend_app_version IN (${versions})`);
+      }
+    }
+    if (
+      baseFilters.dynamicPricingLogicVersion &&
+      baseFilters.dynamicPricingLogicVersion.length > 0
+    ) {
+      const validVersions = baseFilters.dynamicPricingLogicVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`dynamic_pricing_logic_version IN (${versions})`);
+      }
+    }
+    if (
+      baseFilters.poolingLogicVersion &&
+      baseFilters.poolingLogicVersion.length > 0
+    ) {
+      const validVersions = baseFilters.poolingLogicVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`pooling_logic_version IN (${versions})`);
+      }
+    }
+    if (
+      baseFilters.poolingConfigVersion &&
+      baseFilters.poolingConfigVersion.length > 0
+    ) {
+      const validVersions = baseFilters.poolingConfigVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`pooling_config_version IN (${versions})`);
+      }
     }
     // Don't add service_tier filter when grouping by it - we want to see all tiers
 
@@ -825,8 +1233,11 @@ export async function getGroupedMasterConversionMetrics(
     : `ORDER BY searches DESC`;
   const tierType = getServiceTierType(filters);
 
+  // When grouping by merchant_id, prefer BPP over BAP when names match
   const dimensionColumn =
-    groupBy === "merchant_id" ? "bpp_merchant_id" : groupBy;
+    groupBy === "merchant_id"
+      ? "COALESCE(bpp_merchant_id, bap_merchant_id)"
+      : groupBy;
 
   const query = `
     SELECT
@@ -977,11 +1388,41 @@ export async function getDimensionalTimeSeries(
       const states = filtersForQuery.state.map((s) => `'${s}'`).join(",");
       conditions.push(`state IN (${states})`);
     }
+    // Handle merchant filters
     if (filtersForQuery.merchantId && filtersForQuery.merchantId.length > 0) {
-      const merchants = filtersForQuery.merchantId
-        .map((m) => `'${m}'`)
-        .join(",");
-      conditions.push(`bpp_merchant_id IN (${merchants})`);
+      const validMerchants = filtersForQuery.merchantId.filter(
+        (m) => m && m !== "__all__"
+      );
+      if (validMerchants.length > 0) {
+        const merchants = validMerchants.map((m) => `'${m}'`).join(",");
+        conditions.push(`bpp_merchant_id IN (${merchants})`);
+      }
+    }
+    if (
+      filtersForQuery.bapMerchantId &&
+      filtersForQuery.bapMerchantId.length > 0
+    ) {
+      const validBapMerchants = filtersForQuery.bapMerchantId.filter(
+        (m) => m && m !== "__all__"
+      );
+      if (validBapMerchants.length > 0) {
+        const bapMerchants = validBapMerchants.map((m) => `'${m}'`).join(",");
+        conditions.push(
+          `trim(bap_merchant_name) IN (${bapMerchants}) AND bap_merchant_name IS NOT NULL AND bap_merchant_name != ''`
+        );
+      }
+    }
+    if (
+      filtersForQuery.bppMerchantId &&
+      filtersForQuery.bppMerchantId.length > 0
+    ) {
+      const validBppMerchants = filtersForQuery.bppMerchantId.filter(
+        (m) => m && m !== "__all__"
+      );
+      if (validBppMerchants.length > 0) {
+        const bppMerchants = validBppMerchants.map((m) => `'${m}'`).join(",");
+        conditions.push(`bpp_merchant_id IN (${bppMerchants})`);
+      }
     }
     if (filtersForQuery.flowType && filtersForQuery.flowType.length > 0) {
       const flowTypes = filtersForQuery.flowType.map((f) => `'${f}'`).join(",");
@@ -990,6 +1431,87 @@ export async function getDimensionalTimeSeries(
     if (filtersForQuery.tripTag && filtersForQuery.tripTag.length > 0) {
       const tripTags = filtersForQuery.tripTag.map((t) => `'${t}'`).join(",");
       conditions.push(`trip_tag IN (${tripTags})`);
+    }
+    if (filtersForQuery.userOsType && filtersForQuery.userOsType.length > 0) {
+      const validUserOsTypes = filtersForQuery.userOsType.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validUserOsTypes.length > 0) {
+        const userOsTypes = validUserOsTypes.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_os_type IN (${userOsTypes})`);
+      }
+    }
+    if (
+      filtersForQuery.userSdkVersion &&
+      filtersForQuery.userSdkVersion.length > 0
+    ) {
+      const validVersions = filtersForQuery.userSdkVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_sdk_version IN (${versions})`);
+      }
+    }
+    if (
+      filtersForQuery.userBundleVersion &&
+      filtersForQuery.userBundleVersion.length > 0
+    ) {
+      const validVersions = filtersForQuery.userBundleVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_bundle_version IN (${versions})`);
+      }
+    }
+    if (
+      filtersForQuery.userBackendAppVersion &&
+      filtersForQuery.userBackendAppVersion.length > 0
+    ) {
+      const validVersions = filtersForQuery.userBackendAppVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`user_backend_app_version IN (${versions})`);
+      }
+    }
+    if (
+      filtersForQuery.dynamicPricingLogicVersion &&
+      filtersForQuery.dynamicPricingLogicVersion.length > 0
+    ) {
+      const validVersions = filtersForQuery.dynamicPricingLogicVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`dynamic_pricing_logic_version IN (${versions})`);
+      }
+    }
+    if (
+      filtersForQuery.poolingLogicVersion &&
+      filtersForQuery.poolingLogicVersion.length > 0
+    ) {
+      const validVersions = filtersForQuery.poolingLogicVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`pooling_logic_version IN (${versions})`);
+      }
+    }
+    if (
+      filtersForQuery.poolingConfigVersion &&
+      filtersForQuery.poolingConfigVersion.length > 0
+    ) {
+      const validVersions = filtersForQuery.poolingConfigVersion.filter(
+        (t) => t && t !== "__all__"
+      );
+      if (validVersions.length > 0) {
+        const versions = validVersions.map((t) => `'${t}'`).join(",");
+        conditions.push(`pooling_config_version IN (${versions})`);
+      }
     }
     // Don't add service_tier filter - we want all tiers to map to categories
 
@@ -1026,7 +1548,13 @@ export async function getDimensionalTimeSeries(
       ${dimensionColumn} as dimension_value,
       sumIf(searches, searches IS NOT NULL) as searches,
       sumIf(quotes_requested, quotes_requested IS NOT NULL) as quotes_requested,
-      sumIf(completed_rides, completed_rides IS NOT NULL) as completed_rides
+      sumIf(quotes_accepted, quotes_accepted IS NOT NULL) as quotes_accepted,
+      sumIf(bookings, bookings IS NOT NULL) as bookings,
+      sumIf(completed_rides, completed_rides IS NOT NULL) as completed_rides,
+      sumIf(cancelled_rides, cancelled_rides IS NOT NULL) as cancelled_rides,
+      sumIf(user_cancellations, user_cancellations IS NOT NULL) as user_cancellations,
+      sumIf(driver_cancellations, driver_cancellations IS NOT NULL) as driver_cancellations,
+      sumIf(total_driver_earnings, total_driver_earnings IS NOT NULL) as earnings
     FROM ${FULL_TABLE}
     ${whereClause}
     GROUP BY timestamp, dimension_value
@@ -1045,7 +1573,13 @@ export async function getDimensionalTimeSeries(
         dimensionValue: string;
         searches: number;
         quotesRequested: number;
+        quotesAccepted: number;
+        bookings: number;
         completedRides: number;
+        cancelledRides: number;
+        userCancellations: number;
+        driverCancellations: number;
+        earnings: number;
       }
     >();
 
@@ -1067,14 +1601,26 @@ export async function getDimensionalTimeSeries(
       if (existing) {
         existing.searches += safeNumber(row.searches);
         existing.quotesRequested += safeNumber(row.quotes_requested);
+        existing.quotesAccepted += safeNumber(row.quotes_accepted);
+        existing.bookings += safeNumber(row.bookings);
         existing.completedRides += safeNumber(row.completed_rides);
+        existing.cancelledRides += safeNumber(row.cancelled_rides);
+        existing.userCancellations += safeNumber(row.user_cancellations);
+        existing.driverCancellations += safeNumber(row.driver_cancellations);
+        existing.earnings += safeNumber(row.earnings);
       } else {
         grouped.set(key, {
           timestamp,
           dimensionValue: mappedValue,
           searches: safeNumber(row.searches),
           quotesRequested: safeNumber(row.quotes_requested),
+          quotesAccepted: safeNumber(row.quotes_accepted),
+          bookings: safeNumber(row.bookings),
           completedRides: safeNumber(row.completed_rides),
+          cancelledRides: safeNumber(row.cancelled_rides),
+          userCancellations: safeNumber(row.user_cancellations),
+          driverCancellations: safeNumber(row.driver_cancellations),
+          earnings: safeNumber(row.earnings),
         });
       }
     }
@@ -1107,6 +1653,24 @@ export async function getDimensionalTimeSeries(
       if (item.quotesRequested > 0) {
         result.searchForQuotes = item.quotesRequested;
       }
+      if (item.quotesAccepted > 0) {
+        result.quotesAccepted = item.quotesAccepted;
+      }
+      if (item.bookings > 0) {
+        result.bookings = item.bookings;
+      }
+      if (item.cancelledRides > 0) {
+        result.cancelledRides = item.cancelledRides;
+      }
+      if (item.userCancellations > 0) {
+        result.userCancellations = item.userCancellations;
+      }
+      if (item.driverCancellations > 0) {
+        result.driverCancellations = item.driverCancellations;
+      }
+      if (item.earnings > 0) {
+        result.earnings = item.earnings;
+      }
 
       return result;
     });
@@ -1116,7 +1680,13 @@ export async function getDimensionalTimeSeries(
   return rows.map((row) => {
     const searches = safeNumber(row.searches);
     const quotesRequested = safeNumber(row.quotes_requested);
+    const quotesAccepted = safeNumber(row.quotes_accepted);
+    const bookings = safeNumber(row.bookings);
     const completedRides = safeNumber(row.completed_rides);
+    const cancelledRides = safeNumber(row.cancelled_rides);
+    const userCancellations = safeNumber(row.user_cancellations);
+    const driverCancellations = safeNumber(row.driver_cancellations);
+    const earnings = safeNumber(row.earnings);
 
     // Calculate conversion based on tier type
     let conversion = 0;
@@ -1138,6 +1708,24 @@ export async function getDimensionalTimeSeries(
 
     if (quotesRequested > 0) {
       result.searchForQuotes = quotesRequested;
+    }
+    if (quotesAccepted > 0) {
+      result.quotesAccepted = quotesAccepted;
+    }
+    if (bookings > 0) {
+      result.bookings = bookings;
+    }
+    if (cancelledRides > 0) {
+      result.cancelledRides = cancelledRides;
+    }
+    if (userCancellations > 0) {
+      result.userCancellations = userCancellations;
+    }
+    if (driverCancellations > 0) {
+      result.driverCancellations = driverCancellations;
+    }
+    if (earnings > 0) {
+      result.earnings = earnings;
     }
 
     return result;

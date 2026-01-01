@@ -1,5 +1,6 @@
 import * as React from "react";
 import { format, startOfDay, endOfDay, subMinutes, subHours, subDays, startOfMonth, endOfMonth } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import { Calendar } from "./calendar";
 import { Button } from "./button";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
@@ -170,7 +171,7 @@ export function DateRangePicker({
     });
   };
 
-  const handleDateSelect = (range: { from?: Date; to?: Date } | undefined) => {
+  const handleDateSelect = (range: { from: Date | undefined; to: Date | undefined } | undefined) => {
     if (!range) {
       // If range is undefined, keep current selection
       return;

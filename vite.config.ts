@@ -31,12 +31,12 @@ export default defineConfig(({ mode }) => {
         // Proxy Admin API requests (including master-conversion) to local backend in dev
         // Note: This should come AFTER /api/bap and /api/bpp to avoid conflicts
         "/api/metrics": {
-          target: target,
+          target: "http://localhost:3001",
           changeOrigin: true,
           secure: false,
         },
         "/api/master-conversion": {
-          target: target,
+          target: "http://localhost:3001",
           changeOrigin: true,
           secure: false,
         },

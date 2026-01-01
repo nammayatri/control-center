@@ -3,7 +3,9 @@ import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '../../lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { AreaChart, Area, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { format, parseISO } from 'date-fns';
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface StatTileProps {
   label: string;
@@ -16,6 +18,7 @@ interface StatTileProps {
   trendData?: Array<{ timestamp: string; value: number }>;
   isNegativeMetric?: boolean; // If true, positive change is bad (e.g., cancellations)
   dateRange?: { from: string; to: string }; // Date range for tooltip
+  comparisonDateRange?: { from: string; to: string }; // Previous period date range for comparison tooltip
 }
 
 export function StatTile({
@@ -29,6 +32,7 @@ export function StatTile({
   trendData,
   isNegativeMetric = false,
   dateRange,
+  comparisonDateRange,
 }: StatTileProps) {
   const getTrendIcon = () => {
     if (change === undefined || change === 0) return <Minus className="h-3 w-3" />;
@@ -69,87 +73,138 @@ export function StatTile({
     );
   }
 
+  // Format date for tooltip: "Tue, 17th 8:00 am"
+  const formatTooltipDate = (dateString: string): string => {
+    try {
+      // Try parsing as ISO or various formats
+      let date: Date;
+      if (dateString.includes('T')) {
+        date = parseISO(dateString);
+      } else if (dateString.includes(' ')) {
+        // Format: "2025-12-17 08:00:00"
+        date = new Date(dateString.replace(' ', 'T'));
+      } else {
+        date = new Date(dateString);
+      }
+      
+      if (isNaN(date.getTime())) {
+        return dateString;
+      }
+
+      const dayName = format(date, 'EEE'); // Tue
+      const day = format(date, 'd'); // 17
+      const daySuffix = getDaySuffix(parseInt(day)); // th
+      const time = format(date, 'h:mm a'); // 8:00 am
+      
+      return `${dayName}, ${day}${daySuffix} ${time}`;
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getDaySuffix = (day: number): string => {
+    if (day > 3 && day < 21) return 'th';
+    switch (day % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  };
+
+  const chartColor = getChartColor();
+  const gradientId = `gradient-${label.replace(/\s+/g, '-')}`;
+  const lightColor = chartColor === '#22c55e' 
+    ? 'rgba(34, 197, 94, 0.1)' // light green
+    : chartColor === '#ef4444'
+    ? 'rgba(239, 68, 68, 0.1)' // light red
+    : 'rgba(107, 114, 128, 0.1)'; // light gray
+
   return (
     <Card className={cn("", className)}>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">{label}</p>
-            <p className="text-2xl font-bold mt-1">{value}</p>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2">
+          {/* Left side: Metric and change */}
+          <div className="flex-shrink-0 min-w-[120px]">
+            <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+            <p className="text-2xl font-bold mb-1">{value}</p>
             {change !== undefined && (
-              <div className={cn("flex items-center gap-1 mt-1 text-xs", getTrendColor())}>
-                {getTrendIcon()}
-                <span>{Math.abs(change).toFixed(2)}%</span>
-                {changeLabel && (
-                  <span className="text-muted-foreground ml-1">{changeLabel}</span>
-                )}
-              </div>
+              <TooltipProvider>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <div className={cn("flex items-center gap-1 text-xs font-medium cursor-help", getTrendColor())}>
+                      {getTrendIcon()}
+                      <span>{Math.abs(change).toFixed(2)}%</span>
+                      {changeLabel && (
+                        <span className="text-muted-foreground ml-1">{changeLabel}</span>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700">
+                    <div className="space-y-1">
+                      <p className="text-xs">
+                        {change > 0 ? 'Increased by' : change < 0 ? 'Decreased by' : 'No change'}
+                      </p>
+                      <p className="text-sm font-bold">
+                        {Math.abs(change).toFixed(2)}%
+                      </p>
+                      {comparisonDateRange && (
+                        <>
+                          <p className="text-xs text-gray-300">comparing to</p>
+                          <p className="text-xs text-gray-300">
+                            {comparisonDateRange.from} - {comparisonDateRange.to}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
             )}
           </div>
-          {icon && (
-            <div className="p-2 bg-primary/10 rounded-lg text-primary">
-              {icon}
+          
+          {/* Right side: Graph - takes remaining space */}
+          {trendData && trendData.length > 0 && (
+            <div className="flex-1 h-16 min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartColor} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={chartColor} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={chartColor}
+                    strokeWidth={2}
+                    fill={`url(#${gradientId})`}
+                    dot={false}
+                    activeDot={{ r: 3, fill: chartColor }}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        // Use timestamp from payload data, fallback to label
+                        const timestamp = payload[0].payload?.timestamp || label || '';
+                        const formattedDate = formatTooltipDate(timestamp);
+                        const value = payload[0].value as number;
+                        return (
+                          <div className="bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg">
+                            <p className="text-gray-300 mb-1">{formattedDate}</p>
+                            <p className="font-semibold">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           )}
         </div>
-        {trendData && trendData.length > 0 && (
-          <div className="h-16 -mx-2 -mb-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData}>
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke={getChartColor()}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 3 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    fontSize: '12px',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: '#1f2937',
-                    border: 'none',
-                    color: '#fff',
-                  }}
-                  labelStyle={{
-                    color: '#fff',
-                    marginBottom: '4px',
-                  }}
-                  formatter={(value: number) => [value.toLocaleString(), '']}
-                  labelFormatter={(label) => {
-                    if (dateRange) {
-                      return `${dateRange.from} - ${dateRange.to}`;
-                    }
-                    return label;
-                  }}
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <div style={{
-                          backgroundColor: '#1f2937',
-                          padding: '8px 12px',
-                          borderRadius: '4px',
-                          border: 'none',
-                          color: '#fff',
-                        }}>
-                          <p style={{ margin: 0, marginBottom: '4px', fontSize: '12px', color: '#9ca3af' }}>
-                            {dateRange ? `${dateRange.from} - ${dateRange.to}` : label}
-                          </p>
-                          <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
-                            {payload[0].value?.toLocaleString()}
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -163,7 +218,7 @@ interface KPIHeaderProps {
 
 export function KPIHeader({ stats, loading, className }: KPIHeaderProps) {
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4", className)}>
+    <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4", className)}>
       {stats.map((stat, index) => (
         <StatTile key={index} {...stat} loading={loading} />
       ))}
