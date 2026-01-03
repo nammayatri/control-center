@@ -171,7 +171,7 @@ export function DateRangePicker({
     });
   };
 
-  const handleDateSelect = (range: { from: Date | undefined; to: Date | undefined } | undefined) => {
+  const handleDateSelect = (range: DateRange | undefined) => {
     if (!range) {
       // If range is undefined, keep current selection
       return;

@@ -3,7 +3,7 @@ import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '../../lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { AreaChart, Area, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { format, parseISO } from 'date-fns';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
@@ -26,12 +26,12 @@ export function StatTile({
   value,
   change,
   changeLabel,
-  icon,
+  icon: _icon,
   loading,
   className,
   trendData,
   isNegativeMetric = false,
-  dateRange,
+  dateRange: _dateRange,
   comparisonDateRange,
 }: StatTileProps) {
   const getTrendIcon = () => {
@@ -86,7 +86,7 @@ export function StatTile({
       } else {
         date = new Date(dateString);
       }
-      
+
       if (isNaN(date.getTime())) {
         return dateString;
       }
@@ -95,7 +95,7 @@ export function StatTile({
       const day = format(date, 'd'); // 17
       const daySuffix = getDaySuffix(parseInt(day)); // th
       const time = format(date, 'h:mm a'); // 8:00 am
-      
+
       return `${dayName}, ${day}${daySuffix} ${time}`;
     } catch {
       return dateString;
@@ -114,11 +114,11 @@ export function StatTile({
 
   const chartColor = getChartColor();
   const gradientId = `gradient-${label.replace(/\s+/g, '-')}`;
-  const lightColor = chartColor === '#22c55e' 
-    ? 'rgba(34, 197, 94, 0.1)' // light green
-    : chartColor === '#ef4444'
-    ? 'rgba(239, 68, 68, 0.1)' // light red
-    : 'rgba(107, 114, 128, 0.1)'; // light gray
+  // const _lightColor = chartColor === '#22c55e'
+  //   ? 'rgba(34, 197, 94, 0.1)' // light green
+  //   : chartColor === '#ef4444'
+  //     ? 'rgba(239, 68, 68, 0.1)' // light red
+  //     : 'rgba(107, 114, 128, 0.1)'; // light gray
 
   return (
     <Card className={cn("", className)}>
@@ -162,7 +162,7 @@ export function StatTile({
               </TooltipProvider>
             )}
           </div>
-          
+
           {/* Right side: Graph - takes remaining space */}
           {trendData && trendData.length > 0 && (
             <div className="flex-1 h-16 min-w-0">
