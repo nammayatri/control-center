@@ -56,9 +56,14 @@ export interface GetIssuesParams {
     offset: number;
     status: string;
     category?: string;
+    categoryId?: string;
     phoneNumber?: string;
     rideShortId?: string;
     assignee?: string;
+    description?: string;
+    categoryName?: string;
+    fromDate?: string;
+    toDate?: string;
 }
 
 // Helper to remove redundant /bap prefix if present in base URL config, 
@@ -78,7 +83,8 @@ export const getIssuesList = async (
     // Manually ensure status is double-quoted
     const queryParams = {
         ...params,
-        status: `"${params.status}"`
+        status: `"${params.status}"`,
+        ...(params.categoryId && { Category: params.categoryId })
     };
 
     const response = await api.get<GetIssuesResponse>(
