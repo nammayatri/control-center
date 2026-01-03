@@ -96,7 +96,7 @@ export interface PurchasedPass {
     passCode: string;
     passNumber: string;
     deviceSwitchAllowed: boolean;
-    status: 'Active' | 'Pending' | 'Expired';
+    status: 'Active' | 'Pending' | 'Expired' | 'PreBooked' | 'PhotoPending';
     startDate: string;
     expiryDate: string;
     tripsLeft: number;

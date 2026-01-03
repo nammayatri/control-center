@@ -207,6 +207,7 @@ export interface CustomerListFilters {
   blocked?: boolean;
   enabled?: boolean;
   phone?: string;
+  personId?: string;
   limit?: number;
   offset?: number;
 }

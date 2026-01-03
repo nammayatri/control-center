@@ -922,12 +922,18 @@ export function CustomerDetailPage() {
 
   useEffect(() => {
     const fetchCustomerData = async () => {
-      if (!customerId || !apiMerchantId || !customerPhoneFromUrl) {
+      if (!customerId || !apiMerchantId) {
         setCustomerDataLoading(false);
         return;
       }
       try {
-        const response = await listCustomers(apiMerchantId, cityId || undefined, { phone: customerPhoneFromUrl, limit: 100 });
+        // If phone is available, search by phone (existing behavior)
+        // If only customerId is available, search by personId
+        const filters = customerPhoneFromUrl
+          ? { phone: customerPhoneFromUrl, limit: 100 }
+          : { personId: customerId, limit: 100 };
+
+        const response = await listCustomers(apiMerchantId, cityId || undefined, filters);
         if (response.customers?.length > 0) {
           setCustomerData(response.customers.find(c => c.customerId === customerId) || response.customers[0]);
         }
@@ -1239,7 +1245,7 @@ export function CustomerDetailPage() {
                             <div className="w-full flex justify-between items-center">
                               <QrCode className="w-6 h-6 text-gray-800" />
                               <div className="flex items-center gap-2">
-                                <Badge variant={isDiamond ? 'secondary' : 'default'} className="text-xs">Active</Badge>
+                                <Badge variant={isDiamond ? 'secondary' : 'default'} className="text-xs">{pass.status}</Badge>
                                 <Badge
                                   variant={pass.deviceSwitchAllowed ? 'secondary' : 'destructive'}
                                   className="text-xs px-2 py-0.5 gap-1 flex items-center"

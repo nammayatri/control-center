@@ -37,6 +37,7 @@ export async function listCustomers(
     searchString: filters.searchString,
     blocked: filters.blocked,
     phone: filters.phone,
+    personId: filters.personId,
     enabled: filters.enabled,
     limit: filters.limit || 20,
     offset: filters.offset || 0,
