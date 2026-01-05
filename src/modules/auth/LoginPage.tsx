@@ -1,33 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  useBapLogin, 
-  useBppLogin, 
-  useFleetRequestOtp, 
+import {
+  useBapLogin,
+  useBppLogin,
+  useFleetRequestOtp,
   useFleetVerifyOtp,
-  MODULE_INFO, 
-  FLEET_MERCHANTS, 
-  FLEET_CITIES 
+  MODULE_INFO,
+  VISIBLE_MODULES,
+  FLEET_MERCHANTS,
+  FLEET_CITIES
 } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  Loader2, 
-  Users, 
-  Car, 
-  Truck, 
-  Phone, 
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  Users,
+  Car,
+  Truck,
+  Phone,
   KeyRound,
   Eye,
   EyeOff,
@@ -49,35 +50,35 @@ export function LoginPage() {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, navigate]);
-  
+
   // Mutations for different login types
   const bapLoginMutation = useBapLogin();
   const bppLoginMutation = useBppLogin();
   const fleetRequestOtpMutation = useFleetRequestOtp();
   const fleetVerifyOtpMutation = useFleetVerifyOtp();
-  
+
   // State
   const [step, setStep] = useState<LoginStep>('module-select');
   const [selectedModule, setSelectedModule] = useState<LoginModule | null>(null);
   const [fleetConfig, setFleetConfig] = useState<FleetConfig>({ merchantId: '', city: '' });
-  
+
   // Password login state (BAP/BPP)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // OTP login state (Fleet)
   const [mobileNumber, setMobileNumber] = useState('');
   const [mobileCountryCode, setMobileCountryCode] = useState('+91');
   const [otp, setOtp] = useState('');
-  
+
   const [error, setError] = useState('');
 
   // Module selection handler
   const handleModuleSelect = (module: LoginModule) => {
     setSelectedModule(module);
     setError('');
-    
+
     if (module === 'FLEET') {
       setStep('fleet-config');
     } else {
@@ -103,10 +104,10 @@ export function LoginPage() {
     }
 
     setError('');
-    
+
     try {
       let result;
-      
+
       if (selectedModule === 'BAP') {
         result = await bapLoginMutation.mutateAsync({ email, password });
       } else if (selectedModule === 'BPP') {
@@ -114,18 +115,18 @@ export function LoginPage() {
       } else {
         throw new Error('Invalid module for password login');
       }
-      
+
       console.log('Login API result:', result);
-      
+
       // Login will trigger useEffect to navigate
       // Don't await - let profile fetch happen in background
       login(result.token, result.user, selectedModule!);
     } catch (err: any) {
       console.error('Login error:', err);
-      const errorMessage = err.response?.data?.message || 
-                          err.response?.data?.error ||
-                          err.message ||
-                          'Invalid credentials. Please try again.';
+      const errorMessage = err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Invalid credentials. Please try again.';
       setError(errorMessage);
     }
   };
@@ -138,7 +139,7 @@ export function LoginPage() {
     }
 
     setError('');
-    
+
     try {
       await fleetRequestOtpMutation.mutateAsync({
         fleetConfig,
@@ -158,13 +159,13 @@ export function LoginPage() {
     }
 
     setError('');
-    
+
     try {
       const result = await fleetVerifyOtpMutation.mutateAsync({
         fleetConfig,
         data: { mobileNumber, mobileCountryCode, otp },
       });
-      
+
       // Login will trigger useEffect to navigate
       login(result.token, result.user, 'FLEET', fleetConfig);
     } catch (err: any) {
@@ -214,17 +215,17 @@ export function LoginPage() {
     FLEET: <Truck className="h-8 w-8" />,
   };
 
-  const isLoading = 
-    bapLoginMutation.isPending || 
-    bppLoginMutation.isPending || 
-    fleetRequestOtpMutation.isPending || 
+  const isLoading =
+    bapLoginMutation.isPending ||
+    bppLoginMutation.isPending ||
+    fleetRequestOtpMutation.isPending ||
     fleetVerifyOtpMutation.isPending;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDI1MmIiIGZpbGwtb3BhY2l0eT0iMC40Ij48cGF0aCBkPSJNMzYgMzRoLTJ2LTRoMnY0em0wLTZ2LTRoLTJ2NGgyek0zMCAzNGgtMnYtNGgydjR6bTAtNnYtNGgtMnY0aDJ6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-20" />
-      
+
       {/* Animated gradient orbs */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full filter blur-3xl animate-pulse" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
@@ -258,7 +259,7 @@ export function LoginPage() {
           {/* Step 1: Module Selection */}
           {step === 'module-select' && (
             <div className="space-y-4">
-              {(Object.keys(MODULE_INFO) as LoginModule[]).map((module) => (
+              {VISIBLE_MODULES.map((module) => (
                 <button
                   key={module}
                   onClick={() => handleModuleSelect(module)}
@@ -312,8 +313,8 @@ export function LoginPage() {
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
                       {FLEET_MERCHANTS.map((merchant) => (
-                        <SelectItem 
-                          key={merchant.id} 
+                        <SelectItem
+                          key={merchant.id}
                           value={merchant.id}
                           className="text-white hover:bg-slate-700"
                         >
@@ -336,8 +337,8 @@ export function LoginPage() {
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
                       {fleetConfig.merchantId && FLEET_CITIES[fleetConfig.merchantId]?.map((city) => (
-                        <SelectItem 
-                          key={city.id} 
+                        <SelectItem
+                          key={city.id}
                           value={city.id}
                           className="text-white hover:bg-slate-700"
                         >

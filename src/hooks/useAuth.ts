@@ -21,6 +21,9 @@ export const MODULE_INFO: Record<LoginModule, { name: string; description: strin
   },
 };
 
+// Modules visible in the login UI (excludes FLEET)
+export const VISIBLE_MODULES: LoginModule[] = ['BAP', 'BPP'];
+
 // Fleet merchants and cities for selection
 export const FLEET_MERCHANTS = [
   { id: 'NAMMA_YATRI_PARTNER', name: 'Namma Yatri Partner' },
@@ -77,11 +80,11 @@ export function useBppLogin() {
 
 export function useFleetRequestOtp() {
   return useMutation({
-    mutationFn: ({ 
-      fleetConfig, 
-      data 
-    }: { 
-      fleetConfig: FleetConfig; 
+    mutationFn: ({
+      fleetConfig,
+      data
+    }: {
+      fleetConfig: FleetConfig;
       data: authService.FleetRequestOtpRequest;
     }) => authService.requestFleetOtp(fleetConfig, data),
   });

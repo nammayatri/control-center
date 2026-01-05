@@ -4,6 +4,7 @@ import { cn } from '../../lib/utils';
 import { usePermissions } from '../../context/PermissionsContext';
 import { useAuth } from '../../context/AuthContext';
 import { navConfig, canAccessNavItem, hasAccessibleChildren, type NavItem } from '../../config/navigation';
+import { ModuleSwitcher } from '../domain/ModuleSwitcher';
 import type { LoginModule } from '../../types';
 import {
   LayoutDashboard,
@@ -183,16 +184,6 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     );
   };
 
-  // Get current module display name
-  const getModuleLabel = (): string => {
-    switch (loginModule) {
-      case 'BAP': return 'Customer Dashboard';
-      case 'BPP': return 'Driver Dashboard';
-      case 'FLEET': return 'Fleet Dashboard';
-      default: return 'Dashboard';
-    }
-  };
-
   return (
     <aside
       className={cn(
@@ -200,19 +191,22 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
         collapsed ? "w-16" : "w-64"
       )}
     >
-      {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+      {/* Logo & Module Switcher */}
+      <div className="h-16 px-3 border-b border-sidebar-border flex items-center">
+        {collapsed ? (
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
             <span className="text-primary-foreground font-bold text-sm">M</span>
           </div>
-          {!collapsed && (
-            <div>
-              <h1 className="font-semibold text-sidebar-foreground">Moving</h1>
-              <p className="text-xs text-sidebar-foreground/60">{getModuleLabel()}</p>
+        ) : (
+          <div className="flex items-center gap-2 w-full">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+              <span className="text-primary-foreground font-bold text-sm">M</span>
             </div>
-          )}
-        </div>
+            <div className="flex-1 min-w-0">
+              <ModuleSwitcher />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}

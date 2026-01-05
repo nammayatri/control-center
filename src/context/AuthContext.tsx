@@ -29,6 +29,10 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
   hasAccess: (actionType: string) => boolean;
   getCitiesForMerchant: (merchantId: string) => City[];
+  // Multi-module session support
+  switchToModule: (module: LoginModule) => Promise<boolean>;
+  isModuleAuthenticated: (module: LoginModule) => boolean;
+  getAvailableModules: () => LoginModule[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,6 +47,10 @@ const MERCHANT_CITY_MAP_KEY = 'dashboard_merchant_city_map';
 const CURRENT_MERCHANT_KEY = 'dashboard_current_merchant';
 const CURRENT_CITY_KEY = 'dashboard_current_city';
 const ACCESS_MATRIX_KEY = 'dashboard_access_matrix';
+
+// Multi-module session storage keys
+const getModuleTokenKey = (module: LoginModule) => `dashboard_token_${module}`;
+const getModuleUserKey = (module: LoginModule) => `dashboard_user_${module}`;
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -257,9 +265,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoginModule(module);
     setFleetConfig(newFleetConfig || null);
 
+    // Store in legacy keys (for current session)
     localStorage.setItem(TOKEN_KEY, newToken);
     localStorage.setItem(USER_KEY, JSON.stringify(newUser));
     localStorage.setItem(MODULE_KEY, module);
+
+    // Also store per-module for multi-session support
+    localStorage.setItem(getModuleTokenKey(module), newToken);
+    localStorage.setItem(getModuleUserKey(module), JSON.stringify(newUser));
+
     if (newFleetConfig) {
       localStorage.setItem(FLEET_CONFIG_KEY, JSON.stringify(newFleetConfig));
     }
@@ -400,6 +414,78 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return mapping?.cities || [];
   }, [merchantCityMap]);
 
+  // Check if a specific module is authenticated
+  const isModuleAuthenticated = useCallback((module: LoginModule): boolean => {
+    // Check if this is the current active module (covers legacy sessions)
+    if (module === loginModule && token) {
+      return true;
+    }
+    // Check per-module storage (for multi-session support)
+    const moduleToken = localStorage.getItem(getModuleTokenKey(module));
+    return !!moduleToken;
+  }, [loginModule, token]);
+
+  // Get list of authenticated modules
+  const getAvailableModules = useCallback((): LoginModule[] => {
+    const modules: LoginModule[] = [];
+    if (localStorage.getItem(getModuleTokenKey('BAP'))) modules.push('BAP');
+    if (localStorage.getItem(getModuleTokenKey('BPP'))) modules.push('BPP');
+    return modules;
+  }, []);
+
+  // Switch to a different module (returns true if switched, false if needs login)
+  const switchToModule = useCallback(async (module: LoginModule): Promise<boolean> => {
+    // If already on this module, just return success
+    if (module === loginModule && token) {
+      return true;
+    }
+
+    const moduleToken = localStorage.getItem(getModuleTokenKey(module));
+    const moduleUserStr = localStorage.getItem(getModuleUserKey(module));
+
+    if (!moduleToken || !moduleUserStr) {
+      // Not authenticated for this module, need to login
+      return false;
+    }
+
+    // Switch to the stored session
+    const moduleUser = JSON.parse(moduleUserStr) as User;
+
+    setToken(moduleToken);
+    setUser(moduleUser);
+    setLoginModule(module);
+    setFleetConfig(null); // Fleet is not supported in switcher
+
+    // Update legacy keys
+    localStorage.setItem(TOKEN_KEY, moduleToken);
+    localStorage.setItem(USER_KEY, moduleUserStr);
+    localStorage.setItem(MODULE_KEY, module);
+    localStorage.removeItem(FLEET_CONFIG_KEY);
+
+    // Clear module-specific data that needs refresh
+    setMerchants([]);
+    setCities([]);
+    setMerchantCityMap([]);
+    setCurrentMerchantState(null);
+    setCurrentCityState(null);
+    setAccessMatrix([]);
+    localStorage.removeItem(MERCHANTS_KEY);
+    localStorage.removeItem(CITIES_KEY);
+    localStorage.removeItem(MERCHANT_CITY_MAP_KEY);
+    localStorage.removeItem(CURRENT_MERCHANT_KEY);
+    localStorage.removeItem(CURRENT_CITY_KEY);
+    localStorage.removeItem(ACCESS_MATRIX_KEY);
+
+    // Fetch profile data for new module
+    try {
+      await fetchProfileData(module);
+    } catch (error) {
+      console.error('Failed to fetch profile after module switch:', error);
+    }
+
+    return true;
+  }, [fetchProfileData, loginModule, token]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -423,6 +509,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         refreshProfile,
         hasAccess,
         getCitiesForMerchant,
+        switchToModule,
+        isModuleAuthenticated,
+        getAvailableModules,
       }}
     >
       {children}
