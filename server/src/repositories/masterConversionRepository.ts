@@ -371,9 +371,15 @@ function calculatePercentChange(current: number, previous: number): number {
 }
 
 async function executeQuery(query: string): Promise<QueryRow[]> {
-  const client = getClickHouseClient();
-  const result = await client.query({ query, format: "JSONEachRow" });
-  return (await result.json()) as QueryRow[];
+  try {
+    const client = getClickHouseClient();
+    const result = await client.query({ query, format: "JSONEachRow" });
+    return (await result.json()) as QueryRow[];
+  } catch (error) {
+    console.error("ClickHouse query error:", error);
+    console.error("Query:", query);
+    throw error;
+  }
 }
 
 // ============================================
@@ -877,12 +883,11 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
   ]);
   const row = rows[0] || {};
 
-  // Try to get BAP merchants separately if columns exist
+  // Get BAP merchants - use bap_merchant_name (there is no bap_merchant_id column)
   let bapMerchantIds: string[] = [];
   let bapMerchantNames: string[] = [];
   try {
-    // Fetch all BAP merchants - use bap_merchant_name as the column name
-    // If bap_merchant_id doesn't exist, we'll use the name as the ID
+    // Fetch all BAP merchants - use bap_merchant_name as both ID and name
     const bapQuery = `
       SELECT
         groupArray(DISTINCT bap_merchant_name) as bap_merchant_names
@@ -892,22 +897,8 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
     const bapRows = await executeQuery(bapQuery);
     if (bapRows && bapRows.length > 0) {
       bapMerchantNames = (bapRows[0].bap_merchant_names as string[]) || [];
-      // If bap_merchant_id column exists, try to get it too
-      try {
-        const bapIdQuery = `
-          SELECT
-            groupArray(DISTINCT bap_merchant_id) as bap_merchant_ids
-          FROM ${FULL_TABLE}
-          WHERE bap_merchant_id IS NOT NULL AND bap_merchant_id != ''
-        `;
-        const bapIdRows = await executeQuery(bapIdQuery);
-        if (bapIdRows && bapIdRows.length > 0) {
-          bapMerchantIds = (bapIdRows[0].bap_merchant_ids as string[]) || [];
-        }
-      } catch {
-        // bap_merchant_id doesn't exist, use names as IDs
-        bapMerchantIds = bapMerchantNames;
-      }
+      // Use names as IDs since there's no separate bap_merchant_id column
+      bapMerchantIds = bapMerchantNames;
       console.log(
         `Found ${bapMerchantNames.length} BAP merchants:`,
         bapMerchantNames
@@ -1234,9 +1225,10 @@ export async function getGroupedMasterConversionMetrics(
   const tierType = getServiceTierType(filters);
 
   // When grouping by merchant_id, prefer BPP over BAP when names match
+  // Note: bap_merchant_id doesn't exist, so we use bap_merchant_name
   const dimensionColumn =
     groupBy === "merchant_id"
-      ? "COALESCE(bpp_merchant_id, bap_merchant_id)"
+      ? "COALESCE(bpp_merchant_id, bap_merchant_name)"
       : groupBy;
 
   const query = `
