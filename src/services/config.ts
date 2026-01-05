@@ -283,3 +283,94 @@ export async function deleteSpecialLocation(
   });
 }
 
+// ============================================
+// Vehicle Service Tier Config APIs
+// ============================================
+
+export interface VehicleServiceTierConfig {
+  serviceTierType: string;
+  name: string;
+  shortDescription: string | null;
+  longDescription: string | null;
+  seatingCapacity: number;
+  vehicleCategory: string;
+  vehicleIconUrl: string | null;
+  vehicleRating: number | null;
+  driverRating: number | null;
+  priority: number;
+  isAirConditioned: boolean | null;
+  airConditionedThreshold: number | null;
+  allowedVehicleVariant: string[];
+  autoSelectedVehicleVariant: string[];
+  defaultForVehicleVariant: string[];
+  baseVehicleServiceTier: boolean;
+  fareAdditionPerKmOverBaseServiceTier: number;
+  isIntercityEnabled: boolean | null;
+  isRentalsEnabled: boolean | null;
+  luggageCapacity: number | null;
+  oxygen: number | null;
+  ventilator: number | null;
+  stopFcmThreshold: number | null;
+  stopFcmSuppressCount: number | null;
+  scheduleBookingListEligibilityTags: string[] | null;
+}
+
+export interface VehicleServiceTierUpdateRequest {
+  airConditionedThreshold?: number | null;
+  allowedVehicleVariant?: string[];
+  autoSelectedVehicleVariant?: string[];
+  baseVehicleServiceTier?: boolean;
+  defaultForVehicleVariant?: string[];
+  driverRating?: number | null;
+  fareAdditionPerKmOverBaseServiceTier?: number;
+  isAirConditioned?: boolean | null;
+  isIntercityEnabled?: boolean | null;
+  isRentalsEnabled?: boolean | null;
+  longDescription?: string | null;
+  luggageCapacity?: number | null;
+  name?: string;
+  oxygen?: number | null;
+  priority?: number;
+  scheduleBookingListEligibilityTags?: string[] | null;
+  seatingCapacity?: number;
+  shortDescription?: string | null;
+  stopFcmSuppressCount?: number | null;
+  stopFcmThreshold?: number | null;
+  vehicleIconUrl?: string | null;
+  vehicleRating?: number | null;
+  ventilator?: number | null;
+}
+
+export async function getVehicleServiceTierConfig(
+  merchantId: string,
+  cityId: string,
+  serviceTierType?: string
+): Promise<VehicleServiceTierConfig[]> {
+  const basePath = `/driver-offer/{merchantId}/{city}/merchant/config/vehicleServiceTier`;
+  let path = buildPath(basePath, merchantId, cityId);
+
+  if (serviceTierType) {
+    path += `?serviceTierType="${serviceTierType}"`;
+  }
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path,
+  });
+}
+
+export async function updateVehicleServiceTierConfig(
+  merchantId: string,
+  cityId: string,
+  serviceTierType: string,
+  data: VehicleServiceTierUpdateRequest
+): Promise<void> {
+  const basePath = `/driver-offer/{merchantId}/{city}/merchant/config/vehicleServiceTier/update`;
+  const path = buildPath(basePath, merchantId, cityId) + `?serviceTierType="${serviceTierType}"`;
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data,
+  });
+}
