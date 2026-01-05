@@ -187,6 +187,17 @@ export const navConfig: NavItem[] = [
                 description: 'Manage issue categories, messages, and options',
             },
             {
+                label: 'Vehicle Service Tier',
+                path: '/config/vehicle-service-tier',
+                icon: 'Car',
+                resource: 'DSL',
+                action: '*',
+                allowedModules: ['BPP'],
+                showLocked: true,
+                description: 'Manage vehicle service tier configurations',
+            },
+
+            {
                 label: 'Settings',
                 path: '/config/settings',
                 icon: 'Settings',
