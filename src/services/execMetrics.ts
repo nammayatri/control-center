@@ -1,6 +1,7 @@
 import {
   adminApi,
   apiRequest,
+  backendApi,
   buildQueryParams as buildApiQueryParams,
 } from "./api";
 
@@ -266,7 +267,7 @@ export async function getExecutiveMetrics(
   filters: MetricsFilters = {}
 ): Promise<ExecutiveMetricsResponse> {
   const query = buildMasterQueryParams(filters);
-  return apiRequest(adminApi, {
+  return apiRequest(backendApi, {
     method: "GET",
     url: `/master-conversion/executive${query}`,
   });
@@ -283,7 +284,7 @@ export async function getComparisonMetrics(
   const prefix = query ? "&" : "?";
   const periodParams = `currentFrom=${currentFrom}&currentTo=${currentTo}&previousFrom=${previousFrom}&previousTo=${previousTo}`;
 
-  return apiRequest(adminApi, {
+  return apiRequest(backendApi, {
     method: "GET",
     url: `/master-conversion/comparison${query}${prefix}${periodParams}`,
   });
@@ -296,14 +297,14 @@ export async function getTimeSeries(
   const query = buildMasterQueryParams(filters);
   const prefix = query ? "&" : "?";
 
-  return apiRequest(adminApi, {
+  return apiRequest(backendApi, {
     method: "GET",
     url: `/master-conversion/timeseries${query}${prefix}granularity=${granularity}`,
   });
 }
 
 export async function getFilterOptions(): Promise<FilterOptionsResponse> {
-  return apiRequest(adminApi, {
+  return apiRequest(backendApi, {
     method: "GET",
     url: "/master-conversion/filters",
   });
@@ -314,7 +315,7 @@ export async function getGroupedMetrics(
   filters: MetricsFilters = {}
 ): Promise<GroupedMetricsResponse> {
   const query = buildMasterQueryParams({ ...filters, groupBy });
-  return apiRequest(adminApi, {
+  return apiRequest(backendApi, {
     method: "GET",
     url: `/master-conversion/grouped${query}`,
   });
@@ -328,7 +329,7 @@ export async function getTrendData(
   const query = buildMasterQueryParams(filters);
   const prefix = query ? "&" : "?";
 
-  return apiRequest(adminApi, {
+  return apiRequest(backendApi, {
     method: "GET",
     url: `/master-conversion/trend${query}${prefix}dimension=${dimension}&granularity=${granularity}`,
   });
