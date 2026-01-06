@@ -9,7 +9,6 @@ pipeline {
     }
   }
   environment {
-    IMAGE_NAME = "control-center"
     
     // Account 1: Master/Staging
     ACCOUNT_ID_1 = '463356420488'
@@ -35,7 +34,7 @@ pipeline {
             script {
                 echo "Building for Master/Staging Account: ${env.ACCOUNT_ID_1}"
                 echo "API URL: ${env.API_URL_1}"
-                if (env.IMAGE_NAME == 'control-center') {
+                if (params.app == 'control-center') {
                   // Build with Staging URL
                 sh "docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_1} -t ${env.IMAGE_NAME}:staging ."
                 } else {
@@ -66,7 +65,7 @@ pipeline {
                 echo "API URL: ${env.API_URL_2}"
                 
                 // Build with Production URL
-                if (env.IMAGE_NAME == 'control-center') {
+                if (params.app == 'control-center') {
                   sh "docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_2} -t ${env.IMAGE_NAME}:prod ."
                 } else {
                   sh "cd server && docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_2} -t ${env.IMAGE_NAME}:prod ."
