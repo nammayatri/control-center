@@ -28,6 +28,7 @@ import PassBookingPage from './modules/agent/PassBookingPage';
 import { DynamicLogicPage } from './modules/config/DynamicLogicPage';
 import { FarePolicyPage } from './modules/config/FarePolicyPage';
 import { VehicleServiceTierPage } from './modules/config/VehicleServiceTierPage';
+import { FirebaseConfigPage } from './modules/config/FirebaseConfigPage';
 import IssuesListPage from './modules/operations/IssuesListPage';
 import IssueDetailPage from './modules/operations/IssueDetailPage';
 import { IssueConfigPage } from './modules/config/IssueConfigPage';
@@ -175,6 +176,7 @@ function AppRoutes() {
           <Route path="vehicle-service-tier" element={<VehicleServiceTierPage />} />
           <Route path="issue-config" element={<IssueConfigPage />} />
           <Route path="issue-config/:categoryId" element={<CategoryDetailPage />} />
+          <Route path="firebase" element={<FirebaseConfigPage />} />
           <Route path="settings" element={<PlaceholderPage title="Settings" />} />
         </Route>
 

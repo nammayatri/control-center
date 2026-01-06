@@ -147,7 +147,7 @@ export const navConfig: NavItem[] = [
         label: 'System Config',
         path: '/config',
         icon: 'Settings',
-        description: 'Manage fare policies and settings',
+        description: 'Manage fare policies, settings and configs',
         children: [
             {
                 label: 'NammaTags',
@@ -200,6 +200,15 @@ export const navConfig: NavItem[] = [
             {
                 label: 'Settings',
                 path: '/config/settings',
+                icon: 'Settings',
+                resource: 'DSL',
+                action: 'DRIVER_OFFER_BPP_MANAGEMENT/MERCHANT/UPSERT_FARE_POLICY',
+                allowedModules: ['BAP', 'BPP'],
+                showLocked: true,
+            },
+            {
+                label: 'Firebase Config',
+                path: '/config/firebase',
                 icon: 'Settings',
                 resource: 'DSL',
                 action: 'DRIVER_OFFER_BPP_MANAGEMENT/MERCHANT/UPSERT_FARE_POLICY',

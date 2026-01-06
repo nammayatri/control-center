@@ -11,6 +11,25 @@ export interface EnvConfig {
     };
     // Server
     port: number;
+    // Firebase
+    firebase: {
+        projects: Array<{
+            id: string;
+            name: string;
+            serviceAccountKey: {
+                type: string;
+                project_id: string;
+                private_key_id: string;
+                private_key: string;
+                client_email: string;
+                client_id: string;
+                auth_uri: string;
+                token_uri: string;
+                auth_provider_x509_cert_url: string;
+                client_x509_cert_url: string;
+            };
+        }>;
+    };
 }
 
 function getEnvVar(key: string, defaultValue?: string): string {
@@ -29,9 +48,9 @@ function getEnvVarAsNumber(key: string, defaultValue?: number): number {
         }
         throw new Error(`Missing required environment variable: ${key}`);
     }
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed)) {
-        throw new Error(`Environment variable ${key} must be a number`);
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed)) {
+        throw new TypeError(`Environment variable ${key} must be a number`);
     }
     return parsed;
 }
@@ -45,4 +64,7 @@ export const env: EnvConfig = {
         database: getEnvVar('CLICKHOUSE_DATABASE', 'default'),
     },
     port: getEnvVarAsNumber('PORT', 3001),
+    firebase: {
+        projects: JSON.parse(getEnvVar('FIREBASE_PROJECTS', '[]')),
+    },
 };

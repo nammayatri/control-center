@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
 import {
@@ -30,8 +30,12 @@ interface TopBarProps {
 
 export function TopBar({ onMenuClick }: TopBarProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const [isDark, setIsDark] = React.useState(false);
+
+  // Check if we're on the Firebase Config page
+  const isFirebaseConfigPage = location.pathname.includes('/config/firebase');
 
   const toggleTheme = () => {
     setIsDark(!isDark);
@@ -59,8 +63,8 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           <Menu className="h-5 w-5" />
         </Button>
 
-        {/* Merchant & City Selector */}
-        <MerchantCitySelector />
+        {/* Merchant & City Selector - Hidden on Firebase Config page */}
+        {!isFirebaseConfigPage && <MerchantCitySelector />}
       </div>
 
       {/* Right section */}

@@ -3,11 +3,12 @@ import { env } from './config/env.js';
 import { getClickHouseClient, testConnection, closeConnection } from './db/clickhouse.js';
 import metricsRouter from './routes/metrics.js';
 import masterConversionRouter from './routes/masterConversionMetrics.js';
+import firebaseRouter from './routes/firebase.js';
 
 const app = express();
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for large Firebase configs
 
 // CORS middleware for frontend access
 app.use((_req: Request, res: Response, next: NextFunction) => {
@@ -24,6 +25,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 // API Routes
 app.use('/api/metrics', metricsRouter);
 app.use('/api/master-conversion', masterConversionRouter);
+app.use('/api/firebase', firebaseRouter);
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
@@ -45,7 +47,7 @@ app.get('/health/clickhouse', async (_req: Request, res: Response) => {
 });
 
 // Error handling middleware
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response) => {
     console.error('Unhandled error:', err);
     res.status(500).json({
         status: 'error',
