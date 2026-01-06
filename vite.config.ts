@@ -4,9 +4,7 @@ import react from "@vitejs/plugin-react";
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  // Default to control-center.moving.tech to match api.ts
-  const target = env.VITE_API_URL || "https://control-center.moving.tech";
-  // Backend server URL for metrics/master-conversion APIs (dev only)
+  const target = env.VITE_API_URL || "https://dashboard.integ.moving.tech";
   const backendUrl = env.VITE_BACKEND_URL || "http://localhost:3001";
   const isInteg = target.includes("integ");
 

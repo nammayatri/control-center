@@ -9,7 +9,7 @@ import axios, {
 // In production, these should point to the actual API endpoints
 const isDev = import.meta.env.DEV;
 const API_DOMAIN =
-  import.meta.env.VITE_API_URL || "https://control-center.moving.tech";
+  import.meta.env.VITE_API_URL || "https://dashboard.moving.tech";
 
 // For "dev" and "master" environments (integ domain), the path prefix is /api/dev
 // For "prod" (moving.tech domain), the path prefix is /api
