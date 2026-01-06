@@ -48,7 +48,7 @@ interface SidebarProps {
   collapsed?: boolean;
 }
 
-export function Sidebar({ collapsed = false }: SidebarProps) {
+export function Sidebar({ collapsed = false }: Readonly<SidebarProps>) {
   const location = useLocation();
   const { hasPermission } = usePermissions();
   const { loginModule } = useAuth();
