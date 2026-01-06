@@ -1,5 +1,5 @@
 import * as React from "react"
-import { DayPicker, getDefaultClassNames } from "react-day-picker"
+import { DayPicker } from "react-day-picker"
 import "react-day-picker/style.css"
 
 import { cn } from "../../lib/utils"
@@ -12,20 +12,18 @@ function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
-  const defaultClassNames = getDefaultClassNames();
-  
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
-        ...defaultClassNames,
-        today: `border border-primary ${defaultClassNames.today}`,
-        selected: `bg-primary text-primary-foreground ${defaultClassNames.selected}`,
-        range_start: `bg-primary text-primary-foreground rounded-l-md ${defaultClassNames.range_start}`,
-        range_end: `bg-primary text-primary-foreground rounded-r-md ${defaultClassNames.range_end}`,
-        range_middle: `bg-accent text-accent-foreground ${defaultClassNames.range_middle}`,
-        chevron: `fill-primary ${defaultClassNames.chevron}`,
+        today: `border-2 border-primary/50 rounded-full`,
+        selected: `bg-primary text-primary-foreground rounded-full`,
+        range_start: `bg-primary text-white rounded-full`,
+        range_end: `bg-primary text-white rounded-full`,
+        range_middle: `!bg-sky-100 dark:!bg-sky-900/20 !text-foreground !rounded-none`,
+        chevron: `fill-primary`,
         ...classNames,
       }}
       {...props}

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, startOfDay, endOfDay } from "date-fns";
-import { Page, PageHeader, PageContent } from "../../components/layout/Page";
+import { Page, PageContent } from "../../components/layout/Page";
 import { KPIHeader } from "../../components/layout/KPIHeader";
 import { DateRangePicker } from "../../components/ui/date-range-picker";
 import {
@@ -11,7 +11,6 @@ import {
 } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
-import { Label } from "../../components/ui/label";
 import {
   Select,
   SelectContent,
@@ -52,7 +51,6 @@ import {
   Coins as IndianRupee,
   RefreshCw,
   Filter,
-  XCircle,
   LayoutGrid,
   Maximize2,
   Percent,
@@ -62,6 +60,8 @@ import {
   TrendingUp,
   TrendingDown,
   Check,
+  X,
+  Plus,
 } from "lucide-react";
 import {
   XAxis,
@@ -92,6 +92,19 @@ import {
 } from "../../components/ui/tooltip";
 import { cn } from "../../lib/utils";
 import { parseISO } from "date-fns";
+import {
+  AdvancedFiltersPopover,
+  type FilterCategory,
+  type FilterSelections,
+} from "../../components/ui/advanced-filters-popover";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../../components/ui/sheet";
+import { Input } from "../../components/ui/input";
 
 const COLORS = [
   "#3b82f6",
@@ -195,14 +208,29 @@ export function ExecutiveMetricsPage() {
   >("__all__");
   const [selectedVehicleSubCategory, setSelectedVehicleSubCategory] =
     useState<string>("__all__");
-  const [moreFiltersExpanded, setMoreFiltersExpanded] = useState(false);
   const [groupBy, setGroupBy] = useState<
     "city" | "merchant_id" | "flow_type" | "trip_tag" | "service_tier"
   >("city");
 
-  // Trend controls
+  // Advanced filter selections state
+  const [filterSelections, setFilterSelections] = useState<FilterSelections>(
+    {}
+  );
   const [trendDimension] = useState<Dimension | "none">("none");
   const [isGridView, setIsGridView] = useState(false);
+
+  // Segment selection state
+  const PINNED_SEGMENTS: (Dimension | "none")[] = [
+    "none",
+    "city",
+    "vehicle_category",
+    "trip_tag",
+  ];
+  const [visibleSegments, setVisibleSegments] = useState<(Dimension | "none")[]>(
+    PINNED_SEGMENTS
+  );
+  const [isAddSegmentSheetOpen, setIsAddSegmentSheetOpen] = useState(false);
+  const [segmentSearchQuery, setSegmentSearchQuery] = useState("");
 
   // Metric selection for conversion trend graph
   type TrendMetric =
@@ -342,12 +370,12 @@ export function ExecutiveMetricsPage() {
       vehicleCategory:
         selectedVehicleCategory !== "__all__"
           ? (selectedVehicleCategory as
-              | "Bike"
-              | "Auto"
-              | "Cab"
-              | "Others"
-              | "All"
-              | "BookAny")
+            | "Bike"
+            | "Auto"
+            | "Cab"
+            | "Others"
+            | "All"
+            | "BookAny")
           : undefined,
       vehicleSubCategory:
         selectedVehicleSubCategory !== "__all__"
@@ -420,12 +448,12 @@ export function ExecutiveMetricsPage() {
       vehicleCategory:
         selectedVehicleCategory !== "__all__"
           ? (selectedVehicleCategory as
-              | "Bike"
-              | "Auto"
-              | "Cab"
-              | "Others"
-              | "All"
-              | "BookAny")
+            | "Bike"
+            | "Auto"
+            | "Cab"
+            | "Others"
+            | "All"
+            | "BookAny")
           : undefined,
       vehicleSubCategory:
         selectedVehicleSubCategory !== "__all__"
@@ -483,6 +511,294 @@ export function ExecutiveMetricsPage() {
 
   // Fetch data
   const { data: filterOptions } = useFilterOptions();
+
+  // Build filter categories for AdvancedFiltersPopover
+  const filterCategories: FilterCategory[] = useMemo(() => {
+    if (!filterOptions) return [];
+
+    return [
+      {
+        id: "geography",
+        label: "Geography",
+        filters: [
+          {
+            id: "state",
+            label: "State",
+            values:
+              filterOptions.states?.map((s) => ({ id: s, label: s })) || [],
+          },
+          {
+            id: "city",
+            label: "City",
+            values:
+              filterOptions.cities?.map((c) => ({ id: c, label: c })) || [],
+          },
+        ],
+      },
+      {
+        id: "merchant",
+        label: "Merchant",
+        filters: [
+          {
+            id: "bapMerchant",
+            label: "BAP Merchant",
+            values:
+              filterOptions.bapMerchants?.map((m) => ({
+                id: m.id,
+                label: m.name,
+              })) || [],
+          },
+          {
+            id: "bppMerchant",
+            label: "BPP Merchant",
+            values:
+              filterOptions.bppMerchants?.map((m) => ({
+                id: m.id,
+                label: m.name,
+              })) || [],
+          },
+        ],
+      },
+      {
+        id: "vehicle",
+        label: "Vehicle Category",
+        filters:
+          filterOptions.vehicleCategories
+            ?.filter((vc) => vc.value !== "All")
+            ?.map((vc) => ({
+              id: `vehicleCategory_${vc.value}`,
+              label: vc.label,
+              values:
+                filterOptions.vehicleSubCategories?.[vc.value]?.map((sub) => ({
+                  id: sub,
+                  label: sub,
+                })) || [],
+            })) || [],
+      },
+      {
+        id: "bookingType",
+        label: "Booking Type",
+        filters: [
+          {
+            id: "flowType",
+            label: "Flow Type",
+            values:
+              filterOptions.flowTypes
+                ?.filter((ft) => ft && ft.trim() !== "")
+                ?.map((ft) => ({ id: ft, label: ft })) || [],
+          },
+          {
+            id: "tripTag",
+            label: "Trip Tag",
+            values:
+              filterOptions.tripTags
+                ?.filter((tt) => tt && tt.trim() !== "")
+                ?.map((tt) => ({ id: tt, label: tt })) || [],
+          },
+        ],
+      },
+      {
+        id: "app",
+        label: "App",
+        filters: [
+          {
+            id: "osType",
+            label: "OS Type",
+            values:
+              filterOptions.userOsTypes
+                ?.filter((os) => os && os.trim() !== "")
+                ?.map((os) => ({ id: os, label: os })) || [],
+          },
+          {
+            id: "sdkVersion",
+            label: "SDK Version",
+            values:
+              filterOptions.userSdkVersions
+                ?.filter((v) => v && v.trim() !== "")
+                ?.map((v) => ({ id: v, label: v })) || [],
+          },
+          {
+            id: "bundleVersion",
+            label: "Bundle Version",
+            values:
+              filterOptions.userBundleVersions
+                ?.filter((v) => v && v.trim() !== "")
+                ?.map((v) => ({ id: v, label: v })) || [],
+          },
+          {
+            id: "backendAppVersion",
+            label: "Backend App Version",
+            values:
+              filterOptions.userBackendAppVersions
+                ?.filter((v) => v && v.trim() !== "")
+                ?.map((v) => ({ id: v, label: v })) || [],
+          },
+        ],
+      },
+      {
+        id: "config",
+        label: "Config",
+        filters: [
+          {
+            id: "priceLogicVersion",
+            label: "Price Logic Version",
+            values:
+              filterOptions.dynamicPricingLogicVersions
+                ?.filter((v) => v && v.trim() !== "")
+                ?.map((v) => ({ id: v, label: v })) || [],
+          },
+          {
+            id: "poolingLogicVersion",
+            label: "Pooling Logic Version",
+            values:
+              filterOptions.poolingLogicVersions
+                ?.filter((v) => v && v.trim() !== "")
+                ?.map((v) => ({ id: v, label: v })) || [],
+          },
+          {
+            id: "poolingConfigVersion",
+            label: "Pooling Config Version",
+            values:
+              filterOptions.poolingConfigVersions
+                ?.filter((v) => v && v.trim() !== "")
+                ?.map((v) => ({ id: v, label: v })) || [],
+          },
+        ],
+      },
+    ];
+  }, [filterOptions]);
+
+  // Handle filter apply - sync selections to individual state vars
+  const handleFilterApply = useCallback(() => {
+    // State
+    const stateValues = filterSelections.state?.values;
+    if (stateValues && stateValues.size > 0) {
+      setSelectedState(Array.from(stateValues)[0]);
+    } else {
+      setSelectedState("__all__");
+    }
+
+    // City
+    const cityValues = filterSelections.city?.values;
+    if (cityValues && cityValues.size > 0) {
+      setSelectedCity(Array.from(cityValues)[0]);
+    } else {
+      setSelectedCity("__all__");
+    }
+
+    // BAP Merchant
+    const bapValues = filterSelections.bapMerchant?.values;
+    if (bapValues && bapValues.size > 0) {
+      setSelectedBapMerchant(Array.from(bapValues)[0]);
+    } else {
+      setSelectedBapMerchant("__all__");
+    }
+
+    // BPP Merchant
+    const bppValues = filterSelections.bppMerchant?.values;
+    if (bppValues && bppValues.size > 0) {
+      setSelectedBppMerchant(Array.from(bppValues)[0]);
+    } else {
+      setSelectedBppMerchant("__all__");
+    }
+
+    // Vehicle Category & Sub-Category (now structured as vehicleCategory_Auto, vehicleCategory_Cab, etc.)
+    let foundVehicleCategory = false;
+    const vehicleCategories = ["Bike", "Auto", "Cab", "Others", "BookAny"];
+    for (const cat of vehicleCategories) {
+      const filterKey = `vehicleCategory_${cat}`;
+      const subCatValues = filterSelections[filterKey]?.values;
+      if (subCatValues && subCatValues.size > 0) {
+        setSelectedVehicleCategory(cat as typeof selectedVehicleCategory);
+        setSelectedVehicleSubCategory(Array.from(subCatValues)[0]);
+        foundVehicleCategory = true;
+        break;
+      }
+    }
+    if (!foundVehicleCategory) {
+      setSelectedVehicleCategory("__all__");
+      setSelectedVehicleSubCategory("__all__");
+    }
+
+    // Flow Type
+    const flowValues = filterSelections.flowType?.values;
+    if (flowValues && flowValues.size > 0) {
+      setSelectedFlowType(Array.from(flowValues)[0]);
+    } else {
+      setSelectedFlowType("__all__");
+    }
+
+    // Trip Tag
+    const tripValues = filterSelections.tripTag?.values;
+    if (tripValues && tripValues.size > 0) {
+      setSelectedTripTag(Array.from(tripValues)[0]);
+    } else {
+      setSelectedTripTag("__all__");
+    }
+
+    // OS Type
+    const osValues = filterSelections.osType?.values;
+    if (osValues && osValues.size > 0) {
+      setSelectedUserOsType(Array.from(osValues)[0]);
+    } else {
+      setSelectedUserOsType("__all__");
+    }
+
+    // SDK Version
+    const sdkValues = filterSelections.sdkVersion?.values;
+    if (sdkValues && sdkValues.size > 0) {
+      setSelectedUserSdkVersion(Array.from(sdkValues)[0]);
+    } else {
+      setSelectedUserSdkVersion("__all__");
+    }
+
+    // Bundle Version
+    const bundleValues = filterSelections.bundleVersion?.values;
+    if (bundleValues && bundleValues.size > 0) {
+      setSelectedUserBundleVersion(Array.from(bundleValues)[0]);
+    } else {
+      setSelectedUserBundleVersion("__all__");
+    }
+
+    // Backend App Version
+    const backendValues = filterSelections.backendAppVersion?.values;
+    if (backendValues && backendValues.size > 0) {
+      setSelectedUserBackendAppVersion(Array.from(backendValues)[0]);
+    } else {
+      setSelectedUserBackendAppVersion("__all__");
+    }
+
+    // Price Logic Version
+    const priceValues = filterSelections.priceLogicVersion?.values;
+    if (priceValues && priceValues.size > 0) {
+      setSelectedDynamicPricingLogicVersion(Array.from(priceValues)[0]);
+    } else {
+      setSelectedDynamicPricingLogicVersion("__all__");
+    }
+
+    // Pooling Logic Version
+    const poolingLogicValues = filterSelections.poolingLogicVersion?.values;
+    if (poolingLogicValues && poolingLogicValues.size > 0) {
+      setSelectedPoolingLogicVersion(Array.from(poolingLogicValues)[0]);
+    } else {
+      setSelectedPoolingLogicVersion("__all__");
+    }
+
+    // Pooling Config Version
+    const poolingConfigValues = filterSelections.poolingConfigVersion?.values;
+    if (poolingConfigValues && poolingConfigValues.size > 0) {
+      setSelectedPoolingConfigVersion(Array.from(poolingConfigValues)[0]);
+    } else {
+      setSelectedPoolingConfigVersion("__all__");
+    }
+  }, [filterSelections]);
+
+  // Handle filter clear
+  const handleFilterClear = useCallback(() => {
+    setFilterSelections({});
+    handleClearFilters();
+  }, []);
+
   const {
     data: executiveData,
     isLoading: execLoading,
@@ -534,8 +850,8 @@ export function ExecutiveMetricsPage() {
           // Otherwise use searches (tier-less data)
           const denominator =
             point.searches === 0 &&
-            point.searchForQuotes &&
-            point.searchForQuotes > 0
+              point.searchForQuotes &&
+              point.searchForQuotes > 0
               ? point.searchForQuotes
               : point.searches || point.searchForQuotes || 1;
           value =
@@ -648,6 +964,11 @@ export function ExecutiveMetricsPage() {
         >();
 
         segmentTrendData.data.forEach((point) => {
+          // Only process data for selected segment values
+          if (selectedSegmentValues.size > 0 && !selectedSegmentValues.has(String(point.dimensionValue || ""))) {
+            return;
+          }
+
           let value = 0;
           let numerator = 0;
           let denominator = 0;
@@ -657,8 +978,8 @@ export function ExecutiveMetricsPage() {
             case "conversion": {
               const denom =
                 point.searches === 0 &&
-                point.searchForQuotes &&
-                point.searchForQuotes > 0
+                  point.searchForQuotes &&
+                  point.searchForQuotes > 0
                   ? point.searchForQuotes
                   : point.searches || point.searchForQuotes || 1;
               numerator = point.completedRides || 0;
@@ -857,8 +1178,8 @@ export function ExecutiveMetricsPage() {
             // Conversion Rate: completedRides / (searches || searchForQuotes) * 100
             const denominator =
               point.searches === 0 &&
-              point.searchForQuotes &&
-              point.searchForQuotes > 0
+                point.searchForQuotes &&
+                point.searchForQuotes > 0
                 ? point.searchForQuotes
                 : point.searches || point.searchForQuotes || 1;
             value =
@@ -872,8 +1193,8 @@ export function ExecutiveMetricsPage() {
             // DQA: quotesAccepted / searchForQuotes * 100
             value =
               point.quotesAccepted &&
-              point.searchForQuotes &&
-              point.searchForQuotes > 0
+                point.searchForQuotes &&
+                point.searchForQuotes > 0
                 ? (point.quotesAccepted / point.searchForQuotes) * 100
                 : 0;
             break;
@@ -964,12 +1285,12 @@ export function ExecutiveMetricsPage() {
                   numerator = originalPoint.completedRides || 0;
                   denominator =
                     originalPoint.searches === 0 &&
-                    originalPoint.searchForQuotes &&
-                    originalPoint.searchForQuotes > 0
+                      originalPoint.searchForQuotes &&
+                      originalPoint.searchForQuotes > 0
                       ? originalPoint.searchForQuotes
                       : originalPoint.searches ||
-                        originalPoint.searchForQuotes ||
-                        1;
+                      originalPoint.searchForQuotes ||
+                      1;
                   break;
                 }
                 case "driverQuoteAcceptance": {
@@ -1018,7 +1339,7 @@ export function ExecutiveMetricsPage() {
 
       return result;
     },
-    [trendTimeSeriesData, segmentTrendData, selectedSegment, isCumulative]
+    [trendTimeSeriesData, segmentTrendData, selectedSegment, isCumulative, selectedSegmentValues]
   );
 
   // Generate chart data for each metric group
@@ -1245,455 +1566,44 @@ export function ExecutiveMetricsPage() {
 
   return (
     <Page>
-      <PageHeader
-        title="Executive Metrics"
-        description="Business performance metrics from Master Conversion"
-        breadcrumbs={[
-          { label: "Analytics", href: "/analytics" },
-          { label: "Executive Metrics" },
-        ]}
-        actions={
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        }
-      />
-
       <PageContent>
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="col-span-2">
-                <Label className="text-xs mb-2 block">Date Range</Label>
-                <DateRangePicker
-                  dateFrom={dateFrom}
-                  dateTo={dateTo}
-                  onChange={(from, to) => {
-                    setDateFrom(from);
-                    setDateTo(to);
-                  }}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">State</Label>
-                <Select
-                  value={selectedState}
-                  onValueChange={(value) => {
-                    setSelectedState(value);
-                    // Reset city if it's not in the newly selected state
-                    if (value !== "__all__" && selectedCity !== "__all__") {
-                      const citiesInState =
-                        filterOptions?.cityStateMap?.[value] || [];
-                      if (!citiesInState.includes(selectedCity)) {
-                        setSelectedCity("__all__");
-                      }
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All States" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All States</SelectItem>
-                    {filterOptions?.states?.map((state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">City</Label>
-                <Select value={selectedCity} onValueChange={setSelectedCity}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Cities" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All Cities</SelectItem>
-                    {(() => {
-                      // Filter cities based on selected state
-                      let citiesToShow = filterOptions?.cities || [];
-                      if (
-                        selectedState !== "__all__" &&
-                        filterOptions?.cityStateMap?.[selectedState]
-                      ) {
-                        citiesToShow =
-                          filterOptions.cityStateMap[selectedState];
-                        // Sort cities with priority order
-                        const cityPriority = [
-                          "Bangalore",
-                          "Kolkata",
-                          "Chennai",
-                          "Bhubaneshwar",
-                          "Kochi",
-                        ];
-                        citiesToShow = [
-                          ...citiesToShow
-                            .filter((c) => cityPriority.includes(c))
-                            .sort((a, b) => {
-                              const indexA = cityPriority.indexOf(a);
-                              const indexB = cityPriority.indexOf(b);
-                              return indexA - indexB;
-                            }),
-                          ...citiesToShow
-                            .filter((c) => !cityPriority.includes(c))
-                            .sort(),
-                        ];
-                      }
-                      return citiesToShow.map((city) => (
-                        <SelectItem key={city} value={city}>
-                          {city}
-                        </SelectItem>
-                      ));
-                    })()}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">BAP Merchant</Label>
-                <Select
-                  value={selectedBapMerchant}
-                  onValueChange={setSelectedBapMerchant}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All BAP Merchants" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All BAP Merchants</SelectItem>
-                    {filterOptions?.bapMerchants?.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">BPP Merchant</Label>
-                <Select
-                  value={selectedBppMerchant}
-                  onValueChange={setSelectedBppMerchant}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All BPP Merchants" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All BPP Merchants</SelectItem>
-                    {filterOptions?.bppMerchants?.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Vehicle Category</Label>
-                <Select
-                  value={selectedVehicleCategory}
-                  onValueChange={(value) => {
-                    setSelectedVehicleCategory(
-                      value as typeof selectedVehicleCategory
-                    );
-                    setSelectedVehicleSubCategory("__all__");
-                  }}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All Categories</SelectItem>
-                    {filterOptions?.vehicleCategories
-                      ?.filter((vc) => vc.value !== "All") // Filter out "All" since we have "__all__" for no filter
-                      ?.map((vc) => (
-                        <SelectItem key={vc.value} value={vc.value}>
-                          {vc.label}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {selectedVehicleCategory !== "__all__" &&
-                selectedVehicleCategory !== "All" &&
-                selectedVehicleCategory !== "BookAny" && (
-                  <div>
-                    <Label className="text-xs">Vehicle Sub-Category</Label>
-                    <Select
-                      value={selectedVehicleSubCategory}
-                      onValueChange={setSelectedVehicleSubCategory}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="All Sub-Categories" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">
-                          All Sub-Categories
-                        </SelectItem>
-                        {filterOptions?.vehicleSubCategories?.[
-                          selectedVehicleCategory
-                        ]?.map((vsc) => (
-                          <SelectItem key={vsc} value={vsc}>
-                            {vsc}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-            </div>
-
-            {/* More Filters Section */}
-            <div className="mt-4 pt-4 border-t">
-              <Collapsible
-                open={moreFiltersExpanded}
-                onOpenChange={setMoreFiltersExpanded}
-              >
-                <div className="flex items-center justify-between">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setMoreFiltersExpanded(!moreFiltersExpanded)}
-                    className="h-9 px-2"
-                  >
-                    {moreFiltersExpanded ? (
-                      <ChevronUp className="h-4 w-4 mr-2" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 mr-2" />
-                    )}
-                    More Filters
-                  </Button>
-                  <div className="flex items-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearFilters}
-                      className="h-9"
-                    >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-                <CollapsibleContent className="mt-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label className="text-xs">Flow Type</Label>
-                      <Select
-                        value={selectedFlowType}
-                        onValueChange={setSelectedFlowType}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All Flow Types" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">
-                            All Flow Types
-                          </SelectItem>
-                          {filterOptions?.flowTypes
-                            ?.filter((ft) => ft && ft.trim() !== "")
-                            ?.map((ft) => (
-                              <SelectItem key={ft} value={ft}>
-                                {ft}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Trip Tag</Label>
-                      <Select
-                        value={selectedTripTag}
-                        onValueChange={setSelectedTripTag}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All Trip Tags" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">All Trip Tags</SelectItem>
-                          {filterOptions?.tripTags
-                            ?.filter((tt) => tt && tt.trim() !== "")
-                            ?.map((tt) => (
-                              <SelectItem key={tt} value={tt}>
-                                {tt}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">OS Type</Label>
-                      <Select
-                        value={selectedUserOsType}
-                        onValueChange={setSelectedUserOsType}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All OS Types" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">All OS Types</SelectItem>
-                          {filterOptions?.userOsTypes
-                            ?.filter((os) => os && os.trim() !== "")
-                            ?.map((os) => (
-                              <SelectItem key={os} value={os}>
-                                {os}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">SDK Version</Label>
-                      <Select
-                        value={selectedUserSdkVersion}
-                        onValueChange={setSelectedUserSdkVersion}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All SDK Versions" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">
-                            All SDK Versions
-                          </SelectItem>
-                          {filterOptions?.userSdkVersions
-                            ?.filter((v: string) => v && v.trim() !== "")
-                            ?.map((v: string) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">App Bundle Version</Label>
-                      <Select
-                        value={selectedUserBundleVersion}
-                        onValueChange={setSelectedUserBundleVersion}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All Bundle Versions" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">
-                            All Bundle Versions
-                          </SelectItem>
-                          {filterOptions?.userBundleVersions
-                            ?.filter((v) => v && v.trim() !== "")
-                            ?.map((v) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Backend App Version</Label>
-                      <Select
-                        value={selectedUserBackendAppVersion}
-                        onValueChange={setSelectedUserBackendAppVersion}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All Backend Versions" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">
-                            All Backend Versions
-                          </SelectItem>
-                          {filterOptions?.userBackendAppVersions
-                            ?.filter((v) => v && v.trim() !== "")
-                            ?.map((v) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Price Logic Version</Label>
-                      <Select
-                        value={selectedDynamicPricingLogicVersion}
-                        onValueChange={setSelectedDynamicPricingLogicVersion}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All Price Logic Versions" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">
-                            All Price Logic Versions
-                          </SelectItem>
-                          {filterOptions?.dynamicPricingLogicVersions
-                            ?.filter((v) => v && v.trim() !== "")
-                            ?.map((v) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Pooling Logic Version</Label>
-                      <Select
-                        value={selectedPoolingLogicVersion}
-                        onValueChange={setSelectedPoolingLogicVersion}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All Pooling Logic Versions" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">
-                            All Pooling Logic Versions
-                          </SelectItem>
-                          {filterOptions?.poolingLogicVersions
-                            ?.filter((v) => v && v.trim() !== "")
-                            ?.map((v) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Pooling Config Version</Label>
-                      <Select
-                        value={selectedPoolingConfigVersion}
-                        onValueChange={setSelectedPoolingConfigVersion}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="All Pooling Config Versions" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">
-                            All Pooling Config Versions
-                          </SelectItem>
-                          {filterOptions?.poolingConfigVersions
-                            ?.filter((v) => v && v.trim() !== "")
-                            ?.map((v) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Global Filter Toolbar - Moved to top */}
+        <div className="mb-6 flex items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-3">
+            <DateRangePicker
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onChange={(from, to) => {
+                setDateFrom(from);
+                setDateTo(to);
+              }}
+            />
+            <Button onClick={handleRefresh} variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <AdvancedFiltersPopover
+              categories={filterCategories}
+              selections={filterSelections}
+              onSelectionsChange={setFilterSelections}
+              onApply={handleFilterApply}
+              onClear={handleFilterClear}
+              trigger={
+                <Button variant="outline" size="sm" className="h-9 gap-2 text-xs font-medium border-zinc-200 dark:border-zinc-800">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {Object.keys(filterSelections).length > 0 && (
+                    <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-[10px] text-primary-foreground">
+                      {Object.values(filterSelections).reduce(
+                        (acc, sel) => acc + sel.values.size,
+                        0
+                      )}
+                    </span>
+                  )}
+                </Button>
+              }
+            />
+          </div>
+        </div>
 
         {/* KPI Cards */}
         <KPIHeader
@@ -1704,15 +1614,15 @@ export function ExecutiveMetricsPage() {
               {
                 label:
                   selectedVehicleCategory !== "__all__" &&
-                  selectedVehicleCategory !== "All"
+                    selectedVehicleCategory !== "All"
                     ? "Total Search Tries"
                     : "Total Searches",
                 value: formatNumber(
                   selectedVehicleCategory !== "__all__" &&
                     selectedVehicleCategory !== "All"
                     ? executiveData?.totals?.searchTries ??
-                        executiveData?.totals?.searches ??
-                        0
+                    executiveData?.totals?.searches ??
+                    0
                     : executiveData?.totals?.searches || 0
                 ),
                 icon: <Search className="h-5 w-5" />,
@@ -1721,9 +1631,9 @@ export function ExecutiveMetricsPage() {
                 dateRange: { from: dateFrom, to: dateTo },
                 comparisonDateRange: comparisonPeriods
                   ? {
-                      from: comparisonPeriods.previousFrom,
-                      to: comparisonPeriods.previousTo,
-                    }
+                    from: comparisonPeriods.previousFrom,
+                    to: comparisonPeriods.previousTo,
+                  }
                   : undefined,
               },
               {
@@ -1735,9 +1645,9 @@ export function ExecutiveMetricsPage() {
                 dateRange: { from: dateFrom, to: dateTo },
                 comparisonDateRange: comparisonPeriods
                   ? {
-                      from: comparisonPeriods.previousFrom,
-                      to: comparisonPeriods.previousTo,
-                    }
+                    from: comparisonPeriods.previousFrom,
+                    to: comparisonPeriods.previousTo,
+                  }
                   : undefined,
               },
               {
@@ -1749,9 +1659,9 @@ export function ExecutiveMetricsPage() {
                 dateRange: { from: dateFrom, to: dateTo },
                 comparisonDateRange: comparisonPeriods
                   ? {
-                      from: comparisonPeriods.previousFrom,
-                      to: comparisonPeriods.previousTo,
-                    }
+                    from: comparisonPeriods.previousFrom,
+                    to: comparisonPeriods.previousTo,
+                  }
                   : undefined,
               },
               {
@@ -1763,9 +1673,9 @@ export function ExecutiveMetricsPage() {
                 dateRange: { from: dateFrom, to: dateTo },
                 comparisonDateRange: comparisonPeriods
                   ? {
-                      from: comparisonPeriods.previousFrom,
-                      to: comparisonPeriods.previousTo,
-                    }
+                    from: comparisonPeriods.previousFrom,
+                    to: comparisonPeriods.previousTo,
+                  }
                   : undefined,
               },
               {
@@ -1779,9 +1689,9 @@ export function ExecutiveMetricsPage() {
                 dateRange: { from: dateFrom, to: dateTo },
                 comparisonDateRange: comparisonPeriods
                   ? {
-                      from: comparisonPeriods.previousFrom,
-                      to: comparisonPeriods.previousTo,
-                    }
+                    from: comparisonPeriods.previousFrom,
+                    to: comparisonPeriods.previousTo,
+                  }
                   : undefined,
               },
             ];
@@ -1826,10 +1736,10 @@ export function ExecutiveMetricsPage() {
                       <div className="flex-shrink-0 min-w-[120px]">
                         <div className="text-2xl font-bold">
                           {executiveData?.totals?.riderFareAcceptanceRate !==
-                          undefined
+                            undefined
                             ? formatPercent(
-                                executiveData.totals.riderFareAcceptanceRate
-                              )
+                              executiveData.totals.riderFareAcceptanceRate
+                            )
                             : "-"}
                         </div>
                         {(() => {
@@ -1859,8 +1769,8 @@ export function ExecutiveMetricsPage() {
                                       rfaChange > 0
                                         ? "text-green-600"
                                         : rfaChange < 0
-                                        ? "text-red-600"
-                                        : "text-muted-foreground"
+                                          ? "text-red-600"
+                                          : "text-muted-foreground"
                                     )}
                                   >
                                     {rfaChange > 0 ? (
@@ -1881,8 +1791,8 @@ export function ExecutiveMetricsPage() {
                                       {rfaChange > 0
                                         ? "Increased by"
                                         : rfaChange < 0
-                                        ? "Decreased by"
-                                        : "No change"}
+                                          ? "Decreased by"
+                                          : "No change"}
                                     </p>
                                     <p className="text-sm font-bold">
                                       {Math.abs(rfaChange).toFixed(2)}%
@@ -1997,7 +1907,7 @@ export function ExecutiveMetricsPage() {
                           <div className="flex-shrink-0 min-w-[120px]">
                             <p className="text-xs font-medium text-muted-foreground mb-1">
                               {selectedVehicleCategory !== "__all__" &&
-                              selectedVehicleCategory !== "All"
+                                selectedVehicleCategory !== "All"
                                 ? "Search Tries"
                                 : "Quotes Requested"}
                             </p>
@@ -2006,8 +1916,8 @@ export function ExecutiveMetricsPage() {
                                 selectedVehicleCategory !== "__all__" &&
                                   selectedVehicleCategory !== "All"
                                   ? executiveData?.totals?.searchTries ??
-                                      executiveData?.totals?.quotesRequested ??
-                                      0
+                                  executiveData?.totals?.quotesRequested ??
+                                  0
                                   : executiveData?.totals?.quotesRequested || 0
                               )}
                             </p>
@@ -2022,16 +1932,16 @@ export function ExecutiveMetricsPage() {
                                           .percent > 0
                                           ? "text-green-600"
                                           : comparisonData.change
-                                              .quotesRequested.percent < 0
-                                          ? "text-red-600"
-                                          : "text-muted-foreground"
+                                            .quotesRequested.percent < 0
+                                            ? "text-red-600"
+                                            : "text-muted-foreground"
                                       )}
                                     >
                                       {comparisonData.change.quotesRequested
                                         .percent > 0 ? (
                                         <TrendingUp className="h-3 w-3" />
                                       ) : comparisonData.change.quotesRequested
-                                          .percent < 0 ? (
+                                        .percent < 0 ? (
                                         <TrendingDown className="h-3 w-3" />
                                       ) : null}
                                       <span>
@@ -2050,9 +1960,9 @@ export function ExecutiveMetricsPage() {
                                           .percent > 0
                                           ? "Increased by"
                                           : comparisonData.change
-                                              .quotesRequested.percent < 0
-                                          ? "Decreased by"
-                                          : "No change"}
+                                            .quotesRequested.percent < 0
+                                            ? "Decreased by"
+                                            : "No change"}
                                       </p>
                                       <p className="text-sm font-bold">
                                         {Math.abs(
@@ -2195,10 +2105,10 @@ export function ExecutiveMetricsPage() {
                       <div className="flex-shrink-0 min-w-[120px]">
                         <div className="text-2xl font-bold">
                           {executiveData?.totals?.driverQuoteAcceptanceRate !==
-                          undefined
+                            undefined
                             ? formatPercent(
-                                executiveData.totals.driverQuoteAcceptanceRate
-                              )
+                              executiveData.totals.driverQuoteAcceptanceRate
+                            )
                             : "-"}
                         </div>
                         {(() => {
@@ -2224,12 +2134,12 @@ export function ExecutiveMetricsPage() {
                             const previousDQA =
                               prevQuotesRequested > 0
                                 ? (prevQuotesAccepted / prevQuotesRequested) *
-                                  100
+                                100
                                 : 0;
                             const dqaChange =
                               previousDQA > 0
                                 ? ((currentDQA - previousDQA) / previousDQA) *
-                                  100
+                                100
                                 : 0;
                             if (Math.abs(dqaChange) > 0.01) {
                               return (
@@ -2394,16 +2304,16 @@ export function ExecutiveMetricsPage() {
                                           .percent > 0
                                           ? "text-green-600"
                                           : comparisonData.change.quotesAccepted
-                                              .percent < 0
-                                          ? "text-red-600"
-                                          : "text-muted-foreground"
+                                            .percent < 0
+                                            ? "text-red-600"
+                                            : "text-muted-foreground"
                                       )}
                                     >
                                       {comparisonData.change.quotesAccepted
                                         .percent > 0 ? (
                                         <TrendingUp className="h-3 w-3" />
                                       ) : comparisonData.change.quotesAccepted
-                                          .percent < 0 ? (
+                                        .percent < 0 ? (
                                         <TrendingDown className="h-3 w-3" />
                                       ) : null}
                                       <span>
@@ -2422,9 +2332,9 @@ export function ExecutiveMetricsPage() {
                                           .percent > 0
                                           ? "Increased by"
                                           : comparisonData.change.quotesAccepted
-                                              .percent < 0
-                                          ? "Decreased by"
-                                          : "No change"}
+                                            .percent < 0
+                                            ? "Decreased by"
+                                            : "No change"}
                                       </p>
                                       <p className="text-sm font-bold">
                                         {Math.abs(
@@ -2584,16 +2494,16 @@ export function ExecutiveMetricsPage() {
                                       .percent > 0
                                       ? "text-red-600"
                                       : comparisonData.change.cancelledRides
-                                          .percent < 0
-                                      ? "text-green-600"
-                                      : "text-muted-foreground"
+                                        .percent < 0
+                                        ? "text-green-600"
+                                        : "text-muted-foreground"
                                   )}
                                 >
                                   {comparisonData.change.cancelledRides
                                     .percent > 0 ? (
                                     <TrendingUp className="h-3 w-3" />
                                   ) : comparisonData.change.cancelledRides
-                                      .percent < 0 ? (
+                                    .percent < 0 ? (
                                     <TrendingDown className="h-3 w-3" />
                                   ) : null}
                                   <span>
@@ -2612,9 +2522,9 @@ export function ExecutiveMetricsPage() {
                                       .percent > 0
                                       ? "Increased by"
                                       : comparisonData.change.cancelledRides
-                                          .percent < 0
-                                      ? "Decreased by"
-                                      : "No change"}
+                                        .percent < 0
+                                        ? "Decreased by"
+                                        : "No change"}
                                   </p>
                                   <p className="text-sm font-bold">
                                     {Math.abs(
@@ -2744,7 +2654,7 @@ export function ExecutiveMetricsPage() {
                                 (
                                 {formatPercent(
                                   executiveData?.totals?.userCancellationRate ||
-                                    0
+                                  0
                                 )}
                                 )
                               </span>
@@ -2760,16 +2670,16 @@ export function ExecutiveMetricsPage() {
                                           .percent > 0
                                           ? "text-red-600"
                                           : comparisonData.change
-                                              .userCancellations.percent < 0
-                                          ? "text-green-600"
-                                          : "text-muted-foreground"
+                                            .userCancellations.percent < 0
+                                            ? "text-green-600"
+                                            : "text-muted-foreground"
                                       )}
                                     >
                                       {comparisonData.change.userCancellations
                                         .percent > 0 ? (
                                         <TrendingUp className="h-3 w-3" />
                                       ) : comparisonData.change
-                                          .userCancellations.percent < 0 ? (
+                                        .userCancellations.percent < 0 ? (
                                         <TrendingDown className="h-3 w-3" />
                                       ) : null}
                                       <span>
@@ -2788,9 +2698,9 @@ export function ExecutiveMetricsPage() {
                                           .percent > 0
                                           ? "Increased by"
                                           : comparisonData.change
-                                              .userCancellations.percent < 0
-                                          ? "Decreased by"
-                                          : "No change"}
+                                            .userCancellations.percent < 0
+                                            ? "Decreased by"
+                                            : "No change"}
                                       </p>
                                       <p className="text-sm font-bold">
                                         {Math.abs(
@@ -2935,16 +2845,16 @@ export function ExecutiveMetricsPage() {
                                           .driverCancellations.percent > 0
                                           ? "text-red-600"
                                           : comparisonData.change
-                                              .driverCancellations.percent < 0
-                                          ? "text-green-600"
-                                          : "text-muted-foreground"
+                                            .driverCancellations.percent < 0
+                                            ? "text-green-600"
+                                            : "text-muted-foreground"
                                       )}
                                     >
                                       {comparisonData.change.driverCancellations
                                         .percent > 0 ? (
                                         <TrendingUp className="h-3 w-3" />
                                       ) : comparisonData.change
-                                          .driverCancellations.percent < 0 ? (
+                                        .driverCancellations.percent < 0 ? (
                                         <TrendingDown className="h-3 w-3" />
                                       ) : null}
                                       <span>
@@ -2963,9 +2873,9 @@ export function ExecutiveMetricsPage() {
                                           .driverCancellations.percent > 0
                                           ? "Increased by"
                                           : comparisonData.change
-                                              .driverCancellations.percent < 0
-                                          ? "Decreased by"
-                                          : "No change"}
+                                            .driverCancellations.percent < 0
+                                            ? "Decreased by"
+                                            : "No change"}
                                       </p>
                                       <p className="text-sm font-bold">
                                         {Math.abs(
@@ -3129,756 +3039,711 @@ export function ExecutiveMetricsPage() {
               </Card>
             ) : (
               metricsByYAxis.map((group, groupIndex) => (
-                <Card key={groupIndex}>
-                  <CardHeader>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <CardTitle className="text-lg">
-                        {selectedSegment !== "none" &&
-                        selectedSegmentValues.size > 0 &&
-                        group.metrics.length > 1
-                          ? `${
-                              trendDimensionsList.find(
-                                (d) => d.value === selectedSegment
-                              )?.label || "Segment"
-                            }: ${Array.from(selectedSegmentValues)
-                              .slice(0, 3)
-                              .join(", ")}${
-                              selectedSegmentValues.size > 3
-                                ? ` +${selectedSegmentValues.size - 3} more`
-                                : ""
-                            } - ${group.metrics
-                              .map((m) => getMetricLabel(m))
-                              .join(", ")}`
-                          : selectedSegment !== "none" &&
-                            selectedSegmentValues.size > 0
-                          ? `${
-                              trendDimensionsList.find(
-                                (d) => d.value === selectedSegment
-                              )?.label || "Segment"
-                            }: ${Array.from(selectedSegmentValues)
-                              .slice(0, 3)
-                              .join(", ")}${
-                              selectedSegmentValues.size > 3
-                                ? ` +${selectedSegmentValues.size - 3} more`
-                                : ""
-                            } - ${getMetricLabel(group.metrics[0])}`
-                          : `Trend Analysis - ${group.metrics
-                              .map((m) => getMetricLabel(m))
-                              .join(", ")}`}{" "}
-                        {group.type === "percentage" ? "(Rates)" : "(Counts)"}
-                      </CardTitle>
-
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* Metric Selector - Add Metric */}
-                        <Select
-                          onValueChange={(v) => {
-                            const metric = v as TrendMetric;
-                            if (!selectedTrendMetrics.includes(metric)) {
-                              setSelectedTrendMetrics([
-                                ...selectedTrendMetrics,
-                                metric,
-                              ]);
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="w-48 h-9">
-                            <SelectValue placeholder="Add Metric" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="conversion">
-                              Conversion Rate
-                            </SelectItem>
-                            <SelectItem value="driverQuoteAcceptance">
-                              Driver Quote Acceptance Rate
-                            </SelectItem>
-                            <SelectItem value="riderFareAcceptance">
-                              Rider Fare Acceptance Rate
-                            </SelectItem>
-                            <SelectItem value="cancellationRate">
-                              Cancellation Rate
-                            </SelectItem>
-                            <SelectItem value="searches">Searches</SelectItem>
-                            <SelectItem value="searchTries">
-                              Search Tries
-                            </SelectItem>
-                            <SelectItem value="bookings">Bookings</SelectItem>
-                            <SelectItem value="completedRides">
-                              Completed Rides
-                            </SelectItem>
-                            <SelectItem value="earnings">Earnings</SelectItem>
-                            <SelectItem value="userCancellation">
-                              User Cancellation
-                            </SelectItem>
-                            <SelectItem value="driverCancellation">
-                              Driver Cancellation
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-
-                        {/* Selected Metrics Display */}
-                        {selectedTrendMetrics.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {selectedTrendMetrics.map((metric) => (
-                              <div
-                                key={metric}
-                                className="flex items-center gap-1 px-2 py-1 bg-secondary rounded-md text-xs"
-                              >
-                                <span>{getMetricLabel(metric)}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-4 w-4 p-0"
-                                  onClick={() => {
-                                    // Prevent removing the last metric
-                                    if (selectedTrendMetrics.length > 1) {
-                                      setSelectedTrendMetrics(
-                                        selectedTrendMetrics.filter(
-                                          (m) => m !== metric
-                                        )
-                                      );
-                                    }
-                                  }}
-                                  disabled={selectedTrendMetrics.length === 1}
-                                >
-                                  <XCircle className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Segment Selector with Integrated Value Selection */}
-                        <Popover
-                          open={isSegmentPopoverOpen}
-                          onOpenChange={(open) => {
-                            setIsSegmentPopoverOpen(open);
-                            // When opening, initialize temp values with current selected values
-                            if (open) {
-                              setTempSegmentValues(
-                                new Set(selectedSegmentValues)
-                              );
-                            }
-                          }}
-                        >
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="w-40 h-9 justify-between"
-                            >
-                              <span className="text-sm">
-                                {selectedSegment === "none"
-                                  ? "Add Segment"
-                                  : trendDimensionsList.find(
-                                      (d) => d.value === selectedSegment
-                                    )?.label || "Segment"}
-                                {selectedSegment !== "none" &&
-                                  selectedSegmentValues.size > 0 &&
-                                  ` (${selectedSegmentValues.size})`}
-                              </span>
-                              <ChevronDown className="h-4 w-4 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-80" align="start">
-                            <div className="space-y-4">
-                              <div>
-                                <Label className="text-xs font-semibold mb-2 block">
-                                  Select Segment
-                                </Label>
-                                <Select
-                                  value={selectedSegment}
-                                  onValueChange={(v) => {
-                                    setSelectedSegment(v as Dimension | "none");
-                                    // Reset temp values when segment changes
-                                    if (v === "none") {
-                                      setTempSegmentValues(new Set());
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className="w-full h-9">
-                                    <SelectValue placeholder="No Segment" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">
-                                      No Segment
-                                    </SelectItem>
-                                    {trendDimensionsList
-                                      .filter((d) => d.value !== "none")
-                                      .map((dim) => (
-                                        <SelectItem
-                                          key={dim.value}
-                                          value={dim.value}
-                                        >
-                                          {dim.label}
-                                        </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              {/* Segment Value Selection */}
-                              {selectedSegment !== "none" &&
-                                availableSegmentValues.length > 0 && (
-                                  <div>
-                                    <Label className="text-xs font-semibold mb-2 block">
-                                      Select Values to Plot
-                                    </Label>
-                                    <div className="max-h-60 overflow-y-auto space-y-2 border rounded-md p-2">
-                                      {availableSegmentValues.map((value) => {
-                                        const isSelected =
-                                          tempSegmentValues.has(value);
-                                        return (
-                                          <div
-                                            key={value}
-                                            className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5"
-                                            onClick={() => {
-                                              const newSet = new Set(
-                                                tempSegmentValues
-                                              );
-                                              if (isSelected) {
-                                                // Don't allow removing if it's the last one
-                                                if (newSet.size > 1) {
-                                                  newSet.delete(value);
-                                                  setTempSegmentValues(newSet);
-                                                }
-                                              } else {
-                                                newSet.add(value);
-                                                setTempSegmentValues(newSet);
-                                              }
-                                            }}
-                                          >
-                                            <div
-                                              className={cn(
-                                                "flex h-4 w-4 items-center justify-center rounded-sm border-2",
-                                                isSelected
-                                                  ? "bg-primary border-primary text-primary-foreground"
-                                                  : "border-input"
-                                              )}
-                                            >
-                                              {isSelected && (
-                                                <Check className="h-3 w-3" />
-                                              )}
-                                            </div>
-                                            <label
-                                              className="text-sm cursor-pointer flex-1"
-                                              onClick={(e) =>
-                                                e.stopPropagation()
-                                              }
-                                            >
-                                              {value || "(empty)"}
-                                            </label>
-                                            {isSelected &&
-                                              tempSegmentValues.size === 1 && (
-                                                <span className="text-xs text-muted-foreground">
-                                                  (required)
-                                                </span>
-                                              )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                                      <span>
-                                        {tempSegmentValues.size} of{" "}
-                                        {availableSegmentValues.length} selected
-                                      </span>
-                                      <div className="flex gap-2">
-                                        {tempSegmentValues.size > 1 && (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 text-xs"
-                                            onClick={() => {
-                                              // Unselect all except the first one (required)
-                                              setTempSegmentValues(
-                                                new Set([
-                                                  availableSegmentValues[0],
-                                                ])
-                                              );
-                                            }}
-                                          >
-                                            Unselect All
-                                          </Button>
-                                        )}
-                                        {tempSegmentValues.size <
-                                          availableSegmentValues.length && (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 text-xs"
-                                            onClick={() => {
-                                              setTempSegmentValues(
-                                                new Set(availableSegmentValues)
-                                              );
-                                            }}
-                                          >
-                                            Select All
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-
-                              {/* Apply Button */}
-                              {selectedSegment !== "none" &&
-                                availableSegmentValues.length > 0 && (
-                                  <div className="flex justify-end gap-2 pt-2 border-t">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8"
-                                      onClick={() => {
-                                        setIsSegmentPopoverOpen(false);
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      className="h-8"
-                                      onClick={() => {
-                                        // Ensure at least one value is selected
-                                        if (tempSegmentValues.size === 0) {
-                                          setTempSegmentValues(
-                                            new Set([availableSegmentValues[0]])
-                                          );
-                                        }
-                                        setSelectedSegmentValues(
-                                          new Set(tempSegmentValues)
-                                        );
-                                        setIsSegmentPopoverOpen(false);
-                                      }}
-                                      disabled={tempSegmentValues.size === 0}
-                                    >
-                                      Apply
-                                    </Button>
-                                  </div>
-                                )}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-
-                        {/* Granularity Toggle */}
-                        <div className="flex items-center gap-2 border rounded-md p-1 bg-muted/30">
-                          <Button
-                            variant={
-                              trendGranularity === "day" ? "secondary" : "ghost"
-                            }
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => setTrendGranularity("day")}
-                          >
-                            Daily
-                          </Button>
-                          <Button
-                            variant={
-                              trendGranularity === "hour"
-                                ? "secondary"
-                                : "ghost"
-                            }
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => setTrendGranularity("hour")}
-                          >
-                            Hourly
-                          </Button>
-                        </div>
-
-                        {/* Cumulative Toggle */}
-                        <div className="flex items-center gap-2 border rounded-md p-1 bg-muted/30">
-                          <Button
-                            variant={!isCumulative ? "secondary" : "ghost"}
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => setIsCumulative(false)}
-                          >
-                            Period
-                          </Button>
-                          <Button
-                            variant={isCumulative ? "secondary" : "ghost"}
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => setIsCumulative(true)}
-                          >
-                            Cumulative
-                          </Button>
-                        </div>
-
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setIsGridView(true)}
-                          title="Show All Dimensions"
-                        >
-                          <LayoutGrid className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {(() => {
-                      const isLoading =
-                        trendTimeSeriesLoading ||
-                        (selectedSegment !== "none" && segmentTrendLoading);
-
-                      if (isLoading) {
-                        return <Skeleton className="h-[500px] w-full" />;
-                      }
-
-                      // If segment is selected and multiple metrics are present, show separate graphs per segment value
-                      if (
-                        selectedSegment !== "none" &&
-                        selectedSegmentValues.size > 0 &&
-                        group.metrics.length > 1
-                      ) {
-                        const segmentGroupData =
-                          chartDataBySegmentValue[groupIndex];
-                        if (!segmentGroupData) return null;
+                <Card key={groupIndex} className="overflow-hidden shadow-none border-zinc-200 dark:border-zinc-800">
+                  <div className="border-b bg-zinc-50/50 dark:bg-zinc-900/50 px-4 py-2 flex items-center justify-between overflow-x-auto whitespace-nowrap scrollbar-none">
+                    <div className="flex items-center gap-1">
+                      {visibleSegments.map((segment) => {
+                        const dim = trendDimensionsList.find(d => d.value === segment);
+                        if (!dim) return null;
+                        const isSelected = selectedSegment === dim.value;
+                        const isPinned = PINNED_SEGMENTS.includes(dim.value);
 
                         return (
-                          <div className="space-y-6">
-                            {segmentGroupData.segmentValueData.map(
-                              ({ segmentValue, data }) => {
-                                if (!data || data.length === 0) return null;
-
-                                return (
-                                  <div key={segmentValue} className="space-y-2">
-                                    <h3 className="text-base font-semibold">
-                                      {trendDimensionsList.find(
-                                        (d) => d.value === selectedSegment
-                                      )?.label || "Segment"}
-                                      : {segmentValue || "(empty)"} -{" "}
-                                      {group.metrics
-                                        .map((m) => getMetricLabel(m))
-                                        .join(", ")}
-                                    </h3>
-                                    <div className="h-[400px]">
-                                      <ResponsiveContainer
-                                        width="100%"
-                                        height="100%"
-                                      >
-                                        <LineChart
-                                          data={data}
-                                          margin={{
-                                            top: 5,
-                                            right: 30,
-                                            left: 20,
-                                            bottom: 60,
-                                          }}
-                                        >
-                                          <CartesianGrid strokeDasharray="3 3" />
-                                          <XAxis
-                                            dataKey="date"
-                                            tickFormatter={(value) => {
-                                              const date = new Date(value);
-                                              return trendGranularity === "hour"
-                                                ? format(date, "d MMM H:mm")
-                                                : format(date, "MMM d");
-                                            }}
-                                            fontSize={10}
-                                            angle={-45}
-                                            textAnchor="end"
-                                            height={80}
-                                            interval="preserveStartEnd"
-                                          />
-                                          <YAxis
-                                            fontSize={10}
-                                            domain={[0, "auto"]}
-                                            tickFormatter={(value) => {
-                                              if (group.type === "percentage") {
-                                                return `${value.toFixed(0)}%`;
-                                              }
-                                              // For large numbers, format them
-                                              if (value >= 1000000)
-                                                return `${(
-                                                  value / 1000000
-                                                ).toFixed(1)}M`;
-                                              if (value >= 1000)
-                                                return `${(
-                                                  value / 1000
-                                                ).toFixed(1)}K`;
-                                              return value.toLocaleString();
-                                            }}
-                                          />
-                                          <Tooltip
-                                            content={({
-                                              active,
-                                              payload,
-                                              label,
-                                            }) => {
-                                              if (
-                                                active &&
-                                                payload &&
-                                                payload.length
-                                              ) {
-                                                const dateStr =
-                                                  label ||
-                                                  payload[0].payload?.date ||
-                                                  "";
-                                                const formattedDate =
-                                                  formatTooltipDate(dateStr);
-                                                return (
-                                                  <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded shadow-lg border border-gray-700">
-                                                    <p className="text-gray-300 mb-2 font-medium">
-                                                      {formattedDate}
-                                                    </p>
-                                                    {payload.map(
-                                                      (entry, index) => {
-                                                        const value =
-                                                          entry.value as number;
-                                                        const isPercentage =
-                                                          group.type ===
-                                                          "percentage";
-                                                        const formattedValue =
-                                                          isPercentage
-                                                            ? `${value.toFixed(
-                                                                2
-                                                              )}%`
-                                                            : value >= 1000000
-                                                            ? `${(
-                                                                value / 1000000
-                                                              ).toFixed(2)}M`
-                                                            : value >= 1000
-                                                            ? `${(
-                                                                value / 1000
-                                                              ).toFixed(2)}K`
-                                                            : value.toLocaleString();
-                                                        return (
-                                                          <p
-                                                            key={index}
-                                                            className="mb-1"
-                                                            style={{
-                                                              color:
-                                                                entry.color,
-                                                            }}
-                                                          >
-                                                            <span className="font-semibold">
-                                                              {entry.name}:
-                                                            </span>{" "}
-                                                            {formattedValue}
-                                                          </p>
-                                                        );
-                                                      }
-                                                    )}
-                                                  </div>
-                                                );
-                                              }
-                                              return null;
-                                            }}
-                                          />
-                                          <Legend
-                                            wrapperStyle={{
-                                              paddingTop: "20px",
-                                            }}
-                                            formatter={(value: string) => {
-                                              if (data.length > 0) {
-                                                const values = data
-                                                  .map((point) => {
-                                                    const val = (
-                                                      point as Record<
-                                                        string,
-                                                        number | string
-                                                      >
-                                                    )[value];
-                                                    return typeof val ===
-                                                      "number"
-                                                      ? val
-                                                      : 0;
-                                                  })
-                                                  .filter(
-                                                    (v) =>
-                                                      typeof v === "number" &&
-                                                      !isNaN(v)
-                                                  );
-                                                if (values.length > 0) {
-                                                  const avg =
-                                                    values.reduce(
-                                                      (sum, v) => sum + v,
-                                                      0
-                                                    ) / values.length;
-                                                  const isPercentage =
-                                                    group.type === "percentage";
-                                                  const formattedAvg =
-                                                    isPercentage
-                                                      ? `${avg.toFixed(2)}%`
-                                                      : avg >= 1000000
-                                                      ? `${(
-                                                          avg / 1000000
-                                                        ).toFixed(2)}M`
-                                                      : avg >= 1000
-                                                      ? `${(avg / 1000).toFixed(
-                                                          2
-                                                        )}K`
-                                                      : avg.toFixed(0);
-                                                  return `${value} (${formattedAvg})`;
-                                                }
-                                              }
-                                              return value;
-                                            }}
-                                          />
-                                          {group.metrics.map(
-                                            (metric, index) => (
-                                              <Line
-                                                key={metric}
-                                                type="monotone"
-                                                dataKey={getMetricLabel(metric)}
-                                                name={getMetricLabel(metric)}
-                                                stroke={
-                                                  COLORS[index % COLORS.length]
-                                                }
-                                                strokeWidth={3}
-                                                dot={false}
-                                                activeDot={{ r: 6 }}
-                                              />
-                                            )
-                                          )}
-                                        </LineChart>
-                                      </ResponsiveContainer>
-                                    </div>
-                                  </div>
-                                );
-                              }
+                          <div key={dim.value} className="flex items-center gap-1 group">
+                            <Button
+                              variant={isSelected ? "secondary" : "ghost"}
+                              size="sm"
+                              className={cn(
+                                "h-8 px-3 text-xs rounded-full transition-all duration-200",
+                                isSelected ? "bg-white dark:bg-zinc-800 shadow-sm font-medium text-primary border border-zinc-200 dark:border-zinc-700" : "text-muted-foreground hover:text-foreground"
+                              )}
+                              onClick={() => {
+                                setSelectedSegment(dim.value as Dimension | "none");
+                                if (dim.value === "none") {
+                                  setSelectedSegmentValues(new Set());
+                                }
+                              }}
+                            >
+                              {dim.label}
+                              {isSelected && selectedSegment !== "none" && selectedSegmentValues.size > 0 && (
+                                <span className="ml-1.5 flex items-center gap-1 bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px]">
+                                  {selectedSegmentValues.size}
+                                  <X
+                                    className="h-3 w-3 cursor-pointer hover:text-primary/70"
+                                    onClick={(e: React.MouseEvent) => {
+                                      e.stopPropagation();
+                                      setSelectedSegmentValues(new Set());
+                                    }}
+                                  />
+                                </span>
+                              )}
+                            </Button>
+                            {!isPinned && (
+                              <button
+                                onClick={() => {
+                                  setVisibleSegments(prev => prev.filter(s => s !== dim.value));
+                                  if (selectedSegment === dim.value) {
+                                    setSelectedSegment("none");
+                                  }
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-opacity"
+                              >
+                                <X className="h-3 w-3 text-muted-foreground" />
+                              </button>
                             )}
                           </div>
                         );
-                      }
+                      })}
 
-                      // Default rendering (no segment or single metric)
-                      const groupData = chartDataByGroup[groupIndex];
-                      if (!groupData) return null;
-
-                      if (!groupData.data || groupData.data.length === 0) {
-                        return (
-                          <div className="h-[500px] flex items-center justify-center text-muted-foreground">
-                            No data available for the selected filters
+                      {/* Add Segments Sheet */}
+                      <Sheet open={isAddSegmentSheetOpen} onOpenChange={setIsAddSegmentSheetOpen}>
+                        <SheetTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-primary hover:text-primary transition-all ml-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent side="right" className="p-0 flex flex-col w-[400px]">
+                          <SheetHeader className="p-6 border-b">
+                            <SheetTitle>Add Segments</SheetTitle>
+                            <p className="text-xs text-muted-foreground">You can choose up to a maximum of 3 segments</p>
+                          </SheetHeader>
+                          <div className="p-6 space-y-4 flex-1 overflow-y-auto">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search Segments"
+                                className="pl-9 h-10 rounded-lg"
+                                value={segmentSearchQuery}
+                                onChange={(e) => setSegmentSearchQuery(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              {trendDimensionsList
+                                .filter(d =>
+                                  d.value !== "none" &&
+                                  !visibleSegments.includes(d.value) &&
+                                  d.label.toLowerCase().includes(segmentSearchQuery.toLowerCase())
+                                )
+                                .map((dim) => (
+                                  <div
+                                    key={dim.value}
+                                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer group transition-colors"
+                                    onClick={() => {
+                                      if (visibleSegments.length < 7) { // 4 pinned + 3 extra
+                                        setVisibleSegments(prev => [...prev, dim.value as Dimension]);
+                                        setIsAddSegmentSheetOpen(false);
+                                      }
+                                    }}
+                                  >
+                                    <div className="h-5 w-5 rounded border-2 border-zinc-300 dark:border-zinc-700 flex items-center justify-center group-hover:border-primary transition-colors">
+                                      <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                                    </div>
+                                    <span className="text-sm font-medium">{dim.label}</span>
+                                  </div>
+                                ))}
+                            </div>
                           </div>
-                        );
-                      }
+                          <div className="p-6 border-t bg-zinc-50/50 dark:bg-zinc-900/50">
+                            <Button
+                              className="w-full h-11 rounded-xl font-bold shadow-lg"
+                              onClick={() => setIsAddSegmentSheetOpen(false)}
+                            >
+                              Add Segments
+                            </Button>
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        onClick={() => setIsGridView(true)}
+                        title="Show All Dimensions"
+                      >
+                        <LayoutGrid className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
 
-                      return (
-                        <div className="h-[500px]">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
-                              data={groupData.data}
-                              margin={{
-                                top: 5,
-                                right: 30,
-                                left: 20,
-                                bottom: 60,
+                  <CardContent className="p-0 relative bg-white dark:bg-zinc-950">
+                    {/* Internal Chart Controls (Overlay) */}
+                    <div className="absolute top-6 left-6 right-6 z-10 flex flex-col gap-3 pointer-events-none">
+                      <div className="flex items-center justify-between">
+                        {/* Left: Granularity */}
+                        <div className="flex items-center gap-1 p-1 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] pointer-events-auto">
+                          <div className="flex items-center bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg p-0.5">
+                            <Button
+                              variant={trendGranularity === "day" ? "secondary" : "ghost"}
+                              size="sm"
+                              className={cn(
+                                "h-7 px-3 text-[11px] font-medium transition-all duration-200",
+                                trendGranularity === "day" ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
+                              )}
+                              onClick={() => setTrendGranularity("day")}
+                            >
+                              Daily
+                            </Button>
+                            <Button
+                              variant={trendGranularity === "hour" ? "secondary" : "ghost"}
+                              size="sm"
+                              className={cn(
+                                "h-7 px-3 text-[11px] font-medium transition-all duration-200",
+                                trendGranularity === "hour" ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
+                              )}
+                              onClick={() => setTrendGranularity("hour")}
+                            >
+                              Hourly
+                            </Button>
+                          </div>
+
+                          <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
+
+                          <div className="flex items-center bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg p-0.5">
+                            <Button
+                              variant={!isCumulative ? "secondary" : "ghost"}
+                              size="sm"
+                              className={cn(
+                                "h-7 px-3 text-[11px] font-medium transition-all duration-200",
+                                !isCumulative ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
+                              )}
+                              onClick={() => setIsCumulative(false)}
+                            >
+                              Period
+                            </Button>
+                            <Button
+                              variant={isCumulative ? "secondary" : "ghost"}
+                              size="sm"
+                              className={cn(
+                                "h-7 px-3 text-[11px] font-medium transition-all duration-200",
+                                isCumulative ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
+                              )}
+                              onClick={() => setIsCumulative(true)}
+                            >
+                              Cumulative
+                            </Button>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 ml-0.5 text-muted-foreground hover:text-foreground rounded-lg"
+                            onClick={handleRefresh}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        {/* Center: Metric Selector */}
+                        <div className="pointer-events-auto flex items-center gap-3">
+                          <Select
+                            onValueChange={(v) => {
+                              const metric = v as TrendMetric;
+                              if (!selectedTrendMetrics.includes(metric)) {
+                                setSelectedTrendMetrics([
+                                  ...selectedTrendMetrics,
+                                  metric,
+                                ]);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-48 h-9 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl text-xs font-medium focus:ring-1 focus:ring-primary/20">
+                              <SelectValue placeholder="Add Metric" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-zinc-200 dark:border-zinc-800">
+                              <SelectItem value="conversion" className="text-xs">Conversion Rate</SelectItem>
+                              <SelectItem value="driverQuoteAcceptance" className="text-xs">Driver Quote Acceptance</SelectItem>
+                              <SelectItem value="riderFareAcceptance" className="text-xs">Rider Fare Acceptance</SelectItem>
+                              <SelectItem value="cancellationRate" className="text-xs">Cancellation Rate</SelectItem>
+                              <SelectItem value="searches" className="text-xs">Searches</SelectItem>
+                              <SelectItem value="bookings" className="text-xs">Bookings</SelectItem>
+                              <SelectItem value="completedRides" className="text-xs">Completed Rides</SelectItem>
+                              <SelectItem value="earnings" className="text-xs">Earnings</SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {/* Segment Value Selector (Only if segment is selected) */}
+                          {selectedSegment !== "none" && (
+                            <Popover
+                              open={isSegmentPopoverOpen}
+                              onOpenChange={(open) => {
+                                setIsSegmentPopoverOpen(open);
+                                if (open) setTempSegmentValues(new Set(selectedSegmentValues));
                               }}
                             >
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis
-                                dataKey="date"
-                                tickFormatter={(value) => {
-                                  const date = new Date(value);
-                                  return trendGranularity === "hour"
-                                    ? format(date, "d MMM H:mm")
-                                    : format(date, "MMM d");
-                                }}
-                                fontSize={10}
-                                angle={-45}
-                                textAnchor="end"
-                                height={80}
-                                interval="preserveStartEnd"
-                              />
-                              <YAxis
-                                fontSize={10}
-                                domain={[0, "auto"]}
-                                tickFormatter={(value) => {
-                                  if (group.type === "percentage") {
-                                    return `${value.toFixed(0)}%`;
-                                  }
-                                  if (value >= 1000000)
-                                    return `${(value / 1000000).toFixed(1)}M`;
-                                  if (value >= 1000)
-                                    return `${(value / 1000).toFixed(1)}K`;
-                                  return value.toLocaleString();
-                                }}
-                              />
-                              <Tooltip
-                                content={({ active, payload, label }) => {
-                                  if (active && payload && payload.length) {
-                                    const dateStr =
-                                      label || payload[0].payload?.date || "";
-                                    const formattedDate =
-                                      formatTooltipDate(dateStr);
-                                    return (
-                                      <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded shadow-lg border border-gray-700">
-                                        <p className="text-gray-300 mb-2 font-medium">
-                                          {formattedDate}
-                                        </p>
-                                        {payload.map((entry, index) => {
-                                          const value = entry.value as number;
-                                          const isPercentage =
-                                            group.type === "percentage";
-                                          const formattedValue = isPercentage
-                                            ? `${value.toFixed(2)}%`
-                                            : value >= 1000000
-                                            ? `${(value / 1000000).toFixed(2)}M`
-                                            : value >= 1000
-                                            ? `${(value / 1000).toFixed(2)}K`
-                                            : value.toLocaleString();
-                                          return (
-                                            <p
-                                              key={index}
-                                              className="mb-1"
-                                              style={{ color: entry.color }}
-                                            >
-                                              <span className="font-semibold">
-                                                {entry.name}:
-                                              </span>{" "}
-                                              {formattedValue}
-                                            </p>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  }
-                                  return null;
-                                }}
-                              />
-                              <Legend
-                                wrapperStyle={{ paddingTop: "20px" }}
-                                formatter={(value: string) => {
-                                  if (groupData.data.length > 0) {
-                                    const values = groupData.data
-                                      .map((point) => {
-                                        const val = (
-                                          point as Record<
-                                            string,
-                                            number | string
-                                          >
-                                        )[value];
-                                        return typeof val === "number"
-                                          ? val
-                                          : 0;
-                                      })
-                                      .filter(
-                                        (v) =>
-                                          typeof v === "number" && !isNaN(v)
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 min-w-[140px] bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl text-xs font-medium"
+                                >
+                                  {selectedSegmentValues.size === 0 ? "Select Values" : `${selectedSegmentValues.size} Values`}
+                                  <ChevronDown className="h-3.5 w-3.5 ml-2 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-72 rounded-2xl border-zinc-200 dark:border-zinc-800 shadow-xl" align="end">
+                                <div className="space-y-4 p-1">
+                                  <div className="flex items-center justify-between px-2 pt-1">
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Select {trendDimensionsList.find(d => d.value === selectedSegment)?.label}</div>
+                                    <div className="text-[10px] text-muted-foreground">{availableSegmentValues.length} total</div>
+                                  </div>
+                                  <div className="flex items-center gap-2 px-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-[10px] font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 text-primary"
+                                      onClick={() => setTempSegmentValues(new Set(availableSegmentValues))}
+                                    >
+                                      Select All
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-[10px] font-bold hover:bg-zinc-100 dark:hover:bg-zinc-800 text-muted-foreground"
+                                      onClick={() => setTempSegmentValues(new Set())}
+                                    >
+                                      Clear All
+                                    </Button>
+                                  </div>
+                                  <div className="max-h-64 overflow-y-auto space-y-0.5 pr-1 custom-scrollbar">
+                                    {availableSegmentValues.map((value) => {
+                                      const isSelected = tempSegmentValues.has(value);
+                                      return (
+                                        <div
+                                          key={value}
+                                          className={cn(
+                                            "flex items-center gap-3 px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg cursor-pointer text-sm transition-colors duration-150",
+                                            isSelected && "bg-zinc-50 dark:bg-zinc-800/50"
+                                          )}
+                                          onClick={() => {
+                                            const newSet = new Set(tempSegmentValues);
+                                            if (isSelected) {
+                                              newSet.delete(value);
+                                            } else {
+                                              newSet.add(value);
+                                            }
+                                            setTempSegmentValues(newSet);
+                                          }}
+                                        >
+                                          <div className={cn(
+                                            "h-4 w-4 rounded-md border-2 flex items-center justify-center transition-all duration-200",
+                                            isSelected ? "bg-primary border-primary scale-110 shadow-sm" : "border-zinc-300 dark:border-zinc-700"
+                                          )}>
+                                            {isSelected && <Check className="h-2.5 w-2.5 text-primary-foreground stroke-[3px]" />}
+                                          </div>
+                                          <span className={cn("truncate flex-1 font-medium", isSelected ? "text-foreground" : "text-muted-foreground")}>{value || "(empty)"}</span>
+                                        </div>
                                       );
-                                    if (values.length > 0) {
-                                      const avg =
-                                        values.reduce((sum, v) => sum + v, 0) /
-                                        values.length;
-                                      const isPercentage =
-                                        group.type === "percentage";
-                                      const formattedAvg = isPercentage
-                                        ? `${avg.toFixed(2)}%`
-                                        : avg >= 1000000
-                                        ? `${(avg / 1000000).toFixed(2)}M`
-                                        : avg >= 1000
-                                        ? `${(avg / 1000).toFixed(2)}K`
-                                        : avg.toFixed(0);
-                                      return `${value} (${formattedAvg})`;
-                                    }
-                                  }
-                                  return value;
+                                    })}
+                                  </div>
+                                  <div className="flex justify-end gap-2 pt-3 mt-1 border-t border-zinc-100 dark:border-zinc-800">
+                                    <Button size="sm" className="h-8 px-4 text-xs font-bold rounded-lg shadow-sm" onClick={() => {
+                                      setSelectedSegmentValues(new Set(tempSegmentValues));
+                                      setIsSegmentPopoverOpen(false);
+                                    }}>Apply Selections</Button>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        </div>
+
+                        {/* Right Gap */}
+                        <div />
+                      </div>
+
+                      {/* Selected Metric Tags */}
+                      <div className="flex flex-wrap gap-2 pointer-events-auto">
+                        {selectedTrendMetrics.map((metric) => (
+                          <div
+                            key={metric}
+                            className="flex items-center gap-1.5 px-2.5 py-1 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/50 dark:border-zinc-800/50 rounded-lg shadow-sm text-[10px] font-medium transition-all hover:bg-zinc-50 dark:hover:bg-zinc-800 group"
+                          >
+                            <span className="text-foreground">{getMetricLabel(metric)}</span>
+                            <button
+                              onClick={() => {
+                                if (selectedTrendMetrics.length > 1) {
+                                  setSelectedTrendMetrics(selectedTrendMetrics.filter(m => m !== metric));
+                                }
+                              }}
+                              className="p-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-32 pb-8 px-8">
+                      {(() => {
+                        const isLoading =
+                          trendTimeSeriesLoading ||
+                          (selectedSegment !== "none" && segmentTrendLoading);
+
+                        if (isLoading) {
+                          return <Skeleton className="h-[650px] w-full" />;
+                        }
+
+                        // If segment is selected and multiple metrics are present, show separate graphs per segment value
+                        if (
+                          selectedSegment !== "none" &&
+                          selectedSegmentValues.size > 0 &&
+                          group.metrics.length > 1
+                        ) {
+                          const segmentGroupData =
+                            chartDataBySegmentValue[groupIndex];
+                          if (!segmentGroupData) return null;
+
+                          return (
+                            <div className="space-y-6">
+                              {segmentGroupData.segmentValueData.map(
+                                ({ segmentValue, data }) => {
+                                  if (!data || data.length === 0) return null;
+
+                                  return (
+                                    <div key={segmentValue} className="space-y-2">
+                                      <h3 className="text-base font-semibold">
+                                        {trendDimensionsList.find(
+                                          (d) => d.value === selectedSegment
+                                        )?.label || "Segment"}
+                                        : {segmentValue || "(empty)"} -{" "}
+                                        {group.metrics
+                                          .map((m) => getMetricLabel(m))
+                                          .join(", ")}
+                                      </h3>
+                                      <div className="h-[550px]">
+                                        <ResponsiveContainer
+                                          width="100%"
+                                          height="100%"
+                                        >
+                                          <LineChart
+                                            data={data}
+                                            margin={{
+                                              top: 5,
+                                              right: 30,
+                                              left: 20,
+                                              bottom: 60,
+                                            }}
+                                          >
+                                            <CartesianGrid strokeDasharray="3 3" />
+                                            <XAxis
+                                              dataKey="date"
+                                              tickFormatter={(value) => {
+                                                const date = new Date(value);
+                                                return trendGranularity === "hour"
+                                                  ? format(date, "d MMM H:mm")
+                                                  : format(date, "MMM d");
+                                              }}
+                                              fontSize={10}
+                                              angle={-45}
+                                              textAnchor="end"
+                                              height={80}
+                                              interval="preserveStartEnd"
+                                            />
+                                            <YAxis
+                                              fontSize={10}
+                                              domain={[0, "auto"]}
+                                              tickFormatter={(value) => {
+                                                if (group.type === "percentage") {
+                                                  return `${value.toFixed(0)}%`;
+                                                }
+                                                // For large numbers, format them
+                                                if (value >= 1000000)
+                                                  return `${(
+                                                    value / 1000000
+                                                  ).toFixed(1)}M`;
+                                                if (value >= 1000)
+                                                  return `${(
+                                                    value / 1000
+                                                  ).toFixed(1)}K`;
+                                                return value.toLocaleString();
+                                              }}
+                                            />
+                                            <Tooltip
+                                              content={({
+                                                active,
+                                                payload,
+                                                label,
+                                              }) => {
+                                                if (
+                                                  active &&
+                                                  payload &&
+                                                  payload.length
+                                                ) {
+                                                  const dateStr =
+                                                    label ||
+                                                    payload[0].payload?.date ||
+                                                    "";
+                                                  const formattedDate =
+                                                    formatTooltipDate(dateStr);
+                                                  return (
+                                                    <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded shadow-lg border border-gray-700">
+                                                      <p className="text-gray-300 mb-2 font-medium">
+                                                        {formattedDate}
+                                                      </p>
+                                                      {payload.map(
+                                                        (entry, index) => {
+                                                          const value =
+                                                            entry.value as number;
+                                                          const isPercentage =
+                                                            group.type ===
+                                                            "percentage";
+                                                          const formattedValue =
+                                                            isPercentage
+                                                              ? `${value.toFixed(
+                                                                2
+                                                              )}%`
+                                                              : value >= 1000000
+                                                                ? `${(
+                                                                  value / 1000000
+                                                                ).toFixed(2)}M`
+                                                                : value >= 1000
+                                                                  ? `${(
+                                                                    value / 1000
+                                                                  ).toFixed(2)}K`
+                                                                  : value.toLocaleString();
+                                                          return (
+                                                            <p
+                                                              key={index}
+                                                              className="mb-1"
+                                                              style={{
+                                                                color:
+                                                                  entry.color,
+                                                              }}
+                                                            >
+                                                              <span className="font-semibold">
+                                                                {entry.name}:
+                                                              </span>{" "}
+                                                              {formattedValue}
+                                                            </p>
+                                                          );
+                                                        }
+                                                      )}
+                                                    </div>
+                                                  );
+                                                }
+                                                return null;
+                                              }}
+                                            />
+                                            <Legend
+                                              wrapperStyle={{
+                                                paddingTop: "20px",
+                                              }}
+                                              formatter={(value: string) => {
+                                                if (data.length > 0) {
+                                                  const values = data
+                                                    .map((point) => {
+                                                      const val = (
+                                                        point as Record<
+                                                          string,
+                                                          number | string
+                                                        >
+                                                      )[value];
+                                                      return typeof val ===
+                                                        "number"
+                                                        ? val
+                                                        : 0;
+                                                    })
+                                                    .filter(
+                                                      (v) =>
+                                                        typeof v === "number" &&
+                                                        !isNaN(v)
+                                                    );
+                                                  if (values.length > 0) {
+                                                    const avg =
+                                                      values.reduce(
+                                                        (sum, v) => sum + v,
+                                                        0
+                                                      ) / values.length;
+                                                    const isPercentage =
+                                                      group.type === "percentage";
+                                                    const formattedAvg =
+                                                      isPercentage
+                                                        ? `${avg.toFixed(2)}%`
+                                                        : avg >= 1000000
+                                                          ? `${(
+                                                            avg / 1000000
+                                                          ).toFixed(2)}M`
+                                                          : avg >= 1000
+                                                            ? `${(avg / 1000).toFixed(
+                                                              2
+                                                            )}K`
+                                                            : avg.toFixed(0);
+                                                    return `${value} (${formattedAvg})`;
+                                                  }
+                                                }
+                                                return value;
+                                              }}
+                                            />
+                                            {group.metrics.map(
+                                              (metric, index) => (
+                                                <Line
+                                                  key={metric}
+                                                  type="monotone"
+                                                  dataKey={getMetricLabel(metric)}
+                                                  name={getMetricLabel(metric)}
+                                                  stroke={
+                                                    COLORS[index % COLORS.length]
+                                                  }
+                                                  strokeWidth={3}
+                                                  dot={false}
+                                                  activeDot={{ r: 6 }}
+                                                />
+                                              )
+                                            )}
+                                          </LineChart>
+                                        </ResponsiveContainer>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              )}
+                            </div>
+                          );
+                        }
+
+                        // Default rendering (no segment or single metric)
+                        const groupData = chartDataByGroup[groupIndex];
+                        if (!groupData) return null;
+
+                        if (!groupData.data || groupData.data.length === 0) {
+                          return (
+                            <div className="h-[650px] flex items-center justify-center text-muted-foreground">
+                              No data available for the selected filters
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="h-[650px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart
+                                data={groupData.data}
+                                margin={{
+                                  top: 5,
+                                  right: 30,
+                                  left: 20,
+                                  bottom: 60,
                                 }}
-                              />
-                              {selectedSegment === "none"
-                                ? group.metrics.map((metric, index) => (
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis
+                                  dataKey="date"
+                                  tickFormatter={(value) => {
+                                    const date = new Date(value);
+                                    return trendGranularity === "hour"
+                                      ? format(date, "d MMM H:mm")
+                                      : format(date, "MMM d");
+                                  }}
+                                  fontSize={10}
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={80}
+                                  interval="preserveStartEnd"
+                                />
+                                <YAxis
+                                  fontSize={10}
+                                  domain={[0, "auto"]}
+                                  tickFormatter={(value) => {
+                                    if (group.type === "percentage") {
+                                      return `${value.toFixed(0)}%`;
+                                    }
+                                    if (value >= 1000000)
+                                      return `${(value / 1000000).toFixed(1)}M`;
+                                    if (value >= 1000)
+                                      return `${(value / 1000).toFixed(1)}K`;
+                                    return value.toLocaleString();
+                                  }}
+                                />
+                                <Tooltip
+                                  content={({ active, payload, label }) => {
+                                    if (active && payload && payload.length) {
+                                      const dateStr =
+                                        label || payload[0].payload?.date || "";
+                                      const formattedDate =
+                                        formatTooltipDate(dateStr);
+                                      return (
+                                        <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded shadow-lg border border-gray-700">
+                                          <p className="text-gray-300 mb-2 font-medium">
+                                            {formattedDate}
+                                          </p>
+                                          {payload.map((entry, index) => {
+                                            const value = entry.value as number;
+                                            const isPercentage =
+                                              group.type === "percentage";
+                                            const formattedValue = isPercentage
+                                              ? `${value.toFixed(2)}%`
+                                              : value >= 1000000
+                                                ? `${(value / 1000000).toFixed(2)}M`
+                                                : value >= 1000
+                                                  ? `${(value / 1000).toFixed(2)}K`
+                                                  : value.toLocaleString();
+                                            return (
+                                              <p
+                                                key={index}
+                                                className="mb-1"
+                                                style={{ color: entry.color }}
+                                              >
+                                                <span className="font-semibold">
+                                                  {entry.name}:
+                                                </span>{" "}
+                                                {formattedValue}
+                                              </p>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  }}
+                                />
+                                <Legend
+                                  wrapperStyle={{ paddingTop: "20px" }}
+                                  formatter={(value: string) => {
+                                    if (groupData.data.length > 0) {
+                                      const values = groupData.data
+                                        .map((point) => {
+                                          const val = (
+                                            point as Record<
+                                              string,
+                                              number | string
+                                            >
+                                          )[value];
+                                          return typeof val === "number"
+                                            ? val
+                                            : 0;
+                                        })
+                                        .filter(
+                                          (v) =>
+                                            typeof v === "number" && !isNaN(v)
+                                        );
+                                      if (values.length > 0) {
+                                        const avg =
+                                          values.reduce((sum, v) => sum + v, 0) /
+                                          values.length;
+                                        const isPercentage =
+                                          group.type === "percentage";
+                                        const formattedAvg = isPercentage
+                                          ? `${avg.toFixed(2)}%`
+                                          : avg >= 1000000
+                                            ? `${(avg / 1000000).toFixed(2)}M`
+                                            : avg >= 1000
+                                              ? `${(avg / 1000).toFixed(2)}K`
+                                              : avg.toFixed(0);
+                                        return `${value} (${formattedAvg})`;
+                                      }
+                                    }
+                                    return value;
+                                  }}
+                                />
+                                {selectedSegment === "none"
+                                  ? group.metrics.map((metric, index) => (
                                     <Line
                                       key={metric}
                                       type="monotone"
@@ -3890,7 +3755,7 @@ export function ExecutiveMetricsPage() {
                                       activeDot={{ r: 6 }}
                                     />
                                   ))
-                                : (() => {
+                                  : (() => {
                                     const firstMetricData =
                                       groupData.metricsData?.[0]?.data;
                                     if (
@@ -3910,7 +3775,9 @@ export function ExecutiveMetricsPage() {
                                             string,
                                             number | string
                                           >
-                                        )[k] === "number"
+                                        )[k] === "number" &&
+                                        // Also filter by selectedSegmentValues if applicable
+                                        (selectedSegmentValues.size === 0 || selectedSegmentValues.has(k))
                                     );
                                     return segmentKeys.map((key, index) => (
                                       <Line
@@ -3925,11 +3792,12 @@ export function ExecutiveMetricsPage() {
                                       />
                                     ));
                                   })()}
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
-                      );
-                    })()}
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </CardContent>
                 </Card>
               ))
@@ -4014,24 +3882,24 @@ export function ExecutiveMetricsPage() {
                         {groupedData.data.some(
                           (r) => r.riderFareAcceptanceRate !== undefined
                         ) && (
-                          <TableHead className="text-right">
-                            Rider Fare Acceptance
-                          </TableHead>
-                        )}
+                            <TableHead className="text-right">
+                              Rider Fare Acceptance
+                            </TableHead>
+                          )}
                         {groupedData.data.some(
                           (r) => r.driverQuoteAcceptanceRate !== undefined
                         ) && (
-                          <TableHead className="text-right">
-                            Driver Quote Acceptance
-                          </TableHead>
-                        )}
+                            <TableHead className="text-right">
+                              Driver Quote Acceptance
+                            </TableHead>
+                          )}
                         {groupedData.data.some(
                           (r) => r.driverAcceptanceRate !== undefined
                         ) && (
-                          <TableHead className="text-right">
-                            Driver Acc.
-                          </TableHead>
-                        )}
+                            <TableHead className="text-right">
+                              Driver Acc.
+                            </TableHead>
+                          )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -4058,30 +3926,30 @@ export function ExecutiveMetricsPage() {
                           {groupedData.data.some(
                             (r) => r.riderFareAcceptanceRate !== undefined
                           ) && (
-                            <TableCell className="text-right">
-                              {row.riderFareAcceptanceRate !== undefined
-                                ? formatPercent(row.riderFareAcceptanceRate)
-                                : "-"}
-                            </TableCell>
-                          )}
+                              <TableCell className="text-right">
+                                {row.riderFareAcceptanceRate !== undefined
+                                  ? formatPercent(row.riderFareAcceptanceRate)
+                                  : "-"}
+                              </TableCell>
+                            )}
                           {groupedData.data.some(
                             (r) => r.driverQuoteAcceptanceRate !== undefined
                           ) && (
-                            <TableCell className="text-right">
-                              {row.driverQuoteAcceptanceRate !== undefined
-                                ? formatPercent(row.driverQuoteAcceptanceRate)
-                                : "-"}
-                            </TableCell>
-                          )}
+                              <TableCell className="text-right">
+                                {row.driverQuoteAcceptanceRate !== undefined
+                                  ? formatPercent(row.driverQuoteAcceptanceRate)
+                                  : "-"}
+                              </TableCell>
+                            )}
                           {groupedData.data.some(
                             (r) => r.driverAcceptanceRate !== undefined
                           ) && (
-                            <TableCell className="text-right">
-                              {row.driverAcceptanceRate !== undefined
-                                ? formatPercent(row.driverAcceptanceRate)
-                                : "-"}
-                            </TableCell>
-                          )}
+                              <TableCell className="text-right">
+                                {row.driverAcceptanceRate !== undefined
+                                  ? formatPercent(row.driverAcceptanceRate)
+                                  : "-"}
+                              </TableCell>
+                            )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -4096,6 +3964,6 @@ export function ExecutiveMetricsPage() {
           </CardContent>
         </Card>
       </PageContent>
-    </Page>
+    </Page >
   );
 }
