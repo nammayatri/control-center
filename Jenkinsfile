@@ -9,7 +9,7 @@ pipeline {
     }
   }
   environment {
-    IMAGE_NAME = params.app
+    IMAGE_NAME = "control-center"
     
     // Account 1: Master/Staging
     ACCOUNT_ID_1 = '463356420488'
@@ -23,6 +23,7 @@ pipeline {
     stage('Initialize') {
       steps {
         script {
+          env.IMAGE_NAME = params.app
           env.LAST_COMMIT_HASH = sh(script: "git rev-parse HEAD", returnStdout: true).trim().substring(0,6)
         }
       }
