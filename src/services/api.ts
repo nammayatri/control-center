@@ -24,8 +24,7 @@ const BACKEND_DOMAIN =
 export const API_BASE_URLS = {
   BAP: isDev ? "/api/bap" : `${API_DOMAIN}${apiPath}/bap`,
   BPP: isDev ? "/api/bpp" : `${API_DOMAIN}${apiPath}/bpp`,
-  ADMIN: isDev ? "/api" : `${API_DOMAIN}${adminPath}`,
-  BACKEND: `${BACKEND_DOMAIN}${adminPath}`
+  ADMIN: isDev ? "/api" : `${BACKEND_DOMAIN}${adminPath}`,
 } as const;
 
 // Create axios instances for different API endpoints
@@ -71,7 +70,6 @@ function createApiClient(baseURL: string): AxiosInstance {
 export const bapApi = createApiClient(API_BASE_URLS.BAP);
 export const bppApi = createApiClient(API_BASE_URLS.BPP);
 export const adminApi = createApiClient(API_BASE_URLS.ADMIN);
-export const backendApi = createApiClient(API_BASE_URLS.BACKEND);
 
 // Generic request helper with typed response
 export async function apiRequest<T>(
