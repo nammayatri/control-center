@@ -17,6 +17,8 @@ pipeline {
     // Account 2: Production
     ACCOUNT_ID_2 = '147728078333'
     API_URL_2 = 'https://dashboard.moving.tech'
+
+    VITE_BACKEND_URL = 'https://control-center.moving.tech'
   }
   stages {
     stage('Initialize') {
@@ -36,10 +38,10 @@ pipeline {
                 echo "API URL: ${env.API_URL_1}"
                 if (params.app == 'control-center') {
                   // Build with Staging URL
-                sh "docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_1} -t ${env.IMAGE_NAME}:staging ."
+                sh "docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_1} --build-arg VITE_BACKEND_URL=${env.VITE_BACKEND_URL} -t ${env.IMAGE_NAME}:staging ."
                 } else {
                   // Build server with Staging URL
-                sh "cd server && docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_1} -t ${env.IMAGE_NAME}:staging ."
+                sh "cd server && docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_1} --build-arg VITE_BACKEND_URL=${env.VITE_BACKEND_URL} -t ${env.IMAGE_NAME}:staging ."
                 }
 
                 // Login
@@ -66,9 +68,9 @@ pipeline {
                 
                 // Build with Production URL
                 if (params.app == 'control-center') {
-                  sh "docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_2} -t ${env.IMAGE_NAME}:prod ."
+                  sh "docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_2} --build-arg VITE_BACKEND_URL=${env.VITE_BACKEND_URL} -t ${env.IMAGE_NAME}:prod ."
                 } else {
-                  sh "cd server && docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_2} -t ${env.IMAGE_NAME}:prod ."
+                  sh "cd server && docker build --no-cache --build-arg VITE_API_URL=${env.API_URL_2} --build-arg VITE_BACKEND_URL=${env.VITE_BACKEND_URL} -t ${env.IMAGE_NAME}:prod ."
                 }
 
                 // Login
