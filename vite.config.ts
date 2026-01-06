@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
               "axios",
               "zustand",
               "date-fns",
+              "react-day-picker", // Must be with date-fns to avoid TDZ errors
             ],
             // Other UI utilities
             "ui-utils": [
@@ -56,7 +57,6 @@ export default defineConfig(({ mode }) => {
               "clsx",
               "cmdk",
               "lucide-react",
-              "react-day-picker",
               "sonner",
               "tailwind-merge",
             ],
