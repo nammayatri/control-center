@@ -60,6 +60,7 @@ export interface ExecutiveMetricsResponse {
     otherCancellationRate: number;
     // Search tries: sum of searches for selected vehicle category
     searchTries?: number;
+    lastUpdated?: string;
   };
   filters: MetricsFilters;
   tierType: ServiceTierType;
@@ -76,6 +77,10 @@ export interface ComparisonMetricsResponse {
     searchForQuotes?: number;
     cancelledRides?: number;
     othersCancellation?: number;
+    conversionRate?: number;
+    cancellationRate?: number;
+    userCancellationRate?: number;
+    driverCancellationRate?: number;
   };
   previous: {
     searches: number;
@@ -87,6 +92,10 @@ export interface ComparisonMetricsResponse {
     searchForQuotes?: number;
     cancelledRides?: number;
     othersCancellation?: number;
+    conversionRate?: number;
+    cancellationRate?: number;
+    userCancellationRate?: number;
+    driverCancellationRate?: number;
   };
   change: {
     searches: { absolute: number; percent: number };
@@ -98,6 +107,10 @@ export interface ComparisonMetricsResponse {
     quotesRequested?: { absolute: number; percent: number };
     cancelledRides?: { absolute: number; percent: number };
     quotesAccepted?: { absolute: number; percent: number };
+    conversionRate?: { absolute: number; percent: number };
+    cancellationRate?: { absolute: number; percent: number };
+    userCancellationRate?: { absolute: number; percent: number };
+    driverCancellationRate?: { absolute: number; percent: number };
   };
   currentPeriod: { from: string; to: string };
   previousPeriod: { from: string; to: string };
@@ -110,6 +123,7 @@ export interface TimeSeriesDataPoint {
   completedRides: number;
   earnings: number;
   searchForQuotes?: number;
+  searchGotEstimates?: number;
   quotesAccepted?: number;
   cancelledRides?: number;
   userCancellations?: number;
@@ -196,6 +210,7 @@ export interface DimensionalTimeSeriesDataPoint {
   completedRides: number;
   conversion: number;
   searchForQuotes?: number;
+  searchGotEstimates?: number;
   quotesAccepted?: number;
   bookings?: number;
   cancelledRides?: number;

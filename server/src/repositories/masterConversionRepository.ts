@@ -23,7 +23,70 @@ import {
 
 const DATABASE = "cosmos";
 const TABLE = "master_conversion";
+const LIVE_TABLE = "master_conversion_live";
 const FULL_TABLE = `${DATABASE}.${TABLE}`;
+const FULL_LIVE_TABLE = `${DATABASE}.${LIVE_TABLE}`;
+
+const COMMON_COLUMNS = [
+  "local_time",
+  "hour",
+  "city_timezone",
+  "bpp_merchant_id",
+  "bap_merchant_name",
+  "bpp_merchant_name",
+  "bpp_mocid",
+  "city",
+  "state",
+  "is_purple",
+  "is_book_any",
+  "flow_type",
+  "trip_tag",
+  "service_tier",
+  "user_os_type",
+  "user_sdk_version",
+  "user_bundle_version",
+  "user_backend_app_version",
+  "dynamic_pricing_logic_version",
+  "pooling_logic_version",
+  "pooling_config_version",
+  "searches",
+  "retries",
+  "search_got_estimates",
+  "quotes_requested",
+  "quotes_accepted",
+  "bookings",
+  "completed_rides",
+  "rides",
+  "cancelled_rides",
+  "driver_cancellations",
+  "user_cancellations",
+  "other_cancellations",
+  "unique_search_users",
+  "unique_quote_request_users",
+  "unique_ride_users",
+  "unique_ride_cancelled_users",
+  "unique_drivers_quote_accepted",
+  "unique_ride_drivers",
+  "unique_ride_cancelled_drivers",
+  "total_driver_earnings",
+  "total_travelled_distance",
+  "total_time_to_accept",
+  "total_driver_arrival_time",
+  "date",
+].join(", ");
+
+/**
+ * Returns a subquery that unions historical and live data.
+ * The historical table is used for data before today,
+ * and the live table is used for data from today onwards.
+ */
+function getEffectiveTableSubquery(): string {
+  return `(
+    SELECT ${COMMON_COLUMNS} FROM ${FULL_TABLE} WHERE local_time < toStartOfDay(now(), 'UTC')
+    UNION ALL
+    SELECT ${COMMON_COLUMNS} FROM ${FULL_LIVE_TABLE} WHERE local_time >= toStartOfDay(now(), 'UTC')
+  )`;
+}
 
 // Type alias for query row results
 type QueryRow = Record<string, unknown>;
@@ -332,8 +395,8 @@ function calculateMetrics(
       data.quotesRequested > 0
         ? data.quotesRequested
         : data.searchTries && data.searchTries > 0
-        ? data.searchTries
-        : data.searches;
+          ? data.searchTries
+          : data.searches;
     metrics.conversionRate = safeRatePercent(data.completedRides, denominator);
 
     // Driver Acceptance Rate: rides / bookings * 100 (for Rental/InterCity)
@@ -343,22 +406,23 @@ function calculateMetrics(
   }
 
   // Cancellation rates (same for all tier types)
-  if (data.bookings > 0) {
+  const completedBookings = data.completedRides + data.cancelledRides;
+  if (completedBookings > 0) {
     metrics.cancellationRate = safeRatePercent(
       data.cancelledRides,
-      data.bookings
+      completedBookings
     );
     metrics.userCancellationRate = safeRatePercent(
       data.userCancellations,
-      data.bookings
+      completedBookings
     );
     metrics.driverCancellationRate = safeRatePercent(
       data.driverCancellations,
-      data.bookings
+      completedBookings
     );
     metrics.otherCancellationRate = safeRatePercent(
       data.otherCancellations,
-      data.bookings
+      completedBookings
     );
   }
 
@@ -415,8 +479,9 @@ export async function getExecutiveMetrics(
       sumIf(total_driver_earnings, total_driver_earnings IS NOT NULL) as earnings,
       sumIf(user_cancellations, user_cancellations IS NOT NULL) as user_cancellations,
       sumIf(driver_cancellations, driver_cancellations IS NOT NULL) as driver_cancellations,
-      sumIf(other_cancellations, other_cancellations IS NOT NULL) as other_cancellations
-    FROM ${FULL_TABLE}
+      sumIf(other_cancellations, other_cancellations IS NOT NULL) as other_cancellations,
+      maxIf(local_time, local_time >= toStartOfDay(now(), 'UTC')) as last_updated
+    FROM ${getEffectiveTableSubquery()}
     ${whereClause}
   `;
 
@@ -436,186 +501,11 @@ export async function getExecutiveMetrics(
     userCancellations: safeNumber(row.user_cancellations),
     driverCancellations: safeNumber(row.driver_cancellations),
     otherCancellations: safeNumber(row.other_cancellations),
+    lastUpdated: row.last_updated ? String(row.last_updated) : undefined,
   };
 
-  // Calculate searchTries first (needed for conversion calculation):
-  // - If no category is selected or "All" is selected: searchTries = searches
-  // - If a specific category is selected:
-  //   - For tier data (searches = 0), use quotes_requested as search tries
-  //   - Otherwise, use searches from "All" tier data with same filters
-  let searchTries: number | undefined = undefined;
-  if (filters.vehicleCategory && filters.vehicleCategory !== "All") {
-    // For specific categories, if searches is 0 (tier data), use quotes_requested
-    // Otherwise, query searches from "All" tier data
-    if (rawData.searches === 0 && rawData.quotesRequested > 0) {
-      // Tier data: search tries = quotes requested (where tier data starts)
-      searchTries = rawData.quotesRequested;
-    } else {
-      // Query searches from "All" tier data with same filters
-      const searchTriesConditions: string[] = [];
-
-      if (filters.dateFrom) {
-        const dateFromWithTime = filters.dateFrom.includes(" ")
-          ? filters.dateFrom
-          : `${filters.dateFrom} 00:00:00`;
-        searchTriesConditions.push(
-          `local_time >= parseDateTimeBestEffort('${dateFromWithTime}', 'UTC')`
-        );
-      }
-      if (filters.dateTo) {
-        const dateToObj = new Date(filters.dateTo);
-        dateToObj.setDate(dateToObj.getDate() + 1);
-        const nextDay = dateToObj.toISOString().split("T")[0];
-        const dateToWithTime = `${nextDay} 00:00:00`;
-        searchTriesConditions.push(
-          `local_time < parseDateTimeBestEffort('${dateToWithTime}', 'UTC')`
-        );
-      }
-      if (filters.city && filters.city.length > 0) {
-        const cities = filters.city.map((c) => `'${c}'`).join(",");
-        searchTriesConditions.push(`city IN (${cities})`);
-      }
-      // Handle merchant filters for searchTries
-      if (filters.merchantId && filters.merchantId.length > 0) {
-        const validMerchants = filters.merchantId.filter(
-          (m) => m && m !== "__all__"
-        );
-        if (validMerchants.length > 0) {
-          const merchants = validMerchants.map((m) => `'${m}'`).join(",");
-          searchTriesConditions.push(`bpp_merchant_id IN (${merchants})`);
-        }
-      }
-      if (filters.bapMerchantId && filters.bapMerchantId.length > 0) {
-        const validBapMerchants = filters.bapMerchantId.filter(
-          (m) => m && m !== "__all__"
-        );
-        if (validBapMerchants.length > 0) {
-          const bapMerchants = validBapMerchants.map((m) => `'${m}'`).join(",");
-          searchTriesConditions.push(
-            `trim(bap_merchant_name) IN (${bapMerchants}) AND bap_merchant_name IS NOT NULL AND bap_merchant_name != ''`
-          );
-        }
-      }
-      if (filters.bppMerchantId && filters.bppMerchantId.length > 0) {
-        const validBppMerchants = filters.bppMerchantId.filter(
-          (m) => m && m !== "__all__"
-        );
-        if (validBppMerchants.length > 0) {
-          const bppMerchants = validBppMerchants.map((m) => `'${m}'`).join(",");
-          searchTriesConditions.push(`bpp_merchant_id IN (${bppMerchants})`);
-        }
-      }
-      if (filters.flowType && filters.flowType.length > 0) {
-        const flowTypes = filters.flowType.map((f) => `'${f}'`).join(",");
-        searchTriesConditions.push(`flow_type IN (${flowTypes})`);
-      }
-      if (filters.tripTag && filters.tripTag.length > 0) {
-        const tripTags = filters.tripTag.map((t) => `'${t}'`).join(",");
-        searchTriesConditions.push(`trip_tag IN (${tripTags})`);
-      }
-      if (filters.userOsType && filters.userOsType.length > 0) {
-        const validUserOsTypes = filters.userOsType.filter(
-          (t) => t && t !== "__all__"
-        );
-        if (validUserOsTypes.length > 0) {
-          const userOsTypes = validUserOsTypes.map((t) => `'${t}'`).join(",");
-          searchTriesConditions.push(`user_os_type IN (${userOsTypes})`);
-        }
-      }
-      if (filters.userSdkVersion && filters.userSdkVersion.length > 0) {
-        const validVersions = filters.userSdkVersion.filter(
-          (t) => t && t !== "__all__"
-        );
-        if (validVersions.length > 0) {
-          const versions = validVersions.map((t) => `'${t}'`).join(",");
-          searchTriesConditions.push(`user_sdk_version IN (${versions})`);
-        }
-      }
-      if (filters.userBundleVersion && filters.userBundleVersion.length > 0) {
-        const validVersions = filters.userBundleVersion.filter(
-          (t) => t && t !== "__all__"
-        );
-        if (validVersions.length > 0) {
-          const versions = validVersions.map((t) => `'${t}'`).join(",");
-          searchTriesConditions.push(`user_bundle_version IN (${versions})`);
-        }
-      }
-      if (
-        filters.userBackendAppVersion &&
-        filters.userBackendAppVersion.length > 0
-      ) {
-        const validVersions = filters.userBackendAppVersion.filter(
-          (t) => t && t !== "__all__"
-        );
-        if (validVersions.length > 0) {
-          const versions = validVersions.map((t) => `'${t}'`).join(",");
-          searchTriesConditions.push(
-            `user_backend_app_version IN (${versions})`
-          );
-        }
-      }
-      if (
-        filters.dynamicPricingLogicVersion &&
-        filters.dynamicPricingLogicVersion.length > 0
-      ) {
-        const validVersions = filters.dynamicPricingLogicVersion.filter(
-          (t) => t && t !== "__all__"
-        );
-        if (validVersions.length > 0) {
-          const versions = validVersions.map((t) => `'${t}'`).join(",");
-          searchTriesConditions.push(
-            `dynamic_pricing_logic_version IN (${versions})`
-          );
-        }
-      }
-      if (
-        filters.poolingLogicVersion &&
-        filters.poolingLogicVersion.length > 0
-      ) {
-        const validVersions = filters.poolingLogicVersion.filter(
-          (t) => t && t !== "__all__"
-        );
-        if (validVersions.length > 0) {
-          const versions = validVersions.map((t) => `'${t}'`).join(",");
-          searchTriesConditions.push(`pooling_logic_version IN (${versions})`);
-        }
-      }
-      if (
-        filters.poolingConfigVersion &&
-        filters.poolingConfigVersion.length > 0
-      ) {
-        const validVersions = filters.poolingConfigVersion.filter(
-          (t) => t && t !== "__all__"
-        );
-        if (validVersions.length > 0) {
-          const versions = validVersions.map((t) => `'${t}'`).join(",");
-          searchTriesConditions.push(`pooling_config_version IN (${versions})`);
-        }
-      }
-
-      // Use "All" tier data to get total searches
-      searchTriesConditions.push(`service_tier = 'All'`);
-
-      const searchTriesWhereClause =
-        searchTriesConditions.length > 0
-          ? `WHERE ${searchTriesConditions.join(" AND ")}`
-          : "";
-
-      const searchTriesQuery = `
-                SELECT
-                  sumIf(searches, searches IS NOT NULL) as searches
-                FROM ${FULL_TABLE}
-                ${searchTriesWhereClause}
-            `;
-
-      const searchTriesRows = await executeQuery(searchTriesQuery);
-      const searchTriesRow = searchTriesRows[0] || {};
-      searchTries = safeNumber(searchTriesRow.searches);
-    }
-  } else {
-    // If no category is selected or "All" is selected, searchTries = searches
-    searchTries = rawData.searches;
-  }
+  // Search try and Quotes requested are the same.
+  const searchTries = rawData.quotesRequested;
 
   // Now calculate metrics with searchTries available
   const metrics = calculateMetrics({ ...rawData, searchTries }, tierType);
@@ -665,25 +555,49 @@ export async function getComparisonMetrics(
     return `${formatted} 00:00:00`;
   };
 
-  const currentFromFormatted = formatDateForQuery(currentFrom, false);
-  const currentToFormatted = formatDateForQuery(currentTo, true);
-  const previousFromFormatted = formatDateForQuery(previousFrom, false);
-  const previousToFormatted = formatDateForQuery(previousTo, true);
+  const currentFromDate = new Date(formatDateForQuery(currentFrom, false));
+  const currentToDate = new Date(formatDateForQuery(currentTo, true));
+  const previousFromDate = new Date(formatDateForQuery(previousFrom, false));
+  const previousToDate = new Date(formatDateForQuery(previousTo, true));
+
+  const now = new Date();
+
+  // If current period includes "now", we should limit both intervals for a fair comparison
+  let effectiveCurrentTo = currentToDate;
+  let effectivePreviousTo = previousToDate;
+
+  if (currentFromDate <= now && currentToDate > now) {
+    // Current period is active (includes "today")
+    effectiveCurrentTo = now;
+
+    // Calculate the offset from the start of the current period
+    const offsetMs = now.getTime() - currentFromDate.getTime();
+
+    // Apply the same offset to the start of the previous period
+    effectivePreviousTo = new Date(previousFromDate.getTime() + offsetMs);
+  }
+
+  const currentFromFormatted = currentFromDate.toISOString().replace('T', ' ').split('.')[0];
+  const currentToFormatted = effectiveCurrentTo.toISOString().replace('T', ' ').split('.')[0];
+  const previousFromFormatted = previousFromDate.toISOString().replace('T', ' ').split('.')[0];
+  const previousToFormatted = effectivePreviousTo.toISOString().replace('T', ' ').split('.')[0];
 
   const query = `
     SELECT
       'current' as period,
       sumIf(searches, searches IS NOT NULL) as searches,
+      sumIf(search_got_estimates, search_got_estimates IS NOT NULL) as search_got_estimates,
       sumIf(quotes_requested, quotes_requested IS NOT NULL) as quotes_requested,
       sumIf(quotes_accepted, quotes_accepted IS NOT NULL) as quotes_accepted,
       sumIf(bookings, bookings IS NOT NULL) as bookings,
+      sumIf(rides, rides IS NOT NULL) as rides,
       sumIf(completed_rides, completed_rides IS NOT NULL) as completed_rides,
       sumIf(cancelled_rides, cancelled_rides IS NOT NULL) as cancelled_rides,
       sumIf(total_driver_earnings, total_driver_earnings IS NOT NULL) as earnings,
       sumIf(user_cancellations, user_cancellations IS NOT NULL) as user_cancellations,
       sumIf(driver_cancellations, driver_cancellations IS NOT NULL) as driver_cancellations,
       sumIf(other_cancellations, other_cancellations IS NOT NULL) as other_cancellations
-    FROM ${FULL_TABLE}
+    FROM ${getEffectiveTableSubquery()}
     WHERE local_time >= parseDateTimeBestEffort('${currentFromFormatted}', 'UTC') 
       AND local_time < parseDateTimeBestEffort('${currentToFormatted}', 'UTC')
     ${filterCondition}
@@ -691,16 +605,18 @@ export async function getComparisonMetrics(
     SELECT
       'previous' as period,
       sumIf(searches, searches IS NOT NULL) as searches,
+      sumIf(search_got_estimates, search_got_estimates IS NOT NULL) as search_got_estimates,
       sumIf(quotes_requested, quotes_requested IS NOT NULL) as quotes_requested,
       sumIf(quotes_accepted, quotes_accepted IS NOT NULL) as quotes_accepted,
       sumIf(bookings, bookings IS NOT NULL) as bookings,
+      sumIf(rides, rides IS NOT NULL) as rides,
       sumIf(completed_rides, completed_rides IS NOT NULL) as completed_rides,
       sumIf(cancelled_rides, cancelled_rides IS NOT NULL) as cancelled_rides,
       sumIf(total_driver_earnings, total_driver_earnings IS NOT NULL) as earnings,
       sumIf(user_cancellations, user_cancellations IS NOT NULL) as user_cancellations,
       sumIf(driver_cancellations, driver_cancellations IS NOT NULL) as driver_cancellations,
       sumIf(other_cancellations, other_cancellations IS NOT NULL) as other_cancellations
-    FROM ${FULL_TABLE}
+    FROM ${getEffectiveTableSubquery()}
     WHERE local_time >= parseDateTimeBestEffort('${previousFromFormatted}', 'UTC') 
       AND local_time < parseDateTimeBestEffort('${previousToFormatted}', 'UTC')
     ${filterCondition}
@@ -709,6 +625,42 @@ export async function getComparisonMetrics(
   const rows = await executeQuery(query);
   const currentRow = rows.find((r) => r.period === "current") || {};
   const previousRow = rows.find((r) => r.period === "previous") || {};
+
+  const tierType = getServiceTierType(filters);
+
+  const currentMetrics = calculateMetrics(
+    {
+      searches: safeNumber(currentRow.searches),
+      searchGotEstimates: safeNumber(currentRow.search_got_estimates),
+      quotesRequested: safeNumber(currentRow.quotes_requested),
+      quotesAccepted: safeNumber(currentRow.quotes_accepted),
+      bookings: safeNumber(currentRow.bookings),
+      rides: safeNumber(currentRow.rides),
+      completedRides: safeNumber(currentRow.completed_rides),
+      cancelledRides: safeNumber(currentRow.cancelled_rides),
+      userCancellations: safeNumber(currentRow.user_cancellations),
+      driverCancellations: safeNumber(currentRow.driver_cancellations),
+      otherCancellations: safeNumber(currentRow.other_cancellations),
+    },
+    tierType
+  );
+
+  const previousMetrics = calculateMetrics(
+    {
+      searches: safeNumber(previousRow.searches),
+      searchGotEstimates: safeNumber(previousRow.search_got_estimates),
+      quotesRequested: safeNumber(previousRow.quotes_requested),
+      quotesAccepted: safeNumber(previousRow.quotes_accepted),
+      bookings: safeNumber(previousRow.bookings),
+      rides: safeNumber(previousRow.rides),
+      completedRides: safeNumber(previousRow.completed_rides),
+      cancelledRides: safeNumber(previousRow.cancelled_rides),
+      userCancellations: safeNumber(previousRow.user_cancellations),
+      driverCancellations: safeNumber(previousRow.driver_cancellations),
+      otherCancellations: safeNumber(previousRow.other_cancellations),
+    },
+    tierType
+  );
 
   const current: MasterConversionComparisonPeriodData = {
     searches: safeNumber(currentRow.searches),
@@ -721,6 +673,10 @@ export async function getComparisonMetrics(
     cancelledRides: safeNumber(currentRow.cancelled_rides),
     othersCancellation: safeNumber(currentRow.other_cancellations),
     quotesAccepted: safeNumber(currentRow.quotes_accepted),
+    conversionRate: currentMetrics.conversionRate,
+    cancellationRate: currentMetrics.cancellationRate,
+    userCancellationRate: currentMetrics.userCancellationRate,
+    driverCancellationRate: currentMetrics.driverCancellationRate,
   };
 
   const previous: MasterConversionComparisonPeriodData = {
@@ -734,6 +690,10 @@ export async function getComparisonMetrics(
     cancelledRides: safeNumber(previousRow.cancelled_rides),
     othersCancellation: safeNumber(previousRow.other_cancellations),
     quotesAccepted: safeNumber(previousRow.quotes_accepted),
+    conversionRate: previousMetrics.conversionRate,
+    cancellationRate: previousMetrics.cancellationRate,
+    userCancellationRate: previousMetrics.userCancellationRate,
+    driverCancellationRate: previousMetrics.driverCancellationRate,
   };
 
   const calculateChange = (key: keyof MasterConversionComparisonPeriodData) => {
@@ -758,6 +718,10 @@ export async function getComparisonMetrics(
       quotesRequested: calculateChange("searchForQuotes"),
       cancelledRides: calculateChange("cancelledRides"),
       quotesAccepted: calculateChange("quotesAccepted"),
+      conversionRate: calculateChange("conversionRate"),
+      cancellationRate: calculateChange("cancellationRate"),
+      userCancellationRate: calculateChange("userCancellationRate"),
+      driverCancellationRate: calculateChange("driverCancellationRate"),
     },
   };
 }
@@ -786,6 +750,7 @@ export async function getTimeSeries(
     SELECT
       ${timeBucketExpr} as date,
       sumIf(searches, searches IS NOT NULL) as searches,
+      sumIf(search_got_estimates, search_got_estimates IS NOT NULL) as search_got_estimates,
       sumIf(quotes_requested, quotes_requested IS NOT NULL) as quotes_requested,
       sumIf(quotes_accepted, quotes_accepted IS NOT NULL) as quotes_accepted,
       sumIf(bookings, bookings IS NOT NULL) as bookings,
@@ -794,7 +759,7 @@ export async function getTimeSeries(
       sumIf(user_cancellations, user_cancellations IS NOT NULL) as user_cancellations,
       sumIf(driver_cancellations, driver_cancellations IS NOT NULL) as driver_cancellations,
       sumIf(total_driver_earnings, total_driver_earnings IS NOT NULL) as earnings
-    FROM ${FULL_TABLE}
+    FROM ${getEffectiveTableSubquery()}
     ${whereClause}
     GROUP BY date
     ${orderClause}
@@ -814,6 +779,11 @@ export async function getTimeSeries(
     const searchForQuotes = safeNumber(row.quotes_requested);
     if (searchForQuotes > 0) {
       result.searchForQuotes = searchForQuotes;
+    }
+
+    const searchGotEstimates = safeNumber(row.search_got_estimates);
+    if (searchGotEstimates > 0) {
+      result.searchGotEstimates = searchGotEstimates;
     }
 
     const quotesAccepted = safeNumber(row.quotes_accepted);
@@ -850,7 +820,7 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
     SELECT
       city,
       state
-    FROM ${FULL_TABLE}
+    FROM ${getEffectiveTableSubquery()}
     WHERE city IS NOT NULL AND state IS NOT NULL
     GROUP BY city, state
     ORDER BY state, city
@@ -874,7 +844,7 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
       groupArray(DISTINCT service_tier) as service_tiers,
       min(local_time) as min_date,
       max(local_time) as max_date
-    FROM ${FULL_TABLE}
+    FROM ${getEffectiveTableSubquery()}
   `;
 
   const [rows, cityStateRows] = await Promise.all([
@@ -891,7 +861,7 @@ export async function getFilterOptions(): Promise<MasterConversionFilterOptionsR
     const bapQuery = `
       SELECT
         groupArray(DISTINCT bap_merchant_name) as bap_merchant_names
-      FROM ${FULL_TABLE}
+      FROM ${getEffectiveTableSubquery()}
       WHERE bap_merchant_name IS NOT NULL AND bap_merchant_name != ''
     `;
     const bapRows = await executeQuery(bapQuery);
@@ -1242,7 +1212,7 @@ export async function getGroupedMasterConversionMetrics(
       sumIf(rides, rides IS NOT NULL) as rides,
       sumIf(completed_rides, completed_rides IS NOT NULL) as completed_rides,
       sumIf(total_driver_earnings, total_driver_earnings IS NOT NULL) as earnings
-    FROM ${FULL_TABLE}
+    FROM ${getEffectiveTableSubquery()}
     ${whereClause}
     GROUP BY ${dimensionColumn}
     ${orderClause}
@@ -1531,8 +1501,8 @@ export async function getDimensionalTimeSeries(
     dimension === "none"
       ? "'Total'"
       : needsVehicleMapping
-      ? "service_tier"
-      : dimension;
+        ? "service_tier"
+        : dimension;
 
   const query = `
     SELECT
@@ -1547,7 +1517,7 @@ export async function getDimensionalTimeSeries(
       sumIf(user_cancellations, user_cancellations IS NOT NULL) as user_cancellations,
       sumIf(driver_cancellations, driver_cancellations IS NOT NULL) as driver_cancellations,
       sumIf(total_driver_earnings, total_driver_earnings IS NOT NULL) as earnings
-    FROM ${FULL_TABLE}
+    FROM ${getEffectiveTableSubquery()}
     ${whereClause}
     GROUP BY timestamp, dimension_value
     ORDER BY timestamp ASC

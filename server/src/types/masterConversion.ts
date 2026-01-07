@@ -58,12 +58,13 @@ export interface ConversionMetrics {
 
 export interface MasterConversionExecutiveTotals
   extends ConversionFunnelFields,
-    ConversionMetrics {
+  ConversionMetrics {
   // Legacy fields for backward compatibility
   quotesRequested: number;
   quotesAccepted: number;
   // Search tries: sum of searches for the selected vehicle category (from "All" tier data)
   searchTries?: number;
+  lastUpdated?: string;
 }
 
 export interface MasterConversionExecutiveResponse {
@@ -85,6 +86,10 @@ export interface MasterConversionComparisonPeriodData
   cancelledRides?: number;
   othersCancellation?: number;
   quotesAccepted?: number;
+  conversionRate?: number;
+  cancellationRate?: number;
+  userCancellationRate?: number;
+  driverCancellationRate?: number;
 }
 
 export interface MasterConversionComparisonChanges {
@@ -97,6 +102,10 @@ export interface MasterConversionComparisonChanges {
   quotesRequested?: { absolute: number; percent: number };
   cancelledRides?: { absolute: number; percent: number };
   quotesAccepted?: { absolute: number; percent: number };
+  conversionRate?: { absolute: number; percent: number };
+  cancellationRate?: { absolute: number; percent: number };
+  userCancellationRate?: { absolute: number; percent: number };
+  driverCancellationRate?: { absolute: number; percent: number };
 }
 
 export interface MasterConversionComparisonResponse {
@@ -114,6 +123,7 @@ export interface MasterConversionTimeSeriesDataPoint {
   completedRides: number;
   earnings: number;
   searchForQuotes?: number; // For tier calculations
+  searchGotEstimates?: number;
   quotesAccepted?: number;
   cancelledRides?: number;
   userCancellations?: number;
@@ -198,6 +208,7 @@ export interface DimensionalTimeSeriesDataPoint {
   dimensionValue: string;
   searches: number;
   searchForQuotes?: number; // For tier calculations
+  searchGotEstimates?: number;
   quotesAccepted?: number;
   bookings?: number;
   completedRides: number;

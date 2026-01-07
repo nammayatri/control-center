@@ -6,6 +6,8 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { format, parseISO } from 'date-fns';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { ChevronDown } from 'lucide-react';
 
 interface StatTileProps {
   label: string;
@@ -19,6 +21,12 @@ interface StatTileProps {
   isNegativeMetric?: boolean; // If true, positive change is bad (e.g., cancellations)
   dateRange?: { from: string; to: string }; // Date range for tooltip
   comparisonDateRange?: { from: string; to: string }; // Previous period date range for comparison tooltip
+  subMetrics?: Array<{
+    label: string;
+    value: string | number;
+    change?: number;
+    isNegativeMetric?: boolean;
+  }>;
 }
 
 export function StatTile({
@@ -33,6 +41,7 @@ export function StatTile({
   isNegativeMetric = false,
   dateRange: _dateRange,
   comparisonDateRange,
+  subMetrics,
 }: StatTileProps) {
   const getTrendIcon = () => {
     if (change === undefined || change === 0) return <Minus className="h-3 w-3" />;
@@ -120,13 +129,16 @@ export function StatTile({
   //     ? 'rgba(239, 68, 68, 0.1)' // light red
   //     : 'rgba(107, 114, 128, 0.1)'; // light gray
 
-  return (
-    <Card className={cn("", className)}>
+  const content = (
+    <Card className={cn(subMetrics ? "cursor-pointer hover:bg-muted/50 transition-colors" : "", className)}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2">
           {/* Left side: Metric and change */}
           <div className="flex-shrink-0 min-w-[120px]">
-            <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <p className="text-xs font-medium text-muted-foreground">{label}</p>
+              {subMetrics && <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+            </div>
             <p className="text-2xl font-bold mb-1">{value}</p>
             {change !== undefined && (
               <TooltipProvider>
@@ -208,6 +220,45 @@ export function StatTile({
       </CardContent>
     </Card>
   );
+
+  if (subMetrics) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          {content}
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-3 shadow-xl border-zinc-200 dark:border-zinc-800" align="start">
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Breakdown</h4>
+            <div className="space-y-2">
+              {subMetrics.map((sub, idx) => {
+                const isPositive = (sub.change || 0) > 0;
+                const isGood = sub.isNegativeMetric ? !isPositive : isPositive;
+                const trendColor = (sub.change === 0 || sub.change === undefined) ? 'text-muted-foreground' : (isGood ? 'text-green-600' : 'text-red-600');
+
+                return (
+                  <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">{sub.label}</p>
+                      <p className="text-sm font-bold">{sub.value}</p>
+                    </div>
+                    {sub.change !== undefined && (
+                      <div className={cn("flex items-center gap-0.5 text-xs font-medium", trendColor)}>
+                        {sub.change > 0 ? <TrendingUp className="h-3 w-3" /> : (sub.change < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />)}
+                        <span>{Math.abs(sub.change).toFixed(1)}%</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return content;
 }
 
 interface KPIHeaderProps {
