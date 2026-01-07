@@ -179,7 +179,7 @@ export function DashboardPage() {
                     1
                   </div>
                   <div>
-                    <h4 className="font-medium">Select a Merchant & City</h4>
+                    <h4 className="font-medium">Select a Merchant & City 🚀</h4>
                     <p className="text-sm text-muted-foreground">
                       Use the merchant and city selectors in the top bar to change context.
                     </p>
