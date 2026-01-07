@@ -87,7 +87,14 @@ async function generateJWT(serviceAccountKey: any): Promise<string> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getAccessToken(serviceAccountKey: any): Promise<string> {
-    const jwt = await generateJWT(serviceAccountKey);
+    // Fix private key format: replace escaped newlines with actual newlines
+    // This is necessary when the key is stored in environment variables
+    const fixedServiceAccountKey = {
+        ...serviceAccountKey,
+        private_key: serviceAccountKey.private_key.replaceAll('\\n', '\n'),
+    };
+    
+    const jwt = await generateJWT(fixedServiceAccountKey);
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
