@@ -5,6 +5,8 @@
  * Server handles authentication and keeps credentials secure.
  */
 
+import { adminApi } from './api';
+
 // ============================================
 // Types
 // ============================================
@@ -45,12 +47,6 @@ export interface ValidationResponse {
 }
 
 // ============================================
-// Configuration
-// ============================================
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-
-// ============================================
 // API Functions
 // ============================================
 
@@ -58,26 +54,16 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001
  * Get list of configured Firebase projects
  */
 export async function getFirebaseProjects(): Promise<FirebaseProject[]> {
-  const response = await fetch(`${API_BASE_URL}/api/firebase/projects`);
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Firebase projects: ${response.statusText}`);
-  }
-  
-  return response.json();
+  const response = await adminApi.get<FirebaseProject[]>('/firebase/projects');
+  return response.data;
 }
 
 /**
  * Fetch Remote Config template for a project
  */
 export async function getRemoteConfig(projectId: string): Promise<RemoteConfigResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/firebase/config/${projectId}`);
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Remote Config: ${response.statusText}`);
-  }
-  
-  return response.json();
+  const response = await adminApi.get<RemoteConfigResponse>(`/firebase/config/${projectId}`);
+  return response.data;
 }
 
 /**
@@ -88,20 +74,11 @@ export async function publishRemoteConfig(
   template: RemoteConfigTemplate,
   etag: string
 ): Promise<RemoteConfigResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/firebase/config/${projectId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ template, etag }),
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to publish Remote Config: ${response.statusText}`);
-  }
-  
-  return response.json();
+  const response = await adminApi.post<RemoteConfigResponse>(
+    `/firebase/config/${projectId}`,
+    { template, etag }
+  );
+  return response.data;
 }
 
 /**
@@ -111,17 +88,9 @@ export async function validateRemoteConfig(
   projectId: string,
   template: RemoteConfigTemplate
 ): Promise<ValidationResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/firebase/config/${projectId}/validate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ template }),
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to validate Remote Config: ${response.statusText}`);
-  }
-  
-  return response.json();
+  const response = await adminApi.post<ValidationResponse>(
+    `/firebase/config/${projectId}/validate`,
+    { template }
+  );
+  return response.data;
 }
