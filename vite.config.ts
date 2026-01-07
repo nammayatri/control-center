@@ -93,6 +93,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        "/api/firebase": {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
   };
