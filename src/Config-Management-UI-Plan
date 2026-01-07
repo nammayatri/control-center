@@ -1,0 +1,62 @@
+# Generic System Config Dashboard
+
+## Goal Description
+Implement a "Generic System Config Dashboard" to manage multiple configuration tables (e.g., KvConfigs, TransporterConfig). This dashboard will allow users to view and edit configurations dynamically based on the selected config type.
+
+## User Review Required
+No critical review items identified yet, standard feature addition.
+
+## Proposed Changes
+
+### Backend Integration
+#### [MODIFY] [config.ts](file:///Users/addhithyarh/Documents/control-center/src/services/config.ts)
+- Add `ConfigType` enum (KV_CONFIGS, TRANSPORTER_CONFIG, etc.).
+- Add `SystemConfig` interface.
+- Add `fetchConfigs(configType: string)` method.
+- Add `updateConfig(payload: UpdateConfigPayload)` method.
+- Add `supportedTables()` method (if endpoint exists/is needed).
+
+### Frontend Components
+#### [NEW] [ConfigManagementPage.tsx](file:///Users/addhithyarh/Documents/control-center/src/modules/config/ConfigManagementPage.tsx)
+- Main page component.
+- Holds state for `selectedConfigType`, `configs`, `loading`, etc.
+- Renders `ConfigTypeSelector` and `ConfigDataGrid`.
+
+#### [NEW] [ConfigTypeSelector.tsx](file:///Users/addhithyarh/Documents/control-center/src/modules/config/ConfigTypeSelector.tsx) (or inline in page)
+- Dropdown to select `ConfigTable` type.
+
+#### [NEW] [ConfigDataGrid.tsx](file:///Users/addhithyarh/Documents/control-center/src/modules/config/ConfigDataGrid.tsx) (or inline)
+- Table to display config keys, values, descriptions, updated at.
+- "Edit" action button.
+
+#### [NEW] [ConfigEditor.tsx](file:///Users/addhithyarh/Documents/control-center/src/modules/config/ConfigEditor.tsx)
+- Modal or inline editor.
+- Uses a JSON editor (or text area with validation) for the value.
+
+### Routing & Navigation
+#### [MODIFY] [navigation.ts](file:///Users/addhithyarh/Documents/control-center/src/config/navigation.ts)
+- Add "Config Management" to the "System Config" children.
+
+#### [MODIFY] [App.tsx](file:///Users/addhithyarh/Documents/control-center/src/App.tsx)
+- Add route `/config/management` mapping to `ConfigManagementPage`.
+
+## Verification Plan
+
+### Automated Tests
+- Run `npm run dev` and navigate to the new page.
+
+### Manual Verification
+1.  **Navigation**:
+    -   Click on "System Config" -> "Config Management" in the sidebar.
+    -   Verify the page loads.
+2.  **Selection**:
+    -   Select "KV_CONFIGS" from the dropdown.
+    -   Verify table populates with data (mocked or real).
+3.  **Editing**:
+    -   Click "Edit" on a row.
+    -   Change the value.
+    -   Save.
+    -   Verify the update persists (refresh or check backend).
+4.  **Error Handling**:
+    -   Try invalid JSON.
+    -   Verify error message.

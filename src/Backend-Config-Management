@@ -1,0 +1,46 @@
+# Backend Config Management Dashboard
+
+## Goal Description
+Build a dashboard for managing **all backend system configurations** from the Control Center. The solution must be generic enough to handle various config tables (e.g., `kv_configs`, `transporter_config`, `merchant_service_config`) via a unified API interface.
+
+## User Review Required
+> [!NOTE]
+> **Generic Approach**: The API will be designed to accept a `tableName` or `configType` parameter to route requests to the appropriate table.
+> **Scope**: Focused on Backend APIs. Frontend is external.
+
+## Proposed Changes
+### Backend (`lib/yudhishthira` & API Layer)
+#### [NEW] `lib/yudhishthira/src/Lib/Yudhishthira/Types/SystemConfig.hs`
+- Define `ConfigTable` enum (e.g., `KV_CONFIGS`, `TRANSPORTER_CONFIG`, etc.).
+- Define generic Request/Response types:
+    - `GetConfigReq { configType :: ConfigTable, ... }`
+    - `UpdateConfigReq { configType :: ConfigTable, key :: Text, value :: Value, ... }`
+
+#### [NEW] `lib/yudhishthira/src/Lib/Yudhishthira/Flow/SystemConfig.hs`
+- Implement a **Registry/Dispatcher** pattern:
+    - `fetchConfig :: ConfigTable -> ...`
+    - `updateConfig :: ConfigTable -> ...`
+- Implement handlers for each supported table type (starting with `kv_configs` and adding others like `transporter_config` as found).
+
+#### [NEW] `app/.../Main/src/Domain/Action/Dashboard/SystemConfig.hs`
+- Action wrappers for the generic flow functions.
+
+#### [MODIFY] API Definition
+- Register generic endpoints:
+    - `POST /system-config/details`: Get configs for a specific table.
+    - `POST /system-config/update`: Update a specific config in a table.
+    - `GET /system-config/tables`: List all supported config tables.
+
+### Configuration Tables Strategy
+We will map internal Beam tables to exposed `ConfigTable` enum values.
+- `kv_configs`: Key-Value pair table.
+- `transporter_config`: likely a single-row-per-merchant or similar.
+- `merchant_service_config`: Service-specific configs.
+*(Will add more as they are identified)*
+
+## Verification Plan
+### Automated Tests
+- **Backend Tests**: Create unit tests in `SystemConfig.hs` to verify DB interactions (mocked or integration).
+- **Manual API Testing**:
+    - Use `curl` to fetch configs: verify JSON structure and content matches DB.
+    - Use `curl` to update a config: verify DB update and subsequent fetch reflects change.
