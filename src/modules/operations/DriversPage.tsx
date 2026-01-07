@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { getDriverInfo } from '../../services/drivers';
+import { CountryCodeSelect } from '../../components/ui/country-code-select';
 
 export function DriversPage() {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export function DriversPage() {
 
   const [searchType, setSearchType] = useState<'phone' | 'id' | 'vehicle' | 'dl' | 'rc' | 'email'>('phone');
   const [searchValue, setSearchValue] = useState('');
+  const [countryCode, setCountryCode] = useState('91'); // Default to India
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +58,7 @@ export function DriversPage() {
       switch (searchType) {
         case 'phone':
           params.mobileNumber = searchValue.trim();
-          params.mobileCountryCode = '91'; // Default
+          params.mobileCountryCode = countryCode;
           break;
         case 'vehicle':
           params.vehicleNumber = searchValue.trim();
@@ -248,9 +250,10 @@ export function DriversPage() {
                 </Label>
                 <div className="flex gap-2">
                   {searchType === 'phone' && (
-                    <div className="w-20">
-                      <Input value="+91" disabled className="bg-muted" />
-                    </div>
+                    <CountryCodeSelect
+                      value={countryCode}
+                      onValueChange={setCountryCode}
+                    />
                   )}
                   <Input
                     id="searchValue"
@@ -264,7 +267,7 @@ export function DriversPage() {
                     }
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
-                    onKeyPress={(e) => handleKeyPress(e, handleSearch)}
+                    onKeyDown={(e) => handleKeyPress(e, handleSearch)}
                     className="flex-1"
                   />
                   <Button
