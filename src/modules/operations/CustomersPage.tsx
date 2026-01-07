@@ -207,7 +207,7 @@ export function CustomersPage() {
                       placeholder="Enter phone number (e.g., 9876543210)"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
-                      onKeyPress={(e) => handleKeyPress(e, handleSearchByPhone)}
+                      onKeyDown={(e) => handleKeyPress(e, handleSearchByPhone)}
                       className="flex-1"
                     />
                     <Button 
@@ -257,7 +257,7 @@ export function CustomersPage() {
                       placeholder="Enter customer ID (UUID)"
                       value={customerId}
                       onChange={(e) => setCustomerId(e.target.value)}
-                      onKeyPress={(e) => handleKeyPress(e, handleGoToCustomer)}
+                      onKeyDown={(e) => handleKeyPress(e, handleGoToCustomer)}
                       className="flex-1 font-mono"
                     />
                     <Button 

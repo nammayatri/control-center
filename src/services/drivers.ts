@@ -687,3 +687,149 @@ export async function uploadDocument(
     },
   });
 }
+
+// ============================================
+// Driver Name Update
+// ============================================
+
+export interface UpdateDriverNameRequest {
+  firstName: string;
+  lastName: string;
+  middleName: string;
+}
+
+export async function updateDriverName(
+  merchantId: string,
+  driverId: string,
+  data: UpdateDriverNameRequest,
+  cityId?: string
+): Promise<void> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/updateName`
+    : `/driver-offer/{merchantId}/driver/{driverId}/updateName`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data,
+  });
+}
+
+// ============================================
+// Driver Coin History
+// ============================================
+
+export interface CurrencyAmount {
+  amount: number;
+  currency: string;
+}
+
+export interface CoinBurnHistoryItem {
+  cash: number;
+  cashWithCurrency: CurrencyAmount;
+  createdAt: string;
+  numCoins: number;
+  title: string;
+  updatedAt: string;
+}
+
+export interface CoinEarnHistoryItem {
+  bulkUploadTitle: string | null;
+  coins: number;
+  coinsUsed: number;
+  createdAt: string;
+  eventFunction: {
+    contents?: number;
+    tag: string;
+  };
+  expirationAt: string | null;
+  rideId: string | null;
+  rideShortId: string | null;
+  status: string;
+}
+
+export interface CoinHistoryResponse {
+  coinBalance: number;
+  coinEarned: number;
+  coinExpired: number;
+  coinUsed: number;
+  coinBurnHistory: CoinBurnHistoryItem[];
+  coinEarnHistory: CoinEarnHistoryItem[];
+}
+
+export async function getDriverCoinHistory(
+  merchantId: string,
+  driverId: string,
+  limit: number = 5,
+  offset: number = 0,
+  cityId?: string
+): Promise<CoinHistoryResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/coins/coinHistory/{driverId}`
+    : `/driver-offer/{merchantId}/coins/coinHistory/{driverId}`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+  const query = buildQueryParams({ limit, offset });
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: `${path}${query}`,
+  });
+}
+
+// ============================================
+// Bulk Upload Coins (Refund Coins)
+// ============================================
+
+export interface BulkUploadTitle {
+  bn: string;
+  en: string;
+  fr: string;
+  hi: string;
+  kn: string;
+  ml: string;
+  ta: string;
+  te: string;
+}
+
+export interface DriverIdWithCoins {
+  amount: number;
+  amountWithCurrency: CurrencyAmount;
+  driverId: string;
+}
+
+export interface BulkUploadCoinsRequest {
+  bulkUploadTitle: BulkUploadTitle;
+  driverIdListWithCoins: DriverIdWithCoins[];
+  eventFunction: {
+    tag: string;
+    contents: string;
+  };
+  expirationTime: number;
+}
+
+export interface FailedItem {
+  driverId: string;
+  errorMessage: string;
+}
+
+export interface BulkUploadCoinsResponse {
+  failed: number;
+  failedItems: FailedItem[];
+  success: number;
+}
+
+export async function bulkUploadCoinsV2(
+  merchantId: string,
+  data: BulkUploadCoinsRequest
+): Promise<BulkUploadCoinsResponse> {
+  const path = buildPath('/driver-offer/{merchantId}/coins/bulkUploadCoinsV2', merchantId);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data,
+  });
+}

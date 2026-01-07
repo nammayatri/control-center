@@ -5,10 +5,13 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
 import { DriverSummary } from '../../components/domain/DriverBadge';
 import { DriverDocumentsTab } from '../../components/domain/DriverDocumentsTab';
+import { DriverCoinsTab } from '../../components/domain/DriverCoinsTab';
 import { VerificationStatusBadge } from '../../components/domain/StatusBadge';
-import { useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver } from '../../hooks/useDrivers';
+import { useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver, useUpdateDriverName } from '../../hooks/useDrivers';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate, formatDateTime } from '../../lib/utils';
@@ -27,6 +30,8 @@ import {
   User as UserIcon,
   Shield,
   LogIn,
+  Pencil,
+  Coins,
 } from 'lucide-react';
 import { Label } from '../../components/ui/label';
 import {
@@ -52,6 +57,15 @@ export function DriverDetailPage() {
     location.state?.driver as DriverInfoResponse | undefined
   );
 
+  // Edit name dialog state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editMiddleName, setEditMiddleName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+
+  // Active tab state for controlling tab-specific data fetching
+  const [activeTab, setActiveTab] = useState('info');
+
   // Check if user has access to driver operations (requires BPP or FLEET login)
   const hasDriverAccess = loginModule === 'BPP' || loginModule === 'FLEET';
 
@@ -59,6 +73,7 @@ export function DriverDetailPage() {
   const unblockMutation = useUnblockDriver();
   const enableMutation = useEnableDriver();
   const disableMutation = useDisableDriver();
+  const updateNameMutation = useUpdateDriverName();
 
   const handleBlockDriver = (_reason: string) => {
     if (!driverId || !driver) return;
@@ -110,6 +125,42 @@ export function DriverDetailPage() {
         toast.error(error.message || 'Failed to disable driver');
       }
     });
+  };
+
+  const handleEditNameClick = () => {
+    if (!driver) return;
+    setEditFirstName(driver.firstName || '');
+    setEditMiddleName(driver.middleName || '');
+    setEditLastName(driver.lastName || '');
+    setIsEditingName(true);
+  };
+
+  const handleUpdateName = () => {
+    if (!driverId || !driver) return;
+    
+    updateNameMutation.mutate(
+      {
+        driverId,
+        firstName: editFirstName.trim(),
+        lastName: editLastName.trim(),
+        middleName: editMiddleName.trim(),
+      },
+      {
+        onSuccess: () => {
+          toast.success('Driver name updated successfully');
+          setDriver(prev => prev ? {
+            ...prev,
+            firstName: editFirstName.trim(),
+            middleName: editMiddleName.trim(),
+            lastName: editLastName.trim(),
+          } : prev);
+          setIsEditingName(false);
+        },
+        onError: (error: any) => {
+          toast.error(error.message || 'Failed to update driver name');
+        },
+      }
+    );
   };
 
   if (!hasDriverAccess) {
@@ -296,11 +347,15 @@ export function DriverDetailPage() {
         </Card>
 
         {/* Tabs */}
-        <Tabs defaultValue="info" className="mt-6">
+        <Tabs defaultValue="info" className="mt-6" onValueChange={(value) => setActiveTab(value)}>
           <TabsList>
             <TabsTrigger value="info">Information</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
+            <TabsTrigger value="coins">
+              <Coins className="h-4 w-4 mr-1" />
+              Coins
+            </TabsTrigger>
             <TabsTrigger value="feedback">Feedback</TabsTrigger>
             <TabsTrigger value="history">Block History</TabsTrigger>
           </TabsList>
@@ -320,8 +375,17 @@ export function DriverDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground">Full Name</Label>
-                      <div className="font-medium">
-                        {[driver.firstName, driver.middleName, driver.lastName].filter(Boolean).join(' ')}
+                      <div className="font-medium flex items-center gap-2">
+                        <span>{[driver.firstName, driver.middleName, driver.lastName].filter(Boolean).join(' ')}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={handleEditNameClick}
+                          title="Edit name"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                     <div>
@@ -721,6 +785,10 @@ export function DriverDetailPage() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="coins" className="mt-4">
+            <DriverCoinsTab driverId={driver.driverId} isActive={activeTab === 'coins'} />
+          </TabsContent>
+
           <TabsContent value="feedback" className="mt-4">
             <Card>
               <CardHeader>
@@ -761,8 +829,61 @@ export function DriverDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs >
-      </PageContent >
+        </Tabs>
+
+        {/* Edit Name Dialog */}
+        <Dialog open={isEditingName} onOpenChange={setIsEditingName}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Driver Name</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  id="firstName"
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  placeholder="Enter first name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="middleName">Middle Name</Label>
+                <Input
+                  id="middleName"
+                  value={editMiddleName}
+                  onChange={(e) => setEditMiddleName(e.target.value)}
+                  placeholder="Enter middle name (optional)"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  placeholder="Enter last name (optional)"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsEditingName(false)}
+                disabled={updateNameMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateName}
+                disabled={updateNameMutation.isPending || !editFirstName.trim()}
+              >
+                {updateNameMutation.isPending ? 'Updating...' : 'Update Name'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </PageContent>
     </Page >
   );
 }

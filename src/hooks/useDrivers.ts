@@ -326,3 +326,70 @@ export function usePanAadharSelfieDetails(driverId: string, docType: string) {
     refetchOnMount: 'always',
   });
 }
+
+export function useUpdateDriverName() {
+  const queryClient = useQueryClient();
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: ({
+      driverId,
+      firstName,
+      lastName,
+      middleName,
+    }: {
+      driverId: string;
+      firstName: string;
+      lastName: string;
+      middleName: string;
+    }) =>
+      driversService.updateDriverName(
+        apiMerchantId!,
+        driverId,
+        { firstName, lastName, middleName },
+        cityId || undefined
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['driver'] });
+    },
+  });
+}
+
+export function useDriverCoinHistory(driverId: string, limit: number = 5, offset: number = 0, enabled: boolean = true) {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+  const apiMerchantId = merchantShortId || merchantId;
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['driverCoinHistory', merchantId, cityId, driverId, limit, offset],
+    queryFn: () => driversService.getDriverCoinHistory(
+      apiMerchantId!,
+      driverId,
+      limit,
+      offset,
+      cityId || undefined
+    ),
+    enabled: !!driverId && !!merchantId && hasAccess && enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+  });
+}
+
+export function useBulkUploadCoins() {
+  const { merchantId, merchantShortId } = useDashboardContext();
+  const queryClient = useQueryClient();
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: (data: Parameters<typeof driversService.bulkUploadCoinsV2>[1]) =>
+      driversService.bulkUploadCoinsV2(apiMerchantId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driverCoinHistory'] });
+    },
+  });
+}
