@@ -196,3 +196,27 @@ export interface GroupedMetricsResponse {
     groupBy: string;
     filters: MetricsFilters;
 }
+
+export interface CancellationGroupedRow {
+    dimension: string;
+    totalBookings: number;
+    bookingsCancelled: number;
+    userCancelled: number;
+    driverCancelled: number;
+    cancellationRate: number;
+    userCancellationRate: number;
+    driverCancellationRate: number;
+}
+
+export interface DimensionalTimeSeriesDataPoint {
+    timestamp: string;
+    dimensionValue: string;
+    searches: number;
+    completedRides: number;
+    conversion: number;
+    bookings?: number;
+    cancelledRides?: number;
+    userCancellations?: number;
+    driverCancellations?: number;
+    earnings?: number;
+}

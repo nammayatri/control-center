@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { getClickHouseClient, testConnection, closeConnection } from './db/clickhouse.js';
 import metricsRouter from './routes/metrics.js';
 import masterConversionRouter from './routes/masterConversionMetrics.js';
+import cancellationsRouter from './routes/cancellations.js';
 import firebaseRouter from './routes/firebase.js';
 
 const app = express();
@@ -25,6 +26,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 // API Routes
 app.use('/api/metrics', metricsRouter);
 app.use('/api/master-conversion', masterConversionRouter);
+app.use('/api/cancellations', cancellationsRouter);
 app.use('/api/firebase', firebaseRouter);
 
 // Health check endpoint
