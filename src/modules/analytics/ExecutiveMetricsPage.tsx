@@ -39,6 +39,7 @@ import {
   useFilterOptions,
   useGroupedMetrics,
 } from "../../hooks/useExecMetrics";
+import { useAnalyticsFilters } from "../../hooks/useAnalyticsFilters";
 import type {
   MetricsFilters,
   Dimension,
@@ -178,13 +179,13 @@ export function ExecutiveMetricsPage() {
   );
 
   // Dimension filters
-  const [selectedCity, setSelectedCity] = useState<string>("__all__");
-  const [selectedState, setSelectedState] = useState<string>("__all__");
-  const [selectedMerchant, setSelectedMerchant] = useState<string>("__all__"); // Deprecated - kept for backward compatibility
+  const [selectedCity, setSelectedCity] = useState<string[]>([]);
+  const [selectedState, setSelectedState] = useState<string[]>([]);
+  const [selectedMerchant, setSelectedMerchant] = useState<string[]>([]); // Deprecated - kept for backward compatibility
   const [selectedBapMerchant, setSelectedBapMerchant] =
-    useState<string>("__all__");
+    useState<string[]>([]);
   const [selectedBppMerchant, setSelectedBppMerchant] =
-    useState<string>("__all__");
+    useState<string[]>([]);
   const [selectedFlowType, setSelectedFlowType] = useState<string>("__all__");
   const [selectedTripTag, setSelectedTripTag] = useState<string>("__all__");
   const [selectedUserOsType, setSelectedUserOsType] =
@@ -331,14 +332,11 @@ export function ExecutiveMetricsPage() {
     () => ({
       dateFrom,
       dateTo,
-      city: selectedCity !== "__all__" ? [selectedCity] : undefined,
-      state: selectedState !== "__all__" ? [selectedState] : undefined,
-      merchantId:
-        selectedMerchant !== "__all__" ? [selectedMerchant] : undefined, // Deprecated
-      bapMerchantId:
-        selectedBapMerchant !== "__all__" ? [selectedBapMerchant] : undefined,
-      bppMerchantId:
-        selectedBppMerchant !== "__all__" ? [selectedBppMerchant] : undefined,
+      city: selectedCity.length > 0 ? selectedCity : undefined,
+      state: selectedState.length > 0 ? selectedState : undefined,
+      merchantId: selectedMerchant.length > 0 ? selectedMerchant : undefined, // Deprecated
+      bapMerchantId: selectedBapMerchant.length > 0 ? selectedBapMerchant : undefined,
+      bppMerchantId: selectedBppMerchant.length > 0 ? selectedBppMerchant : undefined,
       flowType: selectedFlowType !== "__all__" ? [selectedFlowType] : undefined,
       tripTag: selectedTripTag !== "__all__" ? [selectedTripTag] : undefined,
       userOsType:
@@ -409,14 +407,11 @@ export function ExecutiveMetricsPage() {
     () => ({
       dateFrom: dateFrom, // Full datetime with time (e.g., "2025-12-21 00:00:00")
       dateTo: dateTo, // Full datetime with time (e.g., "2025-12-21 20:59:59")
-      city: selectedCity !== "__all__" ? [selectedCity] : undefined,
-      state: selectedState !== "__all__" ? [selectedState] : undefined,
-      merchantId:
-        selectedMerchant !== "__all__" ? [selectedMerchant] : undefined, // Deprecated
-      bapMerchantId:
-        selectedBapMerchant !== "__all__" ? [selectedBapMerchant] : undefined,
-      bppMerchantId:
-        selectedBppMerchant !== "__all__" ? [selectedBppMerchant] : undefined,
+      city: selectedCity.length > 0 ? selectedCity : undefined,
+      state: selectedState.length > 0 ? selectedState : undefined,
+      merchantId: selectedMerchant.length > 0 ? selectedMerchant : undefined, // Deprecated
+      bapMerchantId: selectedBapMerchant.length > 0 ? selectedBapMerchant : undefined,
+      bppMerchantId: selectedBppMerchant.length > 0 ? selectedBppMerchant : undefined,
       flowType: selectedFlowType !== "__all__" ? [selectedFlowType] : undefined,
       tripTag: selectedTripTag !== "__all__" ? [selectedTripTag] : undefined,
       userOsType:
@@ -673,33 +668,33 @@ export function ExecutiveMetricsPage() {
     // State
     const stateValues = filterSelections.state?.values;
     if (stateValues && stateValues.size > 0) {
-      setSelectedState(Array.from(stateValues)[0]);
+      setSelectedState(Array.from(stateValues));
     } else {
-      setSelectedState("__all__");
+      setSelectedState([]);
     }
 
     // City
     const cityValues = filterSelections.city?.values;
     if (cityValues && cityValues.size > 0) {
-      setSelectedCity(Array.from(cityValues)[0]);
+      setSelectedCity(Array.from(cityValues));
     } else {
-      setSelectedCity("__all__");
+      setSelectedCity([]);
     }
 
     // BAP Merchant
     const bapValues = filterSelections.bapMerchant?.values;
     if (bapValues && bapValues.size > 0) {
-      setSelectedBapMerchant(Array.from(bapValues)[0]);
+      setSelectedBapMerchant(Array.from(bapValues));
     } else {
-      setSelectedBapMerchant("__all__");
+      setSelectedBapMerchant([]);
     }
 
     // BPP Merchant
     const bppValues = filterSelections.bppMerchant?.values;
     if (bppValues && bppValues.size > 0) {
-      setSelectedBppMerchant(Array.from(bppValues)[0]);
+      setSelectedBppMerchant(Array.from(bppValues));
     } else {
-      setSelectedBppMerchant("__all__");
+      setSelectedBppMerchant([]);
     }
 
     // Vehicle Category & Sub-Category (now structured as vehicleCategory_Auto, vehicleCategory_Cab, etc.)
@@ -799,18 +794,28 @@ export function ExecutiveMetricsPage() {
     handleClearFilters();
   }, []);
 
+  // Apply user context restrictions to filters
+  const { applyUserContext } = useAnalyticsFilters();
+  const restrictedFilters = useMemo(() => {
+    console.log('[Executive Metrics] Recalculating restrictedFilters from filters:', filters);
+    const result = applyUserContext(filters);
+    console.log('[Executive Metrics] Result:', result);
+    return result;
+  }, [filters, applyUserContext]);
+  const restrictedTimeSeriesFilters = useMemo(() => applyUserContext(timeSeriesFilters), [timeSeriesFilters, applyUserContext]);
+
   const {
     data: executiveData,
     isLoading: execLoading,
     refetch: refetchExec,
-  } = useExecutiveMetrics(filters);
+  } = useExecutiveMetrics(restrictedFilters);
   const { data: comparisonData, refetch: refetchComparison } =
     useComparisonMetrics(
       comparisonPeriods.currentFrom,
       comparisonPeriods.currentTo,
       comparisonPeriods.previousFrom,
       comparisonPeriods.previousTo,
-      filters
+      restrictedFilters
     );
 
   // Determine granularity based on date range
@@ -829,11 +834,11 @@ export function ExecutiveMetricsPage() {
     data: timeSeriesData,
     isLoading: timeSeriesLoading,
     refetch: refetchTimeSeries,
-  } = useTimeSeries(timeSeriesFilters, timeSeriesGranularity);
+  } = useTimeSeries(restrictedTimeSeriesFilters, timeSeriesGranularity);
 
   // Fetch time series data for conversion trend graph with user-selected granularity
   const { data: trendTimeSeriesData, isLoading: trendTimeSeriesLoading } =
-    useTimeSeries(timeSeriesFilters, trendGranularity);
+    useTimeSeries(restrictedTimeSeriesFilters, trendGranularity);
 
   // Helper to get trend data for a metric
   const getTrendData = useMemo(() => {
@@ -944,7 +949,7 @@ export function ExecutiveMetricsPage() {
     useTrendData(
       selectedSegment !== "none" ? selectedSegment : "none",
       trendGranularity,
-      filters
+      restrictedFilters
     );
 
   // Function to generate chart data for a specific metric
@@ -1509,13 +1514,13 @@ export function ExecutiveMetricsPage() {
   const { refetch: refetchTrend } = useTrendData(
     trendDimension,
     trendGranularity,
-    filters
+    restrictedFilters
   );
   const {
     data: groupedData,
     isLoading: groupedLoading,
     refetch: refetchGrouped,
-  } = useGroupedMetrics(groupBy, filters);
+  } = useGroupedMetrics(groupBy, restrictedFilters);
 
   const handleRefresh = () => {
     // Refetch all data without reloading the page
@@ -1527,11 +1532,11 @@ export function ExecutiveMetricsPage() {
   };
 
   const handleClearFilters = () => {
-    setSelectedCity("__all__");
-    setSelectedState("__all__");
-    setSelectedMerchant("__all__");
-    setSelectedBapMerchant("__all__");
-    setSelectedBppMerchant("__all__");
+    setSelectedCity([]);
+    setSelectedState([]);
+    setSelectedMerchant([]);
+    setSelectedBapMerchant([]);
+    setSelectedBppMerchant([]);
     setSelectedFlowType("__all__");
     setSelectedTripTag("__all__");
     setSelectedUserOsType("__all__");
