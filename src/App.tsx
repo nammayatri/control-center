@@ -33,6 +33,9 @@ import IssuesListPage from './modules/operations/IssuesListPage';
 import IssueDetailPage from './modules/operations/IssueDetailPage';
 import { IssueConfigPage } from './modules/config/IssueConfigPage';
 import { CategoryDetailPage } from './modules/config/CategoryDetailPage';
+import { GeospatialPage } from './modules/config/GeospatialPage';
+import { GeometriesPage } from './modules/city-services/GeometriesPage';
+import { SpecialLocationsPage } from './modules/city-services/SpecialLocationsPage';
 import { UserProfilePage } from './modules/profile/UserProfilePage';
 import { Toaster } from 'sonner';
 
@@ -167,6 +170,13 @@ function AppRoutes() {
         {/* Agent */}
         <Route path="/agent/pass-booking" element={<PassBookingPage />} />
 
+        {/* City Services */}
+        <Route path="city-services">
+          <Route index element={<Navigate to="/city-services/geometries" replace />} />
+          <Route path="geometries" element={<GeometriesPage />} />
+          <Route path="special-locations" element={<SpecialLocationsPage />} />
+        </Route>
+
         {/* Config */}
         <Route path="config">
           <Route index element={<Navigate to="/config/namma-tags" replace />} />
@@ -177,6 +187,7 @@ function AppRoutes() {
           <Route path="issue-config" element={<IssueConfigPage />} />
           <Route path="issue-config/:categoryId" element={<CategoryDetailPage />} />
           <Route path="firebase" element={<FirebaseConfigPage />} />
+          <Route path="geospatial" element={<GeospatialPage />} />
           <Route path="settings" element={<PlaceholderPage title="Settings" />} />
         </Route>
 
