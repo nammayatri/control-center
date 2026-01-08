@@ -61,6 +61,7 @@ import {
   TrendingUp,
   TrendingDown,
   RefreshCw,
+  Download,
 } from "lucide-react";
 import type { SummaryTableRow } from "./SummaryTable";
 import { SummaryTable } from "./SummaryTable";
@@ -98,6 +99,7 @@ import {
   type FilterCategory,
   type FilterSelections,
 } from "../../components/ui/advanced-filters-popover";
+import { downloadCSV, generateFilename } from "../../lib/csvDownload";
 import {
   Sheet,
   SheetContent,
@@ -2104,9 +2106,23 @@ export function ExecutiveMetricsPage() {
             {/* Overall Conversion Card */}
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Percent className="h-5 w-5 text-purple-600" />
-                  <CardTitle className="text-base">Overall Conversion</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-5 w-5 text-purple-600" />
+                    <CardTitle className="text-base">Overall Conversion</CardTitle>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      const data = getTrendData("conversion");
+                      if (data) downloadCSV(data, generateFilename("overall_conversion", dateFrom, dateTo));
+                    }}
+                    title="Download CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex-shrink-0 min-w-[120px]">
@@ -2178,6 +2194,19 @@ export function ExecutiveMetricsPage() {
                         <CardTitle className="text-base">
                           Rider Fare Acceptance
                         </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const data = getTrendData("riderFareAcceptanceRate");
+                            if (data) downloadCSV(data, generateFilename("rfa_trend", dateFrom, dateTo));
+                          }}
+                          title="Download CSV"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                       {rfaExpanded ? (
                         <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -2547,6 +2576,19 @@ export function ExecutiveMetricsPage() {
                         <CardTitle className="text-base">
                           Driver Quote Acceptance
                         </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const data = getTrendData("driverQuoteAcceptanceRate");
+                            if (data) downloadCSV(data, generateFilename("dqa_trend", dateFrom, dateTo));
+                          }}
+                          title="Download CSV"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                       {dqaExpanded ? (
                         <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -2911,9 +2953,23 @@ export function ExecutiveMetricsPage() {
             {/* Overall Cancellation Rate Card */}
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <CancelIcon className="h-5 w-5 text-red-600" />
-                  <CardTitle className="text-base">Overall Cancellation Rate</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CancelIcon className="h-5 w-5 text-red-600" />
+                    <CardTitle className="text-base">Overall Cancellation Rate</CardTitle>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      const data = getTrendData("cancellationRate");
+                      if (data) downloadCSV(data, generateFilename("cancellation_rate", dateFrom, dateTo));
+                    }}
+                    title="Download CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex-shrink-0 min-w-[120px]">
@@ -2977,9 +3033,23 @@ export function ExecutiveMetricsPage() {
             {/* User Cancellation Rate Card */}
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <CancelIcon className="h-5 w-5 text-red-400" />
-                  <CardTitle className="text-base">User Cancellation Rate</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CancelIcon className="h-5 w-5 text-red-400" />
+                    <CardTitle className="text-base">User Cancellation Rate</CardTitle>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      const data = getTrendData("userCancellationRate");
+                      if (data) downloadCSV(data, generateFilename("user_cancellation_rate", dateFrom, dateTo));
+                    }}
+                    title="Download CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex-shrink-0 min-w-[120px]">
@@ -3043,9 +3113,23 @@ export function ExecutiveMetricsPage() {
             {/* Driver Cancellation Rate Card */}
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <CancelIcon className="h-5 w-5 text-orange-600" />
-                  <CardTitle className="text-base">Driver Cancellation Rate</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CancelIcon className="h-5 w-5 text-orange-600" />
+                    <CardTitle className="text-base">Driver Cancellation Rate</CardTitle>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      const data = getTrendData("driverCancellationRate");
+                      if (data) downloadCSV(data, generateFilename("driver_cancellation_rate", dateFrom, dateTo));
+                    }}
+                    title="Download CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex-shrink-0 min-w-[120px]">
@@ -3186,50 +3270,65 @@ export function ExecutiveMetricsPage() {
                       </div>
                     </div>
 
-                    {/* Metric Selector for this chart */}
-                    <Select
-                      onValueChange={(v) => {
-                        if (group.type === "percentage") {
-                          const metric = v as RateMetric;
-                          if (!selectedRateMetrics.includes(metric)) {
-                            setSelectedRateMetrics([...selectedRateMetrics, metric]);
+                    {/* Right side: Add Metric dropdown + Download */}
+                    <div className="flex items-center gap-2">
+                      <Select
+                        onValueChange={(v) => {
+                          if (group.type === "percentage") {
+                            const metric = v as RateMetric;
+                            if (!selectedRateMetrics.includes(metric)) {
+                              setSelectedRateMetrics([...selectedRateMetrics, metric]);
+                            }
+                          } else {
+                            const metric = v as ValueMetric;
+                            if (!selectedValueMetrics.includes(metric)) {
+                              setSelectedValueMetrics([...selectedValueMetrics, metric]);
+                            }
                           }
-                        } else {
-                          const metric = v as ValueMetric;
-                          if (!selectedValueMetrics.includes(metric)) {
-                            setSelectedValueMetrics([...selectedValueMetrics, metric]);
-                          }
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-40 h-8 text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 rounded-lg">
-                        <SelectValue placeholder="Add Metric" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-lg border-zinc-200 dark:border-zinc-800">
-                        {group.type === "percentage" ? (
-                          <>
-                            <SelectItem value="conversion" className="text-xs">Conversion Rate</SelectItem>
-                            <SelectItem value="driverQuoteAcceptance" className="text-xs">Driver Quote Acceptance</SelectItem>
-                            <SelectItem value="riderFareAcceptance" className="text-xs">Rider Fare Acceptance</SelectItem>
-                            <SelectItem value="cancellationRate" className="text-xs">Cancellation Rate</SelectItem>
-                            <SelectItem value="userCancellationRate" className="text-xs">User Cancellation Rate</SelectItem>
-                            <SelectItem value="driverCancellationRate" className="text-xs">Driver Cancellation Rate</SelectItem>
-                          </>
-                        ) : (
-                          <>
-                            <SelectItem value="searches" className="text-xs">Searches</SelectItem>
-                            <SelectItem value="quotesRequested" className="text-xs">Quotes Requested</SelectItem>
-                            <SelectItem value="quotesAccepted" className="text-xs">Quotes Accepted</SelectItem>
-                            <SelectItem value="bookings" className="text-xs">Bookings</SelectItem>
-                            <SelectItem value="cancelledRides" className="text-xs">Cancellations</SelectItem>
-                            <SelectItem value="userCancellations" className="text-xs">User Cancellations</SelectItem>
-                            <SelectItem value="driverCancellations" className="text-xs">Driver Cancellations</SelectItem>
-                            <SelectItem value="completedRides" className="text-xs">Completed Rides</SelectItem>
-                            <SelectItem value="earnings" className="text-xs">Earnings</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
+                        }}
+                      >
+                        <SelectTrigger className="w-40 h-8 text-xs bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 rounded-lg">
+                          <SelectValue placeholder="Add Metric" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-lg border-zinc-200 dark:border-zinc-800">
+                          {group.type === "percentage" ? (
+                            <>
+                              <SelectItem value="conversion" className="text-xs">Conversion Rate</SelectItem>
+                              <SelectItem value="driverQuoteAcceptance" className="text-xs">Driver Quote Acceptance</SelectItem>
+                              <SelectItem value="riderFareAcceptance" className="text-xs">Rider Fare Acceptance</SelectItem>
+                              <SelectItem value="cancellationRate" className="text-xs">Cancellation Rate</SelectItem>
+                              <SelectItem value="userCancellationRate" className="text-xs">User Cancellation Rate</SelectItem>
+                              <SelectItem value="driverCancellationRate" className="text-xs">Driver Cancellation Rate</SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem value="searches" className="text-xs">Searches</SelectItem>
+                              <SelectItem value="quotesRequested" className="text-xs">Quotes Requested</SelectItem>
+                              <SelectItem value="quotesAccepted" className="text-xs">Quotes Accepted</SelectItem>
+                              <SelectItem value="bookings" className="text-xs">Bookings</SelectItem>
+                              <SelectItem value="cancelledRides" className="text-xs">Cancellations</SelectItem>
+                              <SelectItem value="userCancellations" className="text-xs">User Cancellations</SelectItem>
+                              <SelectItem value="driverCancellations" className="text-xs">Driver Cancellations</SelectItem>
+                              <SelectItem value="completedRides" className="text-xs">Completed Rides</SelectItem>
+                              <SelectItem value="earnings" className="text-xs">Earnings</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          const chartData = chartDataByGroup[groupIndex]?.data || [];
+                          const filename = group.type === "percentage" ? "rate_graph" : "values_graph";
+                          downloadCSV(chartData, generateFilename(filename, dateFrom, dateTo));
+                        }}
+                        title="Download CSV"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="border-b bg-zinc-50/50 dark:bg-zinc-900/50 px-4 py-2 flex items-center justify-between overflow-x-auto whitespace-nowrap scrollbar-none">
                     <div className="flex items-center gap-1">
@@ -3996,21 +4095,34 @@ export function ExecutiveMetricsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Aggregate Breakdown</CardTitle>
-              <Select
-                value={groupBy}
-                onValueChange={(v) => setGroupBy(v as typeof groupBy)}
-              >
-                <SelectTrigger className="w-40 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="city">City</SelectItem>
-                  <SelectItem value="merchant_id">Merchant</SelectItem>
-                  <SelectItem value="flow_type">Flow Type</SelectItem>
-                  <SelectItem value="trip_tag">Trip Tag</SelectItem>
-                  <SelectItem value="service_tier">Service Tier</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    if (groupedData?.data) downloadCSV(groupedData.data, generateFilename(`aggregate_${groupBy}`, dateFrom, dateTo));
+                  }}
+                  title="Download CSV"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Select
+                  value={groupBy}
+                  onValueChange={(v) => setGroupBy(v as typeof groupBy)}
+                >
+                  <SelectTrigger className="w-40 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="city">City</SelectItem>
+                    <SelectItem value="merchant_id">Merchant</SelectItem>
+                    <SelectItem value="flow_type">Flow Type</SelectItem>
+                    <SelectItem value="trip_tag">Trip Tag</SelectItem>
+                    <SelectItem value="service_tier">Service Tier</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
