@@ -435,3 +435,92 @@ export function useSendDummyNotification() {
       ),
   });
 }
+
+export function useDriverPlanDetails(
+  driverId: string,
+  serviceName: string = 'YATRI_SUBSCRIPTION',
+  enabled: boolean = true
+) {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+  const apiMerchantId = merchantShortId || merchantId;
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['driverPlanDetails', merchantId, cityId, driverId, serviceName],
+    queryFn: () => driversService.getDriverPlanDetails(
+      apiMerchantId!,
+      driverId,
+      serviceName,
+      cityId || undefined
+    ),
+    enabled: !!driverId && !!merchantId && hasAccess && enabled,
+    refetchOnMount: 'always',
+  });
+}
+
+export function useAvailablePlans(
+  driverId: string,
+  serviceName: string = 'YATRI_SUBSCRIPTION',
+  enabled: boolean = true
+) {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+  const apiMerchantId = merchantShortId || merchantId;
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['availablePlans', merchantId, cityId, driverId, serviceName],
+    queryFn: () => driversService.getAvailablePlans(
+      apiMerchantId!,
+      driverId,
+      serviceName,
+      cityId || undefined
+    ),
+    enabled: !!driverId && !!merchantId && hasAccess && enabled,
+    refetchOnMount: 'always',
+  });
+}
+
+export function usePaymentHistory(
+  driverId: string,
+  paymentMode: 'AUTOPAY_INVOICE' | 'MANUAL_INVOICE',
+  limit: number = 5,
+  offset: number = 0,
+  serviceName: string = 'YATRI_SUBSCRIPTION',
+  enabled: boolean = true
+) {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { loginModule } = useAuth();
+  const apiMerchantId = merchantShortId || merchantId;
+  const hasAccess = loginModule === 'BPP' || loginModule === 'FLEET';
+
+  return useQuery({
+    queryKey: ['paymentHistory', merchantId, cityId, driverId, paymentMode, serviceName, limit, offset],
+    queryFn: () => driversService.getPaymentHistory(
+      apiMerchantId!,
+      driverId,
+      paymentMode,
+      serviceName,
+      limit,
+      offset,
+      cityId || undefined
+    ),
+    enabled: !!driverId && !!merchantId && hasAccess && enabled,
+  });
+}
+
+export function useSwitchPlan() {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const queryClient = useQueryClient();
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: ({ driverId, planId, serviceName = 'YATRI_SUBSCRIPTION' }: { driverId: string; planId: string; serviceName?: string }) =>
+      driversService.switchDriverPlan(apiMerchantId!, driverId, planId, serviceName, cityId || undefined),
+    onSuccess: (_, { driverId, serviceName = 'YATRI_SUBSCRIPTION' }) => {
+      queryClient.invalidateQueries({ queryKey: ['driverPlanDetails', merchantId, cityId, driverId, serviceName] });
+      queryClient.invalidateQueries({ queryKey: ['availablePlans', merchantId, cityId, driverId, serviceName] });
+    },
+  });
+}

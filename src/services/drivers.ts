@@ -889,3 +889,207 @@ export async function sendDummyNotification(
     url: path,
   });
 }
+
+// ============================================
+// Driver Subscription/Plan Details
+// ============================================
+
+export interface AmountWithCurrency {
+  amount: number;
+  currency: string;
+}
+
+export interface PlanFareBreakupItem {
+  amount: number;
+  amountWithCurrency: AmountWithCurrency;
+  component: string;
+}
+
+export interface CoinEntity {
+  coinDiscountUpto: number;
+  coinDiscountUptoWithCurrency: AmountWithCurrency;
+}
+
+export interface CurrentPlanDetails {
+  autopayDues: number;
+  autopayDuesWithCurrency: AmountWithCurrency;
+  bankErrors: unknown[];
+  cancellationPenalties: unknown[];
+  coinEntity: CoinEntity;
+  currentDues: number;
+  currentDuesWithCurrency: AmountWithCurrency;
+  description: string;
+  dueBoothCharges: number;
+  dueBoothChargesWithCurrency: AmountWithCurrency;
+  dues: unknown[];
+  freeRideCount: number;
+  frequency: string;
+  id: string;
+  name: string;
+  offers: unknown[];
+  paymentMode: string;
+  planFareBreakup: PlanFareBreakupItem[];
+  totalPlanCreditLimit: number;
+  totalPlanCreditLimitWithCurrency: AmountWithCurrency;
+}
+
+export interface MandateDetails {
+  autopaySetupDate: string;
+  endDate: string;
+  frequency: string;
+  mandateId: string;
+  maxAmount: number;
+  maxAmountWithCurrency: AmountWithCurrency;
+  payerApp: string;
+  payerVpa: string;
+  startDate: string;
+  status: string;
+}
+
+export interface DriverPlanResponse {
+  askForPlanSwitchByCity: boolean;
+  askForPlanSwitchByVehicle: boolean;
+  autoPayStatus: string | null;
+  currentPlanDetails: CurrentPlanDetails | null;
+  isEligibleForCharge: boolean;
+  isLocalized: boolean;
+  lastPaymentType: string | null;
+  latestAutopayPaymentDate: string | null;
+  latestManualPaymentDate: string | null;
+  mandateDetails: MandateDetails | null;
+  orderId: string | null;
+  payoutVpa: string | null;
+  planRegistrationDate: string | null;
+  safetyPlusData: unknown | null;
+  subscribed: boolean;
+}
+
+export async function getDriverPlanDetails(
+  merchantId: string,
+  driverId: string,
+  serviceName: string = 'YATRI_SUBSCRIPTION',
+  cityId?: string
+): Promise<DriverPlanResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/plan/{driverId}/"${serviceName}"`
+    : `/driver-offer/{merchantId}/plan/{driverId}/"${serviceName}"`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path,
+  });
+}
+
+// ============================================
+// Available Plans List (for plan comparison)
+// ============================================
+
+export interface AvailablePlansResponse {
+  isLocalized: boolean;
+  list: CurrentPlanDetails[];
+  subscriptionStartTime: string;
+}
+
+export async function getAvailablePlans(
+  merchantId: string,
+  driverId: string,
+  serviceName: string = 'YATRI_SUBSCRIPTION',
+  cityId?: string
+): Promise<AvailablePlansResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/plan/{driverId}/"${serviceName}"/v2/list`
+    : `/driver-offer/{merchantId}/plan/{driverId}/"${serviceName}"/v2/list`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: path,
+  });
+}
+
+// ============================================
+// Payment History
+// ============================================
+
+export interface AutoPayInvoice {
+  amount: number;
+  amountWithCurrency: AmountWithCurrency;
+  autoPayStage: string;
+  coinDiscountAmount: number;
+  coinDiscountAmountWithCurrency: AmountWithCurrency;
+  executionAt: string;
+  invoiceId: string;
+  isCoinCleared: boolean;
+  rideTakenOn: string;
+}
+
+export interface ManualPayInvoice {
+  amount: number;
+  amountWithCurrency: AmountWithCurrency;
+  invoiceId: string;
+  paymentDate: string;
+  rideTakenOn: string;
+}
+
+export interface PaymentHistoryResponse {
+  autoPayInvoices: AutoPayInvoice[];
+  manualPayInvoices: ManualPayInvoice[];
+}
+
+export type PaymentMode = 'AUTOPAY_INVOICE' | 'MANUAL_INVOICE';
+
+export async function getPaymentHistory(
+  merchantId: string,
+  driverId: string,
+  paymentMode: PaymentMode,
+  serviceName: string = 'YATRI_SUBSCRIPTION',
+  limit: number = 5,
+  offset: number = 0,
+  cityId?: string
+): Promise<PaymentHistoryResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/plan/{driverId}/payments/history/v2/"${serviceName}"`
+    : `/driver-offer/{merchantId}/plan/{driverId}/payments/history/v2/"${serviceName}"`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+  const query = buildQueryParams({ 
+    paymentMode: `"${paymentMode}"`,
+    limit,
+    offset,
+  });
+
+  return apiRequest(bppApi, {
+    method: 'GET',
+    url: `${path}${query}`,
+  });
+}
+
+export async function switchDriverPlan(
+  merchantId: string,
+  driverId: string,
+  planId: string,
+  serviceName: string = 'YATRI_SUBSCRIPTION',
+  cityId?: string
+): Promise<{ result: string }> {
+  /*
+  Path pattern:
+  Localized: /driver-offer/{merchantId}/{city}/plan/{planId}/{driverId}/"{serviceName}"/v2/select
+  Global:    /driver-offer/{merchantId}/plan/{planId}/{driverId}/"{serviceName}"/v2/select
+  */
+  
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/plan/{driverId}/{planId}/"${serviceName}"/v2/select`
+    : `/driver-offer/{merchantId}/plan/{driverId}/{planId}/"${serviceName}"/v2/select`;
+
+  const path = buildPath(basePath, merchantId, cityId)
+    .replace('{driverId}', driverId)
+    .replace('{planId}', planId);
+
+  return apiRequest(bppApi, {
+    method: 'PUT',
+    url: path,
+  });
+}

@@ -11,6 +11,7 @@ import { Input } from '../../components/ui/input';
 import { DriverSummary } from '../../components/domain/DriverBadge';
 import { DriverDocumentsTab } from '../../components/domain/DriverDocumentsTab';
 import { DriverCoinsTab } from '../../components/domain/DriverCoinsTab';
+import { DriverSubscriptionTab } from '../../components/domain/DriverSubscriptionTab';
 import { VerificationStatusBadge } from '../../components/domain/StatusBadge';
 import { useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver, useUpdateDriverName, useChangeOperatingCity, useSendDummyNotification } from '../../hooks/useDrivers';
 import { useDashboardContext } from '../../context/DashboardContext';
@@ -34,6 +35,7 @@ import {
   Pencil,
   Coins,
   Bell,
+  CreditCard,
 } from 'lucide-react';
 import { Label } from '../../components/ui/label';
 import {
@@ -437,6 +439,10 @@ export function DriverDetailPage() {
         <Tabs defaultValue="info" className="mt-6" onValueChange={(value) => setActiveTab(value)}>
           <TabsList>
             <TabsTrigger value="info">Information</TabsTrigger>
+            <TabsTrigger value="subscription">
+              <CreditCard className="h-4 w-4 mr-1" />
+              Subscription
+            </TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
             <TabsTrigger value="coins">
@@ -720,6 +726,13 @@ export function DriverDetailPage() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="subscription" className="mt-4">
+            <DriverSubscriptionTab 
+              driverId={driver.driverId} 
+              isActive={activeTab === 'subscription'}
+            />
           </TabsContent>
 
           <TabsContent value="documents" className="mt-4">
