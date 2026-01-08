@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Input } from '../../components/ui/input';
 import { DriverSummary } from '../../components/domain/DriverBadge';
 import { DriverDocumentsTab } from '../../components/domain/DriverDocumentsTab';
 import { DriverCoinsTab } from '../../components/domain/DriverCoinsTab';
 import { VerificationStatusBadge } from '../../components/domain/StatusBadge';
-import { useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver, useUpdateDriverName } from '../../hooks/useDrivers';
+import { useBlockDriver, useUnblockDriver, useEnableDriver, useDisableDriver, useUpdateDriverName, useChangeOperatingCity, useSendDummyNotification } from '../../hooks/useDrivers';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate, formatDateTime } from '../../lib/utils';
@@ -32,6 +33,7 @@ import {
   LogIn,
   Pencil,
   Coins,
+  Bell,
 } from 'lucide-react';
 import { Label } from '../../components/ui/label';
 import {
@@ -50,7 +52,7 @@ export function DriverDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { merchantId } = useDashboardContext();
-  const { loginModule, logout } = useAuth();
+  const { loginModule, logout, getCitiesForMerchant, currentMerchant, switchContext } = useAuth();
 
   // Get driver from location state and manage locally
   const [driver, setDriver] = useState<DriverInfoResponse | undefined>(
@@ -66,6 +68,10 @@ export function DriverDetailPage() {
   // Active tab state for controlling tab-specific data fetching
   const [activeTab, setActiveTab] = useState('info');
 
+  // Edit city dialog state
+  const [isEditingCity, setIsEditingCity] = useState(false);
+  const [selectedCity, setSelectedCity] = useState('');
+
   // Check if user has access to driver operations (requires BPP or FLEET login)
   const hasDriverAccess = loginModule === 'BPP' || loginModule === 'FLEET';
 
@@ -74,14 +80,21 @@ export function DriverDetailPage() {
   const enableMutation = useEnableDriver();
   const disableMutation = useDisableDriver();
   const updateNameMutation = useUpdateDriverName();
+  const changeOperatingCityMutation = useChangeOperatingCity();
+  const sendDummyNotificationMutation = useSendDummyNotification();
 
-  const handleBlockDriver = (_reason: string) => {
+  // Get available cities for the current merchant
+  const availableCities = currentMerchant ? getCitiesForMerchant(currentMerchant.shortId || currentMerchant.id) : [];
+
+  const handleBlockDriver = (reason: string) => {
     if (!driverId || !driver) return;
+    console.log(`Blocking driver ${driverId} with reason: ${reason}`);
     blockMutation.mutate(driverId, {
       onSuccess: () => {
         toast.success(`Driver ${driver.firstName} has been blocked.`);
         setDriver(prev => prev ? { ...prev, blocked: true } : prev);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
         toast.error(error.message || 'Failed to block driver');
       }
@@ -95,6 +108,7 @@ export function DriverDetailPage() {
         toast.success(`Driver ${driver.firstName} has been unblocked.`);
         setDriver(prev => prev ? { ...prev, blocked: false } : prev);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
         toast.error(error.message || 'Failed to unblock driver');
       }
@@ -108,6 +122,7 @@ export function DriverDetailPage() {
         toast.success(`Driver ${driver.firstName} has been enabled.`);
         setDriver(prev => prev ? { ...prev, enabled: true } : prev);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
         toast.error(error.message || 'Failed to enable driver');
       }
@@ -121,6 +136,7 @@ export function DriverDetailPage() {
         toast.success(`Driver ${driver?.firstName} has been disabled.`);
         setDriver(prev => prev ? { ...prev, enabled: false } : prev);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onError: (error: any) => {
         toast.error(error.message || 'Failed to disable driver');
       }
@@ -156,11 +172,71 @@ export function DriverDetailPage() {
           } : prev);
           setIsEditingName(false);
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (error: any) => {
           toast.error(error.message || 'Failed to update driver name');
         },
       }
     );
+  };
+
+  const handleEditCityClick = () => {
+    if (!driver) return;
+    setSelectedCity(driver.merchantOperatingCity || '');
+    setIsEditingCity(true);
+  };
+
+  const handleUpdateCity = () => {
+    if (!driverId || !driver || !selectedCity) return;
+
+    changeOperatingCityMutation.mutate(
+      {
+        driverId,
+        operatingCity: selectedCity,
+      },
+      {
+        onSuccess: async () => {
+          toast.success('Operating city updated successfully');
+          setDriver(prev => prev ? {
+            ...prev,
+            merchantOperatingCity: selectedCity,
+          } : prev);
+          setIsEditingCity(false);
+          
+          // Switch dashboard context to the new city to avoid "PERSON_DOES_NOT_EXIST" error
+          // Find the city object that matches the selected city name
+          const newCity = availableCities.find(c => c.name === selectedCity);
+          if (newCity && currentMerchant) {
+            try {
+              await switchContext(currentMerchant.shortId || currentMerchant.id, newCity.id);
+              toast.info(`Switched to ${selectedCity} context`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } catch (error: any) {
+              console.error('Failed to switch city context:', error);
+              toast.warning('City updated but failed to switch context. Please refresh the page.');
+            }
+          }
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onError: (error: any) => {
+          toast.error(error.message || 'Failed to update operating city');
+        },
+      }
+    );
+  };
+
+  const handleSendDummyRequest = () => {
+    if (!driverId || !driver) return;
+    
+    sendDummyNotificationMutation.mutate(driverId, {
+      onSuccess: () => {
+        toast.success('Dummy notification sent successfully');
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onError: (error: any) => {
+        toast.error(error.message || 'Failed to send dummy notification');
+      },
+    });
   };
 
   if (!hasDriverAccess) {
@@ -247,6 +323,15 @@ export function DriverDetailPage() {
         ]}
         actions={
           <>
+            <Button
+              variant="outline"
+              onClick={handleSendDummyRequest}
+              disabled={sendDummyNotificationMutation.isPending}
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              {sendDummyNotificationMutation.isPending ? 'Sending...' : 'Send Dummy Request'}
+            </Button>
+
             {driver.blocked ? (
               <Button
                 variant="outline"
@@ -314,8 +399,10 @@ export function DriverDetailPage() {
                   merchantOperatingCity: driver.merchantOperatingCity,
                   driverMode: driver.driverMode as any,
                 }}
+                onEditCity={availableCities.length > 0 ? handleEditCityClick : undefined}
                 className="flex-1"
               />
+
 
               {/* Quick Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -879,6 +966,47 @@ export function DriverDetailPage() {
                 disabled={updateNameMutation.isPending || !editFirstName.trim()}
               >
                 {updateNameMutation.isPending ? 'Updating...' : 'Update Name'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Operating City Dialog */}
+        <Dialog open={isEditingCity} onOpenChange={setIsEditingCity}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Change Operating City</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="operatingCity">Operating City</Label>
+                <Select value={selectedCity} onValueChange={setSelectedCity}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a city" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCities.map((city) => (
+                      <SelectItem key={city.id} value={city.name}>
+                        {city.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsEditingCity(false)}
+                disabled={changeOperatingCityMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateCity}
+                disabled={changeOperatingCityMutation.isPending || !selectedCity}
+              >
+                {changeOperatingCityMutation.isPending ? 'Updating...' : 'Update City'}
               </Button>
             </DialogFooter>
           </DialogContent>
