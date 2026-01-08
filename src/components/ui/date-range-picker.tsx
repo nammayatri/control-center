@@ -14,6 +14,7 @@ interface DateRangePickerProps {
   dateFrom: string; // Format: "YYYY-MM-DD HH:mm:ss"
   dateTo: string; // Format: "YYYY-MM-DD HH:mm:ss"
   onChange: (from: string, to: string) => void;
+  triggerLabel?: React.ReactNode;
   className?: string;
 }
 
@@ -91,6 +92,7 @@ export function DateRangePicker({
   dateTo,
   onChange,
   className,
+  triggerLabel,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"date" | "time">("date");
@@ -229,7 +231,7 @@ export function DateRangePicker({
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {displayText}
+          {triggerLabel || displayText}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

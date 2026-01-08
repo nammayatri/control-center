@@ -18,6 +18,7 @@ interface StatTileProps {
   loading?: boolean;
   className?: string;
   trendData?: Array<{ timestamp: string; value: number }>;
+  comparisonTrendData?: Array<{ timestamp: string; value: number }>;
   isNegativeMetric?: boolean; // If true, positive change is bad (e.g., cancellations)
   dateRange?: { from: string; to: string }; // Date range for tooltip
   comparisonDateRange?: { from: string; to: string }; // Previous period date range for comparison tooltip
@@ -38,6 +39,7 @@ export function StatTile({
   loading,
   className,
   trendData,
+  comparisonTrendData,
   isNegativeMetric = false,
   dateRange: _dateRange,
   comparisonDateRange,
@@ -108,6 +110,7 @@ export function StatTile({
       return `${dayName}, ${day}${daySuffix} ${time}`;
     } catch {
       return dateString;
+      return dateString;
     }
   };
 
@@ -123,11 +126,22 @@ export function StatTile({
 
   const chartColor = getChartColor();
   const gradientId = `gradient-${label.replace(/\s+/g, '-')}`;
-  // const _lightColor = chartColor === '#22c55e'
-  //   ? 'rgba(34, 197, 94, 0.1)' // light green
-  //   : chartColor === '#ef4444'
-  //     ? 'rgba(239, 68, 68, 0.1)' // light red
-  //     : 'rgba(107, 114, 128, 0.1)'; // light gray
+
+  // Merge trendData and comparisonTrendData for rendering
+  const mergedChartData = React.useMemo(() => {
+    if (!trendData || trendData.length === 0) return [];
+    if (!comparisonTrendData || comparisonTrendData.length === 0) return trendData;
+
+    // Create map for fast lookup
+    const comparisonMap = new Map(comparisonTrendData.map(d => [d.timestamp, d.value]));
+
+    return trendData.map(d => ({
+      ...d,
+      value: d.value,
+      comparisonValue: comparisonMap.get(d.timestamp)
+    }));
+  }, [trendData, comparisonTrendData]);
+
 
   const content = (
     <Card className={cn(subMetrics ? "cursor-pointer hover:bg-muted/50 transition-colors" : "", className)}>
@@ -176,16 +190,32 @@ export function StatTile({
           </div>
 
           {/* Right side: Graph - takes remaining space */}
-          {trendData && trendData.length > 0 && (
+          {mergedChartData && mergedChartData.length > 0 && (
             <div className="flex-1 h-16 min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                <AreaChart data={mergedChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={chartColor} stopOpacity={0.3} />
                       <stop offset="100%" stopColor={chartColor} stopOpacity={0} />
                     </linearGradient>
                   </defs>
+
+                  {/* Comparison Area (rendered first to be behind) */}
+                  {comparisonTrendData && (
+                    <Area
+                      type="monotone"
+                      dataKey="comparisonValue"
+                      stroke="#fb923c" // Orange-400
+                      strokeWidth={1}
+                      strokeDasharray="3 3"
+                      fill="transparent"
+                      dot={false}
+                      activeDot={{ r: 3, fill: "#fb923c" }}
+                    />
+                  )}
+
+                  {/* Main Metric Area */}
                   <Area
                     type="monotone"
                     dataKey="value"
@@ -201,11 +231,19 @@ export function StatTile({
                         // Use timestamp from payload data, fallback to label
                         const timestamp = payload[0].payload?.timestamp || label || '';
                         const formattedDate = formatTooltipDate(timestamp);
-                        const value = payload[0].value as number;
+
                         return (
-                          <div className="bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg">
-                            <p className="text-gray-300 mb-1">{formattedDate}</p>
-                            <p className="font-semibold">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+                          <div className="bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg space-y-1">
+                            <p className="text-gray-300 mb-1 border-b border-gray-700 pb-1">{formattedDate}</p>
+                            {payload.map((p, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.stroke }} />
+                                <span className={cn("font-medium", p.dataKey === "comparisonValue" ? "text-orange-300" : "text-white")}>
+                                  {p.dataKey === "comparisonValue" ? "Prev: " : "Curr: "}
+                                  {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         );
                       }
