@@ -31,12 +31,18 @@ export interface SummaryTableRow {
     riderFareAcceptance: number;
     driverQuoteAcceptance: number;
     cancellationRate: number;
+
+    // Changes for comparison
+    changes?: {
+        [key in keyof Omit<SummaryTableRow, 'id' | 'label' | 'changes'>]?: number;
+    };
 }
 
 interface SummaryTableProps {
     data: SummaryTableRow[];
     title?: string;
     loading?: boolean;
+    showComparison?: boolean;
 }
 
 type SortConfig = {
@@ -44,9 +50,9 @@ type SortConfig = {
     direction: "asc" | "desc";
 } | null;
 
-export function SummaryTable({ data, title = "Summary Table", loading = false }: SummaryTableProps) {
+export function SummaryTable({ data, title = "Summary Table", loading = false, showComparison = false }: SummaryTableProps) {
     const [searchQuery, setSearchQuery] = useState("");
-    const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+    const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "completedRides", direction: "desc" });
 
     // Filter
     const filteredData = useMemo(() => {
@@ -60,8 +66,8 @@ export function SummaryTable({ data, title = "Summary Table", loading = false }:
         if (!sortConfig) return filteredData;
 
         return [...filteredData].sort((a, b) => {
-            const aValue = a[sortConfig.key];
-            const bValue = b[sortConfig.key];
+            const aValue = a[sortConfig.key] ?? 0;
+            const bValue = b[sortConfig.key] ?? 0;
 
             if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
             if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
@@ -139,6 +145,20 @@ export function SummaryTable({ data, title = "Summary Table", loading = false }:
 
     const formatPercent = (num: number) => `${num.toFixed(2)}%`;
     const formatCurrency = (num: number) => `₹${formatNumber(num)}`;
+
+    const renderCell = (value: number, change: number | undefined, format: (n: number) => string, inverse = false) => {
+        return (
+            <div className="flex flex-col items-end">
+                <span>{format(value)}</span>
+                {showComparison && change !== undefined && Math.abs(change) > 0.01 && (
+                    <span className={`text-[10px] ${(inverse ? change < 0 : change > 0) ? "text-green-500" : "text-red-500"
+                        }`}>
+                        {change > 0 ? "+" : ""}{change.toFixed(1)}%
+                    </span>
+                )}
+            </div>
+        );
+    };
 
     return (
         <Card className="w-full bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 shadow-sm">
@@ -246,25 +266,25 @@ export function SummaryTable({ data, title = "Summary Table", loading = false }:
                             ))
                         ) : sortedData.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={12} className="h-24 text-center">
-                                    No results found.
+                                <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
+                                    No data found
                                 </TableCell>
                             </TableRow>
                         ) : (
                             sortedData.map((row) => (
                                 <TableRow key={row.id}>
-                                    <TableCell className="font-medium text-zinc-900 dark:text-zinc-100">{row.label}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{formatNumber(row.searches)}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{formatNumber(row.quotesRequested)}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{formatNumber(row.quotesAccepted)}</TableCell>
-                                    <TableCell className="text-right font-medium text-blue-600 dark:text-blue-400">{formatNumber(row.bookings)}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{formatNumber(row.completedRides)}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">{formatNumber(row.cancelledRides)}</TableCell>
-                                    <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(row.earnings)}</TableCell>
-                                    <TableCell className="text-right text-zinc-700 dark:text-zinc-300">{formatPercent(row.conversionRate)}</TableCell>
-                                    <TableCell className="text-right text-zinc-700 dark:text-zinc-300">{formatPercent(row.riderFareAcceptance)}</TableCell>
-                                    <TableCell className="text-right text-zinc-700 dark:text-zinc-300">{formatPercent(row.driverQuoteAcceptance)}</TableCell>
-                                    <TableCell className="text-right text-zinc-700 dark:text-zinc-300">{formatPercent(row.cancellationRate)}</TableCell>
+                                    <TableCell className="font-medium text-xs">{row.label}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.searches, row.changes?.searches, formatNumber)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.quotesRequested, row.changes?.quotesRequested, formatNumber)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.quotesAccepted, row.changes?.quotesAccepted, formatNumber)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.bookings, row.changes?.bookings, formatNumber)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.completedRides, row.changes?.completedRides, formatNumber)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.cancelledRides, row.changes?.cancelledRides, formatNumber, true)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.earnings, row.changes?.earnings, formatCurrency)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.conversionRate, row.changes?.conversionRate, formatPercent)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.riderFareAcceptance, row.changes?.riderFareAcceptance, formatPercent)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.driverQuoteAcceptance, row.changes?.driverQuoteAcceptance, formatPercent)}</TableCell>
+                                    <TableCell className="text-right text-xs py-2">{renderCell(row.cancellationRate, row.changes?.cancellationRate, formatPercent, true)}</TableCell>
                                 </TableRow>
                             ))
                         )}

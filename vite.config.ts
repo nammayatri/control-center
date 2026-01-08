@@ -98,6 +98,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        "/api/cancellations": {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
   };

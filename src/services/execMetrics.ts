@@ -30,7 +30,7 @@ export interface MetricsFilters {
   vehicleSubCategory?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
-  groupBy?: "city" | "merchant_id" | "flow_type" | "trip_tag" | "service_tier";
+  groupBy?: "city" | "merchant_id" | "flow_type" | "trip_tag" | "service_tier" | "cancellation_trip_distance" | "cancellation_fare_breakup" | "cancellation_pickup_distance" | "cancellation_pickup_left" | "cancellation_time_to_cancel" | "cancellation_reason";
 }
 
 export type ServiceTierType = "tier-less" | "tier" | "bookany";
@@ -178,6 +178,14 @@ export interface GroupedMetricsRow {
   riderFareAcceptanceRate?: number;
   driverQuoteAcceptanceRate?: number;
   driverAcceptanceRate?: number;
+  // Cancellation specific fields
+  totalBookings?: number;
+  bookingsCancelled?: number;
+  userCancelled?: number;
+  driverCancelled?: number;
+  cancellationRate?: number;
+  userCancellationRate?: number;
+  driverCancellationRate?: number;
 }
 
 export interface GroupedMetricsResponse {
@@ -199,7 +207,13 @@ export type Dimension =
   | "user_backend_app_version"
   | "dynamic_pricing_logic_version"
   | "pooling_logic_version"
-  | "pooling_config_version";
+  | "pooling_config_version"
+  | "cancellation_trip_distance"
+  | "cancellation_fare_breakup"
+  | "cancellation_pickup_distance"
+  | "cancellation_pickup_left"
+  | "cancellation_time_to_cancel"
+  | "cancellation_reason";
 
 export type Granularity = "hour" | "day";
 
@@ -325,10 +339,40 @@ export async function getFilterOptions(): Promise<FilterOptionsResponse> {
 }
 
 export async function getGroupedMetrics(
-  groupBy: "city" | "merchant_id" | "flow_type" | "trip_tag" | "service_tier",
+  groupBy: "city" | "merchant_id" | "flow_type" | "trip_tag" | "service_tier" | "cancellation_trip_distance" | "cancellation_fare_breakup" | "cancellation_pickup_distance" | "cancellation_pickup_left" | "cancellation_time_to_cancel" | "cancellation_reason",
   filters: MetricsFilters = {}
 ): Promise<GroupedMetricsResponse> {
-  const query = buildMasterQueryParams({ ...filters, groupBy });
+
+  // Check if it's a cancellation metric
+  if (groupBy.startsWith('cancellation_')) {
+    const validMap: Record<string, string> = {
+      'cancellation_trip_distance': 'trip_distance_bkt',
+      'cancellation_fare_breakup': 'fare_breakup',
+      'cancellation_pickup_distance': 'actual_pickup_dist__bkt',
+      'cancellation_pickup_left': 'pickup_dist_left_bucket',
+      'cancellation_time_to_cancel': 'time_to_cancel_bkt',
+      'cancellation_reason': 'reason_code'
+    };
+
+    const backendGroupBy = validMap[groupBy];
+    if (backendGroupBy) {
+      const query = buildMasterQueryParams({ ...filters, groupBy: backendGroupBy as any }); // Cast as any because MetricsFilters type is not updated to backend keys, but buildQueryParams expects strings. Actually MetricsFilters.groupBy is specific union.
+      // We need to pass the backendGroupBy key in query params.
+      // buildMasterQueryParams checks `filters.groupBy`.
+      // We can override the groupBy in the query construction or just manually build/replace.
+
+      // Let's use buildMasterQueryParams but we need to ensure it uses the backend key.
+      // Since buildMasterQueryParams takes MetricsFilters which has specific groupBy, we might need to cast or just construct updated filters.
+      // But buildMasterQueryParams uses filters.groupBy directly.
+
+      return apiRequest(adminApi, {
+        method: "GET",
+        url: `/cancellations/grouped${query}`,
+      });
+    }
+  }
+
+  const query = buildMasterQueryParams({ ...filters, groupBy: groupBy as any });
   return apiRequest(adminApi, {
     method: "GET",
     url: `/master-conversion/grouped${query}`,
@@ -340,6 +384,28 @@ export async function getTrendData(
   granularity: Granularity,
   filters: MetricsFilters = {}
 ): Promise<DimensionalTimeSeriesResponse> {
+  // Check if it's a cancellation metric
+  if (dimension.startsWith('cancellation_')) {
+    const validMap: Record<string, string> = {
+      'cancellation_trip_distance': 'trip_distance_bkt',
+      'cancellation_fare_breakup': 'fare_breakup',
+      'cancellation_pickup_distance': 'actual_pickup_dist__bkt',
+      'cancellation_pickup_left': 'pickup_dist_left_bucket',
+      'cancellation_time_to_cancel': 'time_to_cancel_bkt',
+      'cancellation_reason': 'reason_code'
+    };
+
+    const backendDimension = validMap[dimension];
+    if (backendDimension) {
+      const query = buildMasterQueryParams(filters); // No need to override groupBy here as it's separate param
+      const prefix = query ? "&" : "?";
+      return apiRequest(adminApi, {
+        method: "GET",
+        url: `/cancellations/trend${query}${prefix}dimension=${backendDimension}&granularity=${granularity}`,
+      });
+    }
+  }
+
   const query = buildMasterQueryParams(filters);
   const prefix = query ? "&" : "?";
 
