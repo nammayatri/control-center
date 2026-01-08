@@ -77,13 +77,6 @@ export function DriversPage() {
           break;
       }
 
-      // Special case for direct driverId lookups (if user explicitly knows it's a UUID)
-      if (searchType === 'id' && /^[0-9a-fA-F-]{36}$/.test(searchValue.trim())) {
-        // Direct navigation if valid UUID
-        navigate(`/ops/drivers/${searchValue.trim()}`);
-        return;
-      }
-
       const response = await getDriverInfo(
         apiMerchantId,
         cityId || undefined,
