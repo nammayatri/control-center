@@ -393,3 +393,45 @@ export function useBulkUploadCoins() {
     },
   });
 }
+
+export function useChangeOperatingCity() {
+  const queryClient = useQueryClient();
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: ({
+      driverId,
+      operatingCity,
+    }: {
+      driverId: string;
+      operatingCity: string;
+    }) =>
+      driversService.changeOperatingCity(
+        apiMerchantId!,
+        driverId,
+        operatingCity,
+        cityId || undefined
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['driver'] });
+    },
+  });
+}
+
+export function useSendDummyNotification() {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: (driverId: string) =>
+      driversService.sendDummyNotification(
+        apiMerchantId!,
+        driverId,
+        cityId || undefined
+      ),
+  });
+}

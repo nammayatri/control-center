@@ -833,3 +833,59 @@ export async function bulkUploadCoinsV2(
     data,
   });
 }
+
+// ============================================
+// Change Operating City
+// ============================================
+
+export interface ChangeOperatingCityRequest {
+  operatingCity: string;
+}
+
+export interface ChangeOperatingCityResponse {
+  result: string;
+}
+
+export async function changeOperatingCity(
+  merchantId: string,
+  driverId: string,
+  operatingCity: string,
+  cityId?: string
+): Promise<ChangeOperatingCityResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/changeOperatingCity`
+    : `/driver-offer/{merchantId}/driver/{driverId}/changeOperatingCity`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data: { operatingCity },
+  });
+}
+
+// ============================================
+// Send Dummy Notification
+// ============================================
+
+export interface SendDummyNotificationResponse {
+  result: string;
+}
+
+export async function sendDummyNotification(
+  merchantId: string,
+  driverId: string,
+  cityId?: string
+): Promise<SendDummyNotificationResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/driver/{driverId}/sendDummyNotification`
+    : `/driver-offer/{merchantId}/driver/{driverId}/sendDummyNotification`;
+
+  const path = buildPath(basePath, merchantId, cityId).replace('{driverId}', driverId);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+  });
+}

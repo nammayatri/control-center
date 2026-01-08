@@ -1,7 +1,8 @@
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { cn, getInitials } from '../../lib/utils';
-import { Star, Phone, Car } from 'lucide-react';
+import { Star, Phone, Car, MapPin, Pencil } from 'lucide-react';
+import { getCityName } from '../../lib/cityMapping';
 
 interface DriverBadgeProps {
   name: string;
@@ -9,6 +10,8 @@ interface DriverBadgeProps {
   rating?: number;
   status?: 'online' | 'offline' | 'busy' | 'blocked';
   vehicleNumber?: string;
+  city?: string;
+  onEditCity?: () => void;
   compact?: boolean;
   className?: string;
 }
@@ -19,9 +22,11 @@ export function DriverBadge({
   rating,
   status,
   vehicleNumber,
+  city,
+  onEditCity,
   compact = false,
   className,
-}: DriverBadgeProps) {
+}: Readonly<DriverBadgeProps>) {
   const getStatusColor = () => {
     switch (status) {
       case 'online':
@@ -116,6 +121,24 @@ export function DriverBadge({
               {vehicleNumber}
             </span>
           )}
+          {city && (
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {city}
+              {onEditCity && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditCity();
+                  }}
+                  className="ml-1 p-0.5 hover:bg-muted rounded transition-colors"
+                  title="Change operating city"
+                >
+                  <Pencil className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -137,10 +160,11 @@ interface DriverSummaryProps {
     merchantOperatingCity?: string;
     driverMode?: string;
   };
+  onEditCity?: () => void;
   className?: string;
 }
 
-export function DriverSummary({ driver, className }: DriverSummaryProps) {
+export function DriverSummary({ driver, onEditCity, className }: Readonly<DriverSummaryProps>) {
   const name = `${driver.firstName} ${driver.lastName || ''}`.trim();
   
   const getStatus = (): 'online' | 'offline' | 'busy' | 'blocked' => {
@@ -158,6 +182,8 @@ export function DriverSummary({ driver, className }: DriverSummaryProps) {
       rating={driver.rating}
       status={getStatus()}
       vehicleNumber={driver.vehicleNumber}
+      city={getCityName(driver.merchantOperatingCity || '')}
+      onEditCity={onEditCity}
       className={className}
     />
   );
