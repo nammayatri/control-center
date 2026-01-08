@@ -66,6 +66,7 @@ import { ServicesEditor } from './ServicesEditor';
 import { LanguagesEditor } from './LanguagesEditor';
 import { BannersEditor } from './BannersEditor';
 import { LottieEditor } from './LottieEditor';
+import { ExploreEditor } from './ExploreEditor';
 
 // ============================================
 // Parameter Editor Component
@@ -113,9 +114,9 @@ function ParameterEditor({ paramKey, parameter, onUpdate, onDelete, cityFilter }
 
   const defaultValueContainsCity = cityFilter ? containsCity(parameter.defaultValue?.value || '', cityFilter) : false;
   const conditionalValuesWithCity = cityFilter && parameter.conditionalValues
-    ? Object.entries(parameter.conditionalValues).filter(([, val]) => 
-        containsCity(val.value || '', cityFilter)
-      )
+    ? Object.entries(parameter.conditionalValues).filter(([, val]) =>
+      containsCity(val.value || '', cityFilter)
+    )
     : [];
 
   // If city filter is active and this parameter doesn't contain the city, don't show it
@@ -182,7 +183,7 @@ function ParameterEditor({ paramKey, parameter, onUpdate, onDelete, cityFilter }
                   <span className="text-sm text-muted-foreground italic">{parameter.description}</span>
                 </div>
               )}
-              
+
               {/* Default Value - Editable Input */}
               <div>
                 <div className="text-sm font-medium mb-2">Default Value:</div>
@@ -207,8 +208,8 @@ function ParameterEditor({ paramKey, parameter, onUpdate, onDelete, cityFilter }
                     {Object.entries(parameter.conditionalValues).map(([condition, value]) => {
                       const highlightCity = cityFilter && containsCity(value.value || '', cityFilter);
                       return (
-                        <div 
-                          key={condition} 
+                        <div
+                          key={condition}
                           className={`p-3 rounded-md border ${highlightCity ? 'border-primary bg-primary/5' : 'border-border bg-muted/50'}`}
                         >
                           <div className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
@@ -296,7 +297,7 @@ export function FirebaseConfigPage() {
 
   // Use edited or server template
   const currentTemplate = editedTemplate || serverTemplate;
-  
+
   // Detect actual changes by comparing JSON strings
   const hasUnsavedChanges = useMemo(() => {
     if (!editedTemplate || !serverTemplate) return false;
@@ -346,7 +347,7 @@ export function FirebaseConfigPage() {
 
     const handleUpdate = (newValue: string) => {
       const updatedParam = { ...param };
-      
+
       if (firebaseCondition === 'default') {
         updatedParam.defaultValue = { value: newValue };
       } else {
@@ -355,7 +356,7 @@ export function FirebaseConfigPage() {
           [firebaseCondition]: { value: newValue },
         };
       }
-      
+
       handleParameterUpdate(paramKey, updatedParam);
     };
 
@@ -369,9 +370,9 @@ export function FirebaseConfigPage() {
   // Filter parameters based on search query
   const filteredParameters = useMemo(() => {
     if (!currentTemplate?.parameters) return {};
-    
+
     const params = currentTemplate.parameters;
-    
+
     if (!searchQuery && !cityFilter) {
       return params;
     }
@@ -379,11 +380,11 @@ export function FirebaseConfigPage() {
     return Object.entries(params).reduce((acc, [key, param]) => {
       // Check if parameter key matches search query
       const matchesSearch = !searchQuery || key.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       if (matchesSearch) {
         acc[key] = param;
       }
-      
+
       return acc;
     }, {} as Record<string, RemoteConfigParameter>);
   }, [currentTemplate, searchQuery, cityFilter]);
@@ -395,41 +396,41 @@ export function FirebaseConfigPage() {
     // Check if parameter exists in a group
     let foundInGroup = false;
     let groupNameFound = '';
-    
+
     if (currentTemplate.parameterGroups) {
       for (const [groupName, group] of Object.entries(currentTemplate.parameterGroups)) {
         if (group.parameters?.[key]) {
-             foundInGroup = true;
-             groupNameFound = groupName;
-             break;
+          foundInGroup = true;
+          groupNameFound = groupName;
+          break;
         }
       }
     }
 
     if (foundInGroup) {
-        // Update inside the group
-        setEditedTemplate({
-            ...currentTemplate,
-            parameterGroups: {
-                ...currentTemplate.parameterGroups!,
-                [groupNameFound]: {
-                    ...currentTemplate.parameterGroups![groupNameFound],
-                    parameters: {
-                        ...currentTemplate.parameterGroups![groupNameFound].parameters,
-                        [key]: parameter
-                    }
-                }
-            }
-        });
-    } else {
-        // Update in top-level parameters
-        setEditedTemplate({
-            ...currentTemplate,
+      // Update inside the group
+      setEditedTemplate({
+        ...currentTemplate,
+        parameterGroups: {
+          ...currentTemplate.parameterGroups!,
+          [groupNameFound]: {
+            ...currentTemplate.parameterGroups![groupNameFound],
             parameters: {
-                ...currentTemplate.parameters,
-                [key]: parameter,
-            },
-        });
+              ...currentTemplate.parameterGroups![groupNameFound].parameters,
+              [key]: parameter
+            }
+          }
+        }
+      });
+    } else {
+      // Update in top-level parameters
+      setEditedTemplate({
+        ...currentTemplate,
+        parameters: {
+          ...currentTemplate.parameters,
+          [key]: parameter,
+        },
+      });
     }
   };
 
@@ -473,13 +474,13 @@ export function FirebaseConfigPage() {
   // Compute change summary between server and current template
   const computeChangeSummary = (): string[] => {
     if (!serverTemplate || !currentTemplate) return [];
-    
+
     const changes: string[] = [];
-    
+
     // Check top-level parameters
     const serverParams = serverTemplate.parameters || {};
     const currentParams = currentTemplate.parameters || {};
-    
+
     // Check for modified/added parameters
     for (const key of Object.keys(currentParams)) {
       if (!serverParams[key]) {
@@ -488,22 +489,22 @@ export function FirebaseConfigPage() {
         changes.push(`Modified: ${key}`);
       }
     }
-    
+
     // Check for deleted parameters
     for (const key of Object.keys(serverParams)) {
       if (!currentParams[key]) {
         changes.push(`Deleted: ${key}`);
       }
     }
-    
+
     // Check parameter groups
     const serverGroups = serverTemplate.parameterGroups || {};
     const currentGroups = currentTemplate.parameterGroups || {};
-    
+
     for (const groupName of Object.keys(currentGroups)) {
       const serverGroup = serverGroups[groupName]?.parameters || {};
       const currentGroup = currentGroups[groupName]?.parameters || {};
-      
+
       for (const key of Object.keys(currentGroup)) {
         if (!serverGroup[key]) {
           changes.push(`Added: ${groupName}/${key}`);
@@ -511,14 +512,14 @@ export function FirebaseConfigPage() {
           changes.push(`Modified: ${groupName}/${key}`);
         }
       }
-      
+
       for (const key of Object.keys(serverGroup)) {
         if (!currentGroup[key]) {
           changes.push(`Deleted: ${groupName}/${key}`);
         }
       }
     }
-    
+
     return changes;
   };
 
@@ -567,7 +568,7 @@ export function FirebaseConfigPage() {
       setShowPublishDialog(false);
       setEditedTemplate(null);
       setPublishSummary({ parameterChanges: [], isValidating: false, validationPassed: null });
-      
+
       // Refetch config to show updated values
       refetchConfig();
     } catch (error) {
@@ -716,13 +717,13 @@ export function FirebaseConfigPage() {
                               // Try to find parameter in multiple locations
                               let param: RemoteConfigParameter | undefined;
                               let paramPath = '';
-                              
+
                               // 1. Check top-level parameters
                               param = currentTemplate.parameters[config.parameterKey];
                               if (param) {
                                 paramPath = config.parameterKey;
                               }
-                              
+
                               // 2. Check in parameterGroups (folders like ui_v2)
                               if (!param && currentTemplate.parameterGroups) {
                                 for (const [groupName, group] of Object.entries(currentTemplate.parameterGroups)) {
@@ -733,10 +734,10 @@ export function FirebaseConfigPage() {
                                   }
                                 }
                               }
-                              
+
                               // Debug: Show message if parameter not found
                               if (!param) {
-                                const groupNames = currentTemplate.parameterGroups 
+                                const groupNames = currentTemplate.parameterGroups
                                   ? Object.keys(currentTemplate.parameterGroups).join(', ')
                                   : 'none';
                                 return (
@@ -766,7 +767,7 @@ export function FirebaseConfigPage() {
                               // Get original value for comparison
                               const getOriginalValue = () => {
                                 let originalParam: RemoteConfigParameter | undefined;
-                                
+
                                 if (paramPath.includes('/')) {
                                   const [groupName, paramName] = paramPath.split('/');
                                   const originalGroup = serverTemplate?.parameterGroups?.[groupName];
@@ -774,9 +775,9 @@ export function FirebaseConfigPage() {
                                 } else {
                                   originalParam = serverTemplate?.parameters[config.parameterKey];
                                 }
-                                
+
                                 if (!originalParam) return '{}';
-                                
+
                                 if (firebaseCondition === 'default') {
                                   return originalParam.defaultValue?.value || '{}';
                                 }
@@ -792,13 +793,13 @@ export function FirebaseConfigPage() {
                                     const updatedParam = firebaseCondition === 'default'
                                       ? { ...param, defaultValue: { value: newValue } }
                                       : {
-                                          ...param,
-                                          conditionalValues: {
-                                            ...param!.conditionalValues,
-                                            [firebaseCondition]: { value: newValue },
-                                          },
-                                        };
-                                    
+                                        ...param,
+                                        conditionalValues: {
+                                          ...param!.conditionalValues,
+                                          [firebaseCondition]: { value: newValue },
+                                        },
+                                      };
+
                                     setEditedTemplate({
                                       ...currentTemplate,
                                       parameterGroups: {
@@ -818,13 +819,13 @@ export function FirebaseConfigPage() {
                                   const updatedParam = firebaseCondition === 'default'
                                     ? { ...param!, defaultValue: { value: newValue } }
                                     : {
-                                        ...param!,
-                                        conditionalValues: {
-                                          ...param!.conditionalValues,
-                                          [firebaseCondition]: { value: newValue },
-                                        },
-                                      };
-                                  
+                                      ...param!,
+                                      conditionalValues: {
+                                        ...param!.conditionalValues,
+                                        [firebaseCondition]: { value: newValue },
+                                      },
+                                    };
+
                                   handleParameterUpdate(config.parameterKey, updatedParam);
                                 }
                               };
@@ -842,20 +843,20 @@ export function FirebaseConfigPage() {
                                 />
                               );
                             })}
-                          
-                          
+
+
                           {/* Languages Editor for allowed_languages */}
                           {(() => {
                             // Find allowed_languages in parameterGroups
                             let languagesParam: RemoteConfigParameter | undefined;
                             let languagesPath = '';
-                            
+
                             // Check top-level
                             languagesParam = currentTemplate.parameters['allowed_languages'];
                             if (languagesParam) {
                               languagesPath = 'allowed_languages';
                             }
-                            
+
                             // Check in parameterGroups
                             if (!languagesParam && currentTemplate.parameterGroups) {
                               for (const [groupName, group] of Object.entries(currentTemplate.parameterGroups)) {
@@ -866,19 +867,19 @@ export function FirebaseConfigPage() {
                                 }
                               }
                             }
-                            
+
                             if (!languagesParam) return null;
-                            
+
                             const getValue = () => {
                               if (firebaseCondition === 'default') {
                                 return languagesParam.defaultValue?.value || '{}';
                               }
                               return languagesParam.conditionalValues?.[firebaseCondition]?.value || languagesParam.defaultValue?.value || '{}';
                             };
-                            
+
                             const getOriginalValue = () => {
                               let originalParam: RemoteConfigParameter | undefined;
-                              
+
                               if (languagesPath.includes('/')) {
                                 const [groupName] = languagesPath.split('/');
                                 const originalGroup = serverTemplate?.parameterGroups?.[groupName];
@@ -886,15 +887,15 @@ export function FirebaseConfigPage() {
                               } else {
                                 originalParam = serverTemplate?.parameters['allowed_languages'];
                               }
-                              
+
                               if (!originalParam) return '{}';
-                              
+
                               if (firebaseCondition === 'default') {
                                 return originalParam.defaultValue?.value || '{}';
                               }
                               return originalParam.conditionalValues?.[firebaseCondition]?.value || originalParam.defaultValue?.value || '{}';
                             };
-                            
+
                             const handleUpdate = (newValue: string) => {
                               if (languagesPath.includes('/')) {
                                 const [groupName, paramName] = languagesPath.split('/');
@@ -903,13 +904,13 @@ export function FirebaseConfigPage() {
                                   const updatedParam = firebaseCondition === 'default'
                                     ? { ...languagesParam, defaultValue: { value: newValue } }
                                     : {
-                                        ...languagesParam,
-                                        conditionalValues: {
-                                          ...languagesParam.conditionalValues,
-                                          [firebaseCondition]: { value: newValue },
-                                        },
-                                      };
-                                  
+                                      ...languagesParam,
+                                      conditionalValues: {
+                                        ...languagesParam.conditionalValues,
+                                        [firebaseCondition]: { value: newValue },
+                                      },
+                                    };
+
                                   setEditedTemplate({
                                     ...currentTemplate,
                                     parameterGroups: {
@@ -928,22 +929,22 @@ export function FirebaseConfigPage() {
                                 const updatedParam = firebaseCondition === 'default'
                                   ? { ...languagesParam, defaultValue: { value: newValue } }
                                   : {
-                                      ...languagesParam,
-                                      conditionalValues: {
-                                        ...languagesParam.conditionalValues,
-                                        [firebaseCondition]: { value: newValue },
-                                      },
-                                    };
-                                
+                                    ...languagesParam,
+                                    conditionalValues: {
+                                      ...languagesParam.conditionalValues,
+                                      [firebaseCondition]: { value: newValue },
+                                    },
+                                  };
+
                                 handleParameterUpdate('allowed_languages', updatedParam);
                               }
                             };
-                            
+
                             // Filter conditions to only show those with data for this parameter
                             const availableConditions = (currentTemplate.conditions || []).filter(
                               cond => languagesParam.conditionalValues?.[cond.name] !== undefined
                             );
-                            
+
                             return (
                               <LanguagesEditor
                                 parameterValue={getValue()}
@@ -967,13 +968,13 @@ export function FirebaseConfigPage() {
                             // Find enabled_services_v3 in parameterGroups
                             let servicesParam: RemoteConfigParameter | undefined;
                             let servicesPath = '';
-                            
+
                             // Check top-level
                             servicesParam = currentTemplate.parameters['enabled_services_v3'];
                             if (servicesParam) {
                               servicesPath = 'enabled_services_v3';
                             }
-                            
+
                             // Check in parameterGroups
                             if (!servicesParam && currentTemplate.parameterGroups) {
                               for (const [groupName, group] of Object.entries(currentTemplate.parameterGroups)) {
@@ -984,19 +985,19 @@ export function FirebaseConfigPage() {
                                 }
                               }
                             }
-                            
+
                             if (!servicesParam) return null;
-                            
+
                             const getValue = () => {
                               if (firebaseCondition === 'default') {
                                 return servicesParam.defaultValue?.value || '{}';
                               }
                               return servicesParam.conditionalValues?.[firebaseCondition]?.value || servicesParam.defaultValue?.value || '{}';
                             };
-                            
+
                             const getOriginalValue = () => {
                               let originalParam: RemoteConfigParameter | undefined;
-                              
+
                               if (servicesPath.includes('/')) {
                                 const [groupName] = servicesPath.split('/');
                                 const originalGroup = serverTemplate?.parameterGroups?.[groupName];
@@ -1004,15 +1005,15 @@ export function FirebaseConfigPage() {
                               } else {
                                 originalParam = serverTemplate?.parameters['enabled_services_v3'];
                               }
-                              
+
                               if (!originalParam) return '{}';
-                              
+
                               if (firebaseCondition === 'default') {
                                 return originalParam.defaultValue?.value || '{}';
                               }
                               return originalParam.conditionalValues?.[firebaseCondition]?.value || originalParam.defaultValue?.value || '{}';
                             };
-                            
+
                             const handleUpdate = (newValue: string) => {
                               if (servicesPath.includes('/')) {
                                 const [groupName, paramName] = servicesPath.split('/');
@@ -1021,13 +1022,13 @@ export function FirebaseConfigPage() {
                                   const updatedParam = firebaseCondition === 'default'
                                     ? { ...servicesParam, defaultValue: { value: newValue } }
                                     : {
-                                        ...servicesParam,
-                                        conditionalValues: {
-                                          ...servicesParam.conditionalValues,
-                                          [firebaseCondition]: { value: newValue },
-                                        },
-                                      };
-                                  
+                                      ...servicesParam,
+                                      conditionalValues: {
+                                        ...servicesParam.conditionalValues,
+                                        [firebaseCondition]: { value: newValue },
+                                      },
+                                    };
+
                                   setEditedTemplate({
                                     ...currentTemplate,
                                     parameterGroups: {
@@ -1046,24 +1047,58 @@ export function FirebaseConfigPage() {
                                 const updatedParam = firebaseCondition === 'default'
                                   ? { ...servicesParam, defaultValue: { value: newValue } }
                                   : {
-                                      ...servicesParam,
-                                      conditionalValues: {
-                                        ...servicesParam.conditionalValues,
-                                        [firebaseCondition]: { value: newValue },
-                                      },
-                                    };
-                                
+                                    ...servicesParam,
+                                    conditionalValues: {
+                                      ...servicesParam.conditionalValues,
+                                      [firebaseCondition]: { value: newValue },
+                                    },
+                                  };
+
                                 handleParameterUpdate('enabled_services_v3', updatedParam);
                               }
                             };
-                            
+
                             // Filter conditions to only show those with data for this parameter
                             const availableConditions = (currentTemplate.conditions || []).filter(
                               cond => servicesParam.conditionalValues?.[cond.name] !== undefined
                             );
-                            
+
                             return (
                               <ServicesEditor
+                                parameterValue={getValue()}
+                                originalValue={getOriginalValue()}
+                                onUpdate={handleUpdate}
+                                firebaseCondition={firebaseCondition}
+                                firebaseConditions={availableConditions}
+                                onFirebaseConditionChange={setFirebaseCondition}
+                              />
+                            );
+                          })()}
+
+                          {/* Explore Section Editor for explore_section_config */}
+                          {(() => {
+                            // Look for explore_section in parameters
+                            const paramKey = 'explore_section';
+                            const param = currentTemplate.parameters?.[paramKey] ||
+                              Object.values(currentTemplate.parameterGroups || {})
+                                .flatMap(g => Object.entries(g.parameters || {}))
+                                .find(([key]) => key === paramKey)?.[1];
+
+                            const originalParam = serverTemplate?.parameters?.[paramKey] ||
+                              Object.values(serverTemplate?.parameterGroups || {})
+                                .flatMap(g => Object.entries(g.parameters || {}))
+                                .find(([key]) => key === paramKey)?.[1];
+
+                            if (!param) {
+                              return null; // Don't show if parameter doesn't exist
+                            }
+
+                            // Use helper to get parameter handlers
+                            const { getValue, getOriginalValue, handleUpdate, availableConditions } =
+                              createParameterHandlers(param, originalParam, paramKey, firebaseCondition);
+
+                            return (
+                              <ExploreEditor
                                 parameterValue={getValue()}
                                 originalValue={getOriginalValue()}
                                 onUpdate={handleUpdate}
@@ -1078,16 +1113,16 @@ export function FirebaseConfigPage() {
                           {(() => {
                             // Look for carousel_banner_config in parameters
                             const paramKey = 'carousel_banner_config';
-                            const param = currentTemplate.parameters?.[paramKey] || 
+                            const param = currentTemplate.parameters?.[paramKey] ||
                               Object.values(currentTemplate.parameterGroups || {})
                                 .flatMap(g => Object.entries(g.parameters || {}))
                                 .find(([key]) => key === paramKey)?.[1];
-                            
+
                             const originalParam = serverTemplate?.parameters?.[paramKey] ||
                               Object.values(serverTemplate?.parameterGroups || {})
                                 .flatMap(g => Object.entries(g.parameters || {}))
                                 .find(([key]) => key === paramKey)?.[1];
-                            
+
                             if (!param) {
                               return (
                                 <div className="p-8 text-center text-muted-foreground border rounded-lg bg-muted/20">
@@ -1098,9 +1133,9 @@ export function FirebaseConfigPage() {
                             }
 
                             // Use helper to get parameter handlers
-                            const { getValue, getOriginalValue, handleUpdate, availableConditions } = 
+                            const { getValue, getOriginalValue, handleUpdate, availableConditions } =
                               createParameterHandlers(param, originalParam, paramKey, firebaseCondition);
-                            
+
                             return (
                               <BannersEditor
                                 parameterValue={getValue()}
@@ -1117,24 +1152,24 @@ export function FirebaseConfigPage() {
                           {(() => {
                             // Look for city_lottie_config in parameters
                             const paramKey = 'city_lottie_config';
-                            const param = currentTemplate.parameters?.[paramKey] || 
+                            const param = currentTemplate.parameters?.[paramKey] ||
                               Object.values(currentTemplate.parameterGroups || {})
                                 .flatMap(g => Object.entries(g.parameters || {}))
                                 .find(([key]) => key === paramKey)?.[1];
-                            
+
                             const originalParam = serverTemplate?.parameters?.[paramKey] ||
                               Object.values(serverTemplate?.parameterGroups || {})
                                 .flatMap(g => Object.entries(g.parameters || {}))
                                 .find(([key]) => key === paramKey)?.[1];
-                            
+
                             if (!param) {
                               return null; // Don't show if parameter doesn't exist
                             }
 
                             // Use helper to get parameter handlers
-                            const { getValue, getOriginalValue, handleUpdate, availableConditions } = 
+                            const { getValue, getOriginalValue, handleUpdate, availableConditions } =
                               createParameterHandlers(param, originalParam, paramKey, firebaseCondition);
-                            
+
                             return (
                               <LottieEditor
                                 parameterValue={getValue()}
@@ -1217,7 +1252,7 @@ export function FirebaseConfigPage() {
                               Parameters ({parameterCount})
                             </h3>
                           </div>
-                          
+
                           {parameterCount === 0 ? (
                             <div className="p-8 text-center text-muted-foreground">
                               <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
