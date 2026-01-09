@@ -19,11 +19,23 @@ import {
   ChevronUp,
   History,
   Receipt,
+  MessageSquare,
+  Send,
+  Smartphone,
+  Bell,
 } from 'lucide-react';
-import { useDriverPlanDetails, useAvailablePlans, usePaymentHistory, useSwitchPlan } from '../../hooks/useDrivers';
-import type { DriverPlanResponse, MandateDetails, CurrentPlanDetails } from '../../services/drivers';
+import { useDriverPlanDetails, useAvailablePlans, usePaymentHistory, useSwitchPlan, useSendSubscriptionCommunication } from '../../hooks/useDrivers';
+import type { DriverPlanResponse, MandateDetails, CurrentPlanDetails, MediaChannel, SubscriptionMessageKey } from '../../services/drivers';
 import { formatDateTime, formatDate } from '../../lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
+
 
 interface DriverSubscriptionTabProps {
   readonly driverId: string;
@@ -152,7 +164,8 @@ export function DriverSubscriptionTab({ driverId, isActive }: DriverSubscription
         )}
       </div>
 
-
+      {/* Send Communication Section */}
+      <SendCommunicationSection driverId={driverId} />
 
       {/* Payment History Section - Collapsible */}
       <PaymentHistorySection driverId={driverId} isActive={isActive} />
@@ -1068,6 +1081,334 @@ function AdditionalInfoCard({ data }: { readonly data: DriverPlanResponse }) {
               </p>
             </div>
           </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// Message type configuration with channel-specific keys
+interface MessageTypeConfig {
+  id: string;
+  label: string;
+  description: string;
+  whatsappKey: SubscriptionMessageKey;
+  smsKey: SubscriptionMessageKey;
+  overlayKey: string;
+  color: string;
+}
+
+const MESSAGE_TYPES: MessageTypeConfig[] = [
+  {
+    id: 'clear_dues_call_missed',
+    label: 'Clear Dues - Call Missed',
+    description: 'Reminder for missed payment call',
+    whatsappKey: 'WHATSAPP_CLEAR_DUES_CALL_MISSED_MESSAGE',
+    smsKey: 'SMS_CLEAR_DUES_CALL_MISSED_MESSAGE',
+    overlayKey: 'DASHBOARD CLEAR DUES CALL MISSED OVERLAY',
+    color: 'from-red-500 to-orange-500',
+  },
+  {
+    id: 'clear_dues',
+    label: 'Clear Dues',
+    description: 'Payment reminder for outstanding dues',
+    whatsappKey: 'WHATSAPP_CLEAR_DUES_MESSAGE',
+    smsKey: 'SMS_CLEAR_DUES_MESSAGE',
+    overlayKey: 'DASHBOARD CLEAR DUES TO BE BLOCKED DRIVERS OVERLAY',
+    color: 'from-amber-500 to-yellow-500',
+  },
+  {
+    id: 'clear_dues_blocked',
+    label: 'Clear Dues - Blocked Drivers',
+    description: 'Payment reminder for blocked drivers',
+    whatsappKey: 'WHATSAPP_CLEAR_DUES_MESSAGE_TO_BLOCKED_DRIVERS',
+    smsKey: 'SMS_CLEAR_DUES_MESSAGE_TO_BLOCKED_DRIVERS',
+    overlayKey: 'DASHBOARD CLEAR DUES BLOCKED DRIVERS OVERLAY',
+    color: 'from-red-600 to-rose-500',
+  },
+  {
+    id: 'setup_autopay',
+    label: 'Setup Autopay',
+    description: 'Guide to set up automatic payments',
+    whatsappKey: 'WHATSAPP_SETUP_AUTOPAY_MESSAGE',
+    smsKey: 'SMS_SETUP_AUTOPAY_MESSAGE',
+    overlayKey: 'DASHBOARD SETUP AUTOPAY OVERLAY',
+    color: 'from-blue-500 to-cyan-500',
+  },
+  {
+    id: 'switch_plan',
+    label: 'Switch Plan',
+    description: 'Information about plan switching',
+    whatsappKey: 'WHATSAPP_SWITCH_PLAN_MESSAGE',
+    smsKey: 'SMS_SWITCH_PLAN_MESSAGE',
+    overlayKey: 'DASHBOARD SWITCH TO DAILY UNLIMITED OVERLAY',
+    color: 'from-purple-500 to-pink-500',
+  },
+  {
+    id: 'how_it_works',
+    label: 'How It Works',
+    description: 'Explanation of autopay functionality',
+    whatsappKey: 'WHATSAPP_HOW_IT_WORKS_MESSAGE',
+    smsKey: 'SMS_HOW_IT_WORKS_MESSAGE',
+    overlayKey: 'DASHBOARD HOW AUTOPAY WORKS OVERLAY',
+    color: 'from-green-500 to-emerald-500',
+  },
+];
+
+// Channel configuration 
+interface ChannelConfig {
+  id: MediaChannel;
+  label: string;
+  icon: React.ReactNode;
+  bgClass: string;
+  hoverClass: string;
+}
+
+// Send Communication Section Component
+function SendCommunicationSection({ driverId }: { readonly driverId: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedMessageType, setSelectedMessageType] = useState<string>(MESSAGE_TYPES[0].id);
+  const [sendingChannel, setSendingChannel] = useState<MediaChannel | null>(null);
+  const [lastResult, setLastResult] = useState<{ channel: MediaChannel; success: boolean; message: string } | null>(null);
+
+  const sendMutation = useSendSubscriptionCommunication();
+
+  const selectedConfig = MESSAGE_TYPES.find(m => m.id === selectedMessageType) || MESSAGE_TYPES[0];
+
+  const CHANNELS: ChannelConfig[] = [
+    {
+      id: 'ALERT',
+      label: 'In-App Alert',
+      icon: <Bell className="h-4 w-4" />,
+      bgClass: 'bg-gradient-to-r from-blue-600 to-blue-500',
+      hoverClass: 'hover:from-blue-700 hover:to-blue-600',
+    },
+    {
+      id: 'OVERLAY',
+      label: 'Overlay',
+      icon: <Layers className="h-4 w-4" />,
+      bgClass: 'bg-gradient-to-r from-purple-600 to-purple-500',
+      hoverClass: 'hover:from-purple-700 hover:to-purple-600',
+    },
+    {
+      id: 'WHATSAPP',
+      label: 'WhatsApp',
+      icon: <MessageSquare className="h-4 w-4" />,
+      bgClass: 'bg-gradient-to-r from-green-600 to-green-500',
+      hoverClass: 'hover:from-green-700 hover:to-green-600',
+    },
+    {
+      id: 'SMS',
+      label: 'SMS',
+      icon: <Smartphone className="h-4 w-4" />,
+      bgClass: 'bg-gradient-to-r from-cyan-600 to-cyan-500',
+      hoverClass: 'hover:from-cyan-700 hover:to-cyan-600',
+    },
+  ];
+
+  const handleSend = async (channel: MediaChannel) => {
+    setSendingChannel(channel);
+    setLastResult(null);
+
+    // Determine the correct message key based on channel
+    let messageKey: SubscriptionMessageKey;
+    if (channel === 'WHATSAPP') {
+      messageKey = selectedConfig.whatsappKey;
+    } else {
+      // For SMS, ALERT, and OVERLAY, use SMS key
+      messageKey = selectedConfig.smsKey;
+    }
+
+    // Build request data - messageId only for ALERT and SMS
+    const requestData: {
+      channel: MediaChannel;
+      messageId?: string;
+      messageKey: SubscriptionMessageKey;
+      overlayKey?: string;
+    } = {
+      channel,
+      messageKey,
+    };
+
+    // Add messageId only for ALERT and SMS channels
+    if (channel === 'ALERT' || channel === 'SMS') {
+      requestData.messageId = crypto.randomUUID();
+    }
+
+    // Add overlayKey only for OVERLAY channel
+    if (channel === 'OVERLAY') {
+      requestData.overlayKey = selectedConfig.overlayKey;
+    }
+
+    try {
+      await sendMutation.mutateAsync({
+        driverId,
+        data: requestData,
+      });
+      setLastResult({ channel, success: true, message: 'Sent successfully!' });
+    } catch (error: unknown) {
+      const errorMessage = 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (error as any)?.response?.data?.errorMessage || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (error as any)?.response?.data?.message || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (error as any)?.message || 
+        'Failed to send';
+      setLastResult({ channel, success: false, message: errorMessage });
+    } finally {
+      setSendingChannel(null);
+    }
+  };
+
+  return (
+    <Card className="overflow-hidden border-2 border-indigo-200 dark:border-indigo-800/50">
+      <CardHeader 
+        className="pb-3 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/30 dark:via-purple-950/30 dark:to-pink-950/30"
+      >
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center justify-between w-full text-left group"
+        >
+          <CardTitle className="text-base flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white">
+              <Send className="h-4 w-4" />
+            </div>
+            <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent font-bold">
+              Send Communication
+            </span>
+            <Badge variant="outline" className="ml-2 border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400">
+              4 Channels
+            </Badge>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-indigo-600 transition-colors" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-indigo-600 transition-colors" />
+            )}
+          </div>
+        </button>
+      </CardHeader>
+
+      {isExpanded && (
+        <CardContent className="pt-6 space-y-6">
+          {/* Message Type Selector */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-indigo-500" />
+              Message Type
+            </Label>
+            <Select value={selectedMessageType} onValueChange={setSelectedMessageType}>
+              <SelectTrigger className="w-full h-12 border-2 hover:border-indigo-300 transition-colors">
+                <SelectValue placeholder="Select message type" />
+              </SelectTrigger>
+              <SelectContent>
+                {MESSAGE_TYPES.map((type) => (
+                  <SelectItem key={type.id} value={type.id} className="py-3 px-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-1.5 w-2 h-2 rounded-full bg-gradient-to-r ${type.color} shrink-0`} />
+                      <div className="flex flex-col items-start text-left min-w-0">
+                        <div className="font-medium leading-none mb-1">{type.label}</div>
+                        <div className="text-xs text-muted-foreground leading-tight">{type.description}</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Overlay Key Display - Reduced emphasis for reference */}
+          <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <Layers className="h-3 w-3 text-slate-400 shrink-0" />
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 whitespace-nowrap">Overlay Key:</span>
+                <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate" title={selectedConfig.overlayKey}>
+                  {selectedConfig.overlayKey}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Channel Buttons */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Send className="h-4 w-4 text-indigo-500" />
+              Send via Channel
+            </Label>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {CHANNELS.map((channel) => {
+                const isLoading = sendingChannel === channel.id;
+                const result = lastResult?.channel === channel.id ? lastResult : null;
+
+                return (
+                  <Button
+                    key={channel.id}
+                    onClick={() => handleSend(channel.id)}
+                    disabled={sendingChannel !== null}
+                    className={`
+                      h-16 flex flex-col items-center justify-center gap-1.5 text-white border-0
+                      ${channel.bgClass} ${channel.hoverClass}
+                      transition-all duration-300 transform hover:scale-105 hover:shadow-lg
+                      disabled:opacity-70 disabled:hover:scale-100
+                    `}
+                  >
+                    {(() => {
+                      if (isLoading) {
+                        return <Loader2 className="h-5 w-5 animate-spin" />;
+                      }
+                      if (result) {
+                        return result.success ? (
+                          <CheckCircle className="h-5 w-5" />
+                        ) : (
+                          <XCircle className="h-5 w-5" />
+                        );
+                      }
+                      return channel.icon;
+                    })()}
+                    <span className="text-xs font-medium">
+                      {isLoading ? 'Sending...' : channel.label}
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Success/Error Feedback */}
+          {lastResult && (
+            <div 
+              className={`
+                p-4 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-2 fade-in duration-300
+                ${lastResult.success 
+                  ? 'bg-green-50 border border-green-200 dark:bg-green-950/30 dark:border-green-800' 
+                  : 'bg-red-50 border border-red-200 dark:bg-red-950/30 dark:border-red-800'
+                }
+              `}
+            >
+              {lastResult.success ? (
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+              )}
+              <div className="flex-1">
+                <p className={`text-sm font-medium ${lastResult.success ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                  {lastResult.success ? 'Message sent successfully!' : 'Failed to send message'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {CHANNELS.find(c => c.id === lastResult.channel)?.label} · {selectedConfig.label}
+                </p>
+                {!lastResult.success && lastResult.message && lastResult.message !== 'Failed to send' && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1.5 font-mono">
+                    {lastResult.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       )}
     </Card>

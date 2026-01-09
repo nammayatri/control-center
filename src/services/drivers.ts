@@ -1093,3 +1093,48 @@ export async function switchDriverPlan(
     url: path,
   });
 }
+
+// ============================================
+// Send Subscription Communication
+// ============================================
+
+export type MediaChannel = 'SMS' | 'WHATSAPP' | 'OVERLAY' | 'ALERT';
+
+export type SubscriptionMessageKey =
+  | 'WHATSAPP_CLEAR_DUES_CALL_MISSED_MESSAGE'
+  | 'WHATSAPP_CLEAR_DUES_MESSAGE'
+  | 'WHATSAPP_CLEAR_DUES_MESSAGE_TO_BLOCKED_DRIVERS'
+  | 'WHATSAPP_SETUP_AUTOPAY_MESSAGE'
+  | 'WHATSAPP_SWITCH_PLAN_MESSAGE'
+  | 'WHATSAPP_HOW_IT_WORKS_MESSAGE'
+  | 'SMS_CLEAR_DUES_CALL_MISSED_MESSAGE'
+  | 'SMS_CLEAR_DUES_MESSAGE'
+  | 'SMS_CLEAR_DUES_MESSAGE_TO_BLOCKED_DRIVERS'
+  | 'SMS_SETUP_AUTOPAY_MESSAGE'
+  | 'SMS_SWITCH_PLAN_MESSAGE'
+  | 'SMS_HOW_IT_WORKS_MESSAGE';
+
+export interface SendSubscriptionSmsRequest {
+  channel: MediaChannel;
+  messageId?: string;
+  messageKey: SubscriptionMessageKey;
+  overlayKey?: string;
+}
+
+export interface SendSubscriptionSmsResponse {
+  result: string;
+}
+
+export async function sendSubscriptionCommunication(
+  merchantId: string,
+  driverId: string,
+  data: SendSubscriptionSmsRequest
+): Promise<SendSubscriptionSmsResponse> {
+  const path = `/driver-offer/${merchantId}/driver/${driverId}/sendSms`;
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data,
+  });
+}

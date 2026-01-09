@@ -524,3 +524,24 @@ export function useSwitchPlan() {
     },
   });
 }
+
+export function useSendSubscriptionCommunication() {
+  const { merchantShortId, merchantId } = useDashboardContext();
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: ({
+      driverId,
+      data,
+    }: {
+      driverId: string;
+      data: driversService.SendSubscriptionSmsRequest;
+    }) =>
+      driversService.sendSubscriptionCommunication(
+        apiMerchantId!,
+        driverId,
+        data
+      ),
+  });
+}
+
