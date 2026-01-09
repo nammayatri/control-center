@@ -794,10 +794,88 @@ export interface BulkUploadTitle {
   te: string;
 }
 
+
 export interface DriverIdWithCoins {
   amount: number;
   amountWithCurrency: CurrencyAmount;
   driverId: string;
+}
+
+export interface BulkRefundCoinsRequest {
+  bulkUploadTitle: string;
+  driverIdListWithCoins: DriverIdWithCoins[];
+  eventFunction: {
+    contents?: number;
+    tag: string;
+  };
+  expirationAt: string | null; // ISO Date string
+  reason: string;
+}
+
+export async function bulkRefundCoins(
+  merchantId: string,
+  data: BulkRefundCoinsRequest,
+  cityId?: string
+): Promise<void> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/coins/bulkUploadCoinsV2`
+    : `/driver-offer/{merchantId}/coins/bulkUploadCoinsV2`;
+
+  const path = buildPath(basePath, merchantId, cityId);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data,
+  });
+}
+
+// ============================================
+// Bulk Driver Search
+// ============================================
+
+export async function bulkFetchDriversByPhone(
+  merchantId: string,
+  cityId: string,
+  file: File
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const basePath = `/driver-offer/{merchantId}/{city}/driver/personId`;
+  const path = buildPath(basePath, merchantId, cityId);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+}
+
+export async function bulkFetchDriversById(
+  merchantId: string,
+  cityId: string,
+  file: File
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const basePath = `/driver-offer/{merchantId}/{city}/driver/personNumbers`;
+  const path = buildPath(basePath, merchantId, cityId);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
 }
 
 export interface BulkUploadCoinsRequest {
