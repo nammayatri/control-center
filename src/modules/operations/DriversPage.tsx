@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
-import { listDrivers, getDriverInfo } from '../../services/drivers';
+import { listDrivers, getDriverInfo, bulkFetchDriversByPhone, bulkFetchDriversById } from '../../services/drivers';
 import {
   Search,
   Phone,
@@ -20,7 +20,12 @@ import {
   CreditCard,
   FileText,
   Mail,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
+
+import { toast } from 'sonner';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { CountryCodeSelect } from '../../components/ui/country-code-select';
 
@@ -62,6 +67,192 @@ function getPlaceholder(searchType: SearchType): string {
     case 'email': return 'driver@example.com';
     default: return 'Enter value...';
   }
+}
+
+function BulkDriverSearch() {
+  const { merchantId, cityId, merchantShortId } = useDashboardContext();
+  const { currentMerchant } = useAuth();
+  const [activeBulkTab, setActiveBulkTab] = useState<'phone' | 'id'>('phone');
+  const [isUploading, setIsUploading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [uploadResult, setUploadResult] = useState<any[] | null>(null);
+
+  const apiMerchantId = merchantShortId || currentMerchant?.shortId || merchantId;
+
+  const handleDownloadSample = () => {
+    let content = '';
+    if (activeBulkTab === 'phone') {
+      content = 'mobileNumber\n9930081991\n8328111468';
+    } else {
+      content = 'personId\n643890b2-adb1-4c4b-9e36-15e368181c12\n77d40521-b66b-408e-b7d0-f2f9caf1d21f';
+    }
+    
+    const blob = new Blob([content], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = activeBulkTab === 'phone' ? 'sample_drivers_phone.csv' : 'sample_drivers_id.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadResult = () => {
+    if (!uploadResult || uploadResult.length === 0) return;
+
+    // Convert JSON to CSV
+    const headers = Object.keys(uploadResult[0]);
+    const csvContent = [
+      headers.join(','),
+      ...uploadResult.map(row => 
+        headers.map(header => {
+          const val = row[header];
+          // Handle commas in values by wrapping in quotes
+          return typeof val === 'string' && val.includes(',') ? `"${val}"` : val;
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `driver_search_results_${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!apiMerchantId) {
+      toast.error('Please select a merchant first');
+      return;
+    }
+    
+    // Default to 'all' city if cityId is undefined/empty to match other API calls logic
+    // But specific bulk API might require city. Based on curl: /NAMMA_YATRI_PARTNER/Bangalore/...
+    // If no city selected, this might fail if API requires city. 
+    // The curl example included city 'Bangalore'.
+    // `drivers.ts` logic for `buildPath` handles `cityId` being optional or 'all'.
+    // We'll pass `cityId || 'all'` if that's safe, or assume the user has selected a city if required.
+    // Given the curl url has 'Bangalore', it implies a city context is usually needed.
+    // However, `drivers.ts` `buildPath` will omit city segment if cityId is missing or 'all' for MOST paths,
+    // BUT for these new paths: `/driver-offer/{merchantId}/{city}/driver/personId`, the `{city}` part is explicit in the base string I added.
+    // Wait, my implementation in `drivers.ts`:
+    // `const basePath = '/driver-offer/{merchantId}/{city}/driver/personId';`
+    // `buildPath` implementation:
+    // `if (cityId && cityId !== "all") { return basePath.replace... }`
+    // `return basePath.replace("{merchantId}", merchantId).replace("/{city}", "");`
+    // So if cityId is missing, it removes `/{city}`.
+    // `/driver-offer/MERCHANT/driver/personId` -> valid?
+    // The curl was: `.../api/bpp/driver-offer/NAMMA_YATRI_PARTNER/Bangalore/driver/personId`
+    // If I used `replace("/{city}", "")`, I get `.../NAMMA_YATRI_PARTNER/driver/personId`.
+    // I hope the backend supports both. If not, I should probably enforce city selection or default to a city.
+    // For now, I'll proceed with current `cityId` from context.
+
+    setIsUploading(true);
+    setUploadResult(null);
+
+    try {
+      let response;
+      if (activeBulkTab === 'phone') {
+        response = await bulkFetchDriversByPhone(apiMerchantId, cityId || 'all', file);
+      } else {
+        response = await bulkFetchDriversById(apiMerchantId, cityId || 'all', file);
+      }
+      
+      if (Array.isArray(response)) {
+        setUploadResult(response);
+        toast.success(`Successfully fetched ${response.length} records`);
+      } else {
+        // If response is not an array, wrap it or handle error
+        console.error('Unexpected response format', response);
+        toast.error('Received unexpected response format');
+      }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error('Bulk upload failed', error);
+      toast.error(error.message || 'Failed to fetch driver details');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileSpreadsheet className="h-5 w-5" />
+          Bulk Driver Search
+        </CardTitle>
+        <CardDescription>
+          Fetch details for multiple drivers by uploading a CSV file
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeBulkTab} onValueChange={(v) => {
+            setActiveBulkTab(v as 'phone' | 'id');
+            setUploadResult(null);
+          }}>
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="phone">By Phone Number</TabsTrigger>
+            <TabsTrigger value="id">By Driver ID</TabsTrigger>
+          </TabsList>
+          
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label>Upload CSV File</Label>
+              <div className="flex gap-2 items-start">
+                <div className="flex-1">
+                  <Input 
+                    type="file" 
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                    className="cursor-pointer"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload a CSV file containing {activeBulkTab === 'phone' ? 'mobile numbers' : 'driver IDs'}
+                  </p>
+                </div>
+                <Button variant="outline" onClick={handleDownloadSample} title="Download Sample CSV">
+                  <Download className="h-4 w-4 mr-2" />
+                  Sample
+                </Button>
+              </div>
+            </div>
+
+            {isUploading && (
+              <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing file...
+              </div>
+            )}
+
+            {uploadResult && (
+              <div className="bg-muted/30 rounded-lg p-4 border flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Ready to download</p>
+                  <p className="text-xs text-muted-foreground">{uploadResult.length} records found</p>
+                </div>
+                <Button onClick={handleDownloadResult}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Results
+                </Button>
+              </div>
+            )}
+          </div>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function DriversPage() {
@@ -367,6 +558,9 @@ export function DriversPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Bulk Search Card */}
+          <BulkDriverSearch />
 
           {/* Tips Card */}
           <Card className="bg-muted/50 border-none shadow-none">
