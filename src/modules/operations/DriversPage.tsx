@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { useAuth } from '../../context/AuthContext';
-import { listDrivers } from '../../services/drivers';
+import { listDrivers, getDriverInfo } from '../../services/drivers';
 import {
   Search,
   Phone,
@@ -22,15 +22,54 @@ import {
   Mail,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '../../components/ui/alert';
-import { getDriverInfo } from '../../services/drivers';
 import { CountryCodeSelect } from '../../components/ui/country-code-select';
+
+type SearchType = 'phone' | 'id' | 'vehicle' | 'dl' | 'rc' | 'email';
+
+interface SearchParams {
+  [key: string]: string | number | boolean | null | undefined;
+  mobileNumber?: string;
+  mobileCountryCode?: string;
+  vehicleNumber?: string;
+  dlNumber?: string;
+  rcNumber?: string;
+  email?: string;
+  personId?: string;
+}
+
+function getSearchLabel(searchType: SearchType): string {
+  switch (searchType) {
+    case 'phone': return 'Phone Number';
+    case 'vehicle': return 'Vehicle Number';
+    case 'dl': return 'Driving License Number';
+    case 'rc': return 'RC Number';
+    case 'email': return 'Email Address';
+    case 'id': return 'Driver ID';
+  }
+}
+
+function getInputType(searchType: SearchType): string {
+  if (searchType === 'phone') return 'tel';
+  if (searchType === 'email') return 'email';
+  return 'text';
+}
+
+function getPlaceholder(searchType: SearchType): string {
+  switch (searchType) {
+    case 'phone': return '9876543210';
+    case 'vehicle': return 'KA01AB1234';
+    case 'dl': return 'KA0120220001234';
+    case 'email': return 'driver@example.com';
+    default: return 'Enter value...';
+  }
+}
 
 export function DriversPage() {
   const navigate = useNavigate();
   const { merchantId, cityId, merchantShortId } = useDashboardContext();
-  const { currentMerchant, loginModule, logout } = useAuth();
+  const { currentMerchant, loginModule, logout, getCitiesForMerchant, switchContext } = useAuth();
 
-  const [searchType, setSearchType] = useState<'phone' | 'id' | 'vehicle' | 'dl' | 'rc' | 'email'>('phone');
+  const [searchType, setSearchType] = useState<SearchType>('phone');
   const [searchValue, setSearchValue] = useState('');
   const [countryCode, setCountryCode] = useState('91'); // Default to India
   const [isSearching, setIsSearching] = useState(false);
@@ -51,9 +90,12 @@ export function DriversPage() {
     setIsSearching(true);
     setError(null);
 
+    // Store original city to restore context later
+    const originalCityId = cityId;
+
     try {
       // Build search params based on type
-      const params: any = {};
+      const params: SearchParams = {};
 
       switch (searchType) {
         case 'phone':
@@ -77,19 +119,66 @@ export function DriversPage() {
           break;
       }
 
-      const response = await getDriverInfo(
-        apiMerchantId,
-        cityId || undefined,
-        params
-      );
+      // First, try searching in the currently selected city (if one is selected)
+      let response = null;
 
-      if (response && response.driverId) {
+      if (cityId) {
+        try {
+          response = await getDriverInfo(apiMerchantId, cityId, params);
+        } catch {
+          console.log('Driver not found in current city, will search other cities');
+        }
+      }
+
+      // If not found in current city, search across all accessible cities for this merchant
+      if (!response?.driverId) {
+        const accessibleCities = getCitiesForMerchant(apiMerchantId);
+        
+        for (const city of accessibleCities) {
+          // Skip the city we already searched
+          if (city.id === cityId) continue;
+
+          try {
+            // Switch context to the new city before searching
+            await switchContext(apiMerchantId, city.id);
+            
+            response = await getDriverInfo(apiMerchantId, city.id, params);
+            if (response?.driverId) {
+              console.log(`Driver found in city: ${city.name}`);
+              break;
+            }
+          } catch {
+            // Continue searching in other cities
+            console.log(`Driver not found in city: ${city.name}`);
+          }
+        }
+      }
+
+      if (response?.driverId) {
         navigate(`/ops/drivers/${response.driverId}`, { state: { driver: response } });
       } else {
-        setError('No driver found with provided details');
+        // Restore original city context if driver not found
+        if (originalCityId) {
+          try {
+            await switchContext(apiMerchantId, originalCityId);
+          } catch (err) {
+            console.error('Failed to restore original city context:', err);
+          }
+        }
+        setError('No driver found with provided details in any accessible city');
       }
     } catch (err) {
       console.error('Search error:', err);
+      
+      // Restore original city context on error
+      if (originalCityId) {
+        try {
+          await switchContext(apiMerchantId, originalCityId);
+        } catch (error_) {
+          console.error('Failed to restore original city context:', error_);
+        }
+      }
+      
       // Try to list drivers as fallback for some fields if getDriverInfo fails
       if (searchType === 'phone' || searchType === 'vehicle') {
         try {
@@ -99,12 +188,12 @@ export function DriversPage() {
             { searchString: searchValue.trim(), limit: 1 }
           );
 
-          if (listResponse.listItem && listResponse.listItem.length > 0) {
+          if (listResponse.listItem?.length > 0) {
             navigate(`/ops/drivers/${listResponse.listItem[0].driverId}`);
             return;
           }
-        } catch (retryErr) {
-          console.error('Retry listing failed', retryErr);
+        } catch (error_) {
+          console.error('Retry listing failed', error_);
         }
       }
 
@@ -207,7 +296,7 @@ export function DriversPage() {
               <button
                 key={type.id}
                 onClick={() => {
-                  setSearchType(type.id as any);
+                  setSearchType(type.id as SearchType);
                   setSearchValue('');
                   setError(null);
                 }}
@@ -235,11 +324,7 @@ export function DriversPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="searchValue">
-                  {searchType === 'phone' ? 'Phone Number' :
-                    searchType === 'vehicle' ? 'Vehicle Number' :
-                      searchType === 'dl' ? 'Driving License Number' :
-                        searchType === 'rc' ? 'RC Number' :
-                          searchType === 'email' ? 'Email Address' : 'Driver ID'}
+                  {getSearchLabel(searchType)}
                 </Label>
                 <div className="flex gap-2">
                   {searchType === 'phone' && (
@@ -250,14 +335,8 @@ export function DriversPage() {
                   )}
                   <Input
                     id="searchValue"
-                    type={searchType === 'phone' ? 'tel' : searchType === 'email' ? 'email' : 'text'}
-                    placeholder={
-                      searchType === 'phone' ? '9876543210' :
-                        searchType === 'vehicle' ? 'KA01AB1234' :
-                          searchType === 'dl' ? 'KA0120220001234' :
-                            searchType === 'email' ? 'driver@example.com' :
-                              'Enter value...'
-                    }
+                    type={getInputType(searchType)}
+                    placeholder={getPlaceholder(searchType)}
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
                     onKeyDown={(e) => handleKeyPress(e, handleSearch)}
@@ -294,7 +373,7 @@ export function DriversPage() {
             <CardContent className="p-4">
               <h4 className="font-medium mb-2 text-sm">Search Tips</h4>
               <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
-                <li>Make sure to select the correct Merchant and City before searching.</li>
+                <li>Search automatically checks all cities within the selected merchant that you have access to.</li>
                 <li>For vehicle numbers, avoid spaces or special characters.</li>
                 <li>Driver ID is unique and provides the most direct match.</li>
               </ul>
