@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useRef } from 'react';
 import { Page, PageHeader, PageContent } from '../../components/layout/Page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -67,6 +68,14 @@ import {
     Copy,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { LogicBuilder } from '../json-logic/components/LogicBuilder';
+import { InputBuilder } from '../json-logic/components/InputBuilder';
+import { useLogicBuilderData } from '../json-logic/hooks/useLogicBuilderData';
+import { importFromJson } from '../json-logic/utils/jsonLogicImporter';
+import { exportToJson } from '../json-logic/utils/jsonLogicConverter';
+import type { LogicNode } from '../json-logic/types/JsonLogicTypes';
+import { toast } from 'sonner';
+import { Textarea } from '../../components/ui/textarea';
 
 // ============================================
 // Rollout Section
@@ -466,8 +475,16 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
     const { data: versions, isLoading } = useLogicVersions(domain, 20, 0);
     const verifyMutation = useVerifyDynamicLogic();
 
-    const [rules, setRules] = useState('[\n  ""\n]');
-    const [inputData, setInputData] = useState('[\n  ""\n]');
+    // Ref for auto-scroll
+    const builderRef = useRef<HTMLDivElement>(null);
+
+    // Builder State
+    const [logicNodes, setLogicNodes] = useState<LogicNode[]>([]);
+    const [inputs, setInputs] = useState<string[]>(['{}']);
+    const [rawLogicText, setRawLogicText] = useState<string>('');
+    const [rawInputText, setRawInputText] = useState<string>('');
+
+    // Metadata State
     const [description, setDescription] = useState('');
     const [password, setPassword] = useState('');
     const [verifyResult, setVerifyResult] = useState<any>(null);
@@ -478,17 +495,45 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
     const [viewingLogic, setViewingLogic] = useState<any>(null);
     const [loadingLogic, setLoadingLogic] = useState(false);
 
+    // JSON Preview state
+    const [showJsonPreview, setShowJsonPreview] = useState(false);
+    const [showInputPreview, setShowInputPreview] = useState(false);
+
+    // Logic Builder Data Hook
+    const builderData = useLogicBuilderData(domain.tag, logicNodes);
+
+    useEffect(() => {
+        // Initialize raw logic text when logicNodes changes
+        try {
+            const json = exportToJson(logicNodes);
+            setRawLogicText(JSON.stringify(json, null, 2));
+        } catch (e) {
+            setRawLogicText('Error converting to JSON');
+        }
+    }, [logicNodes]);
+
+    useEffect(() => {
+        // Initialize raw input text when inputs changes
+        try {
+            const parsedInputs = inputs.map(i => JSON.parse(i));
+            setRawInputText(JSON.stringify(parsedInputs, null, 2));
+        } catch (e) {
+            setRawInputText(inputs.join('\n')); // Fallback if not all are valid JSON
+        }
+    }, [inputs]);
 
     const handleVerify = async (shouldCreate: boolean) => {
         try {
-            const parsedRules = JSON.parse(rules);
-            const parsedInputData = JSON.parse(inputData);
+            // Convert Builder State to JSON for API
+            const finalLogic = exportToJson(logicNodes);
+            // Inputs are already array of strings (JSON)
+            const parsedInputs = inputs.map(i => JSON.parse(i));
 
             const result = await verifyMutation.mutateAsync({
                 domain: domain,
                 description,
-                rules: parsedRules,
-                inputData: parsedInputData,
+                rules: finalLogic,
+                inputData: parsedInputs,
                 shouldUpdateRule: shouldCreate,
                 updatePassword: shouldCreate ? password : undefined,
                 verifyOutput: true,
@@ -496,14 +541,25 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
 
             setVerifyResult(result);
             setResultExpanded(true);
+
+            if (shouldCreate) {
+                toast.success("Success", {
+                    description: `created version ${result.version}`,
+                });
+                // Reset password after creation
+                setPassword('');
+            }
         } catch (error: any) {
-            setVerifyResult({ errors: [error.message || 'Invalid JSON'] });
+            setVerifyResult({ errors: [error.message || 'Verification Failed'] });
+            setResultExpanded(true);
+            toast.error("Error", {
+                description: error.message || "Failed to verify logic",
+            });
         }
     };
 
     const handleViewLogic = async (version: number) => {
         if (viewingVersion === version) {
-            // Toggle off
             setViewingVersion(null);
             setViewingLogic(null);
             return;
@@ -512,7 +568,6 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
         setLoadingLogic(true);
         setViewingVersion(version);
         try {
-            // Use the getDynamicLogic service to fetch the logic for this version
             const logicData = await getDynamicLogic(
                 merchantShortId || merchantId || '',
                 cityId || '',
@@ -525,6 +580,62 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
             setViewingLogic({ error: 'Failed to load logic' });
         } finally {
             setLoadingLogic(false);
+        }
+    };
+
+    const handleClone = (versionLogic: any) => {
+        try {
+            console.log('handleClone received:', versionLogic);
+
+            // API returns DynamicLogicEntry[] where logics is string[]
+            const logsArray = versionLogic?.[0]?.logics || versionLogic?.logics || [];
+            console.log('logsArray (raw strings):', logsArray);
+
+            // Parse each JSON string into an object
+            const parsedLogics = logsArray.map((s: string) => {
+                try {
+                    return typeof s === 'string' ? JSON.parse(s) : s;
+                } catch (e) {
+                    console.warn('Failed to parse logic string:', s, e);
+                    return s;
+                }
+            });
+            console.log('parsedLogics:', parsedLogics);
+
+            // If the result is an array with one element that's also an array, unwrap it
+            // This handles the case where the API returns [["[{config...}]"]]
+            let logicToImport = parsedLogics;
+            if (parsedLogics.length === 1 && Array.isArray(parsedLogics[0])) {
+                logicToImport = parsedLogics[0];
+            }
+            console.log('logicToImport (final):', logicToImport);
+
+            // Import to Nodes
+            const nodes = importFromJson(logicToImport);
+            console.log('Imported nodes:', nodes);
+
+            if (nodes.length === 0) {
+                throw new Error('No nodes were imported. Check console for parsing errors.');
+            }
+
+            setLogicNodes(nodes);
+            // Also reset raw logic text to match
+            setRawLogicText(JSON.stringify(logicToImport, null, 2));
+
+            toast.success("Cloned", {
+                description: `Logic imported to builder (${nodes.length} nodes). Modify and create new version.`,
+            });
+
+            // Scroll to builder section
+            setTimeout(() => {
+                builderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+
+        } catch (e: any) {
+            console.error('Clone error:', e);
+            toast.error("Clone Failed", {
+                description: e.message || "Could not parse this logic into the builder."
+            });
         }
     };
 
@@ -565,23 +676,20 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
                                     </CollapsibleTrigger>
                                 </div>
                                 <CollapsibleContent className="mt-2">
-                                    <div className="p-4 bg-muted/20 rounded-lg border">
+                                    <div className="p-4 bg-muted/20 rounded-lg border relative">
                                         <div className="flex items-center justify-between mb-2">
-                                            <p className="text-sm text-muted-foreground">
-                                                Logic Rules:
-                                            </p>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                    const logics = viewingLogic?.[0]?.logics || viewingLogic?.logics || [];
-                                                    navigator.clipboard.writeText(JSON.stringify(logics, null, 2));
-                                                }}
-                                                className="h-7 px-2"
-                                            >
-                                                <Copy className="h-4 w-4 mr-1" />
-                                                Copy
-                                            </Button>
+                                            <p className="text-sm text-muted-foreground">Logic Rules</p>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    disabled={!viewingLogic || viewingLogic.error}
+                                                    onClick={() => handleClone(viewingLogic)}
+                                                >
+                                                    <Copy className="h-3 w-3 mr-1" />
+                                                    Clone to New
+                                                </Button>
+                                            </div>
                                         </div>
                                         <pre className="text-xs font-mono bg-muted/30 p-3 rounded overflow-x-auto max-h-64 overflow-y-auto">
                                             {viewingLogic
@@ -598,37 +706,180 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
                 )}
             </div>
 
-            {/* Create/Verify Form */}
-            <div className="border-t pt-6">
+            {/* Create/Verify Form - Replaced with Builders */}
+            <div ref={builderRef} className="border-t pt-6 bg-card">
                 <h4 className="font-semibold mb-4 flex items-center gap-2">
                     <Plus className="h-4 w-4" />
                     Verify / Create New Version
                 </h4>
 
-                <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-sm font-medium mb-1.5 block">Rules (JSON Array)</label>
-                        <textarea
-                            className="w-full h-40 p-3 rounded-lg border bg-muted/50 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                            value={rules}
-                            onChange={e => setRules(e.target.value)}
-                            spellCheck={false}
-                        />
+                <div className="grid lg:grid-cols-2 gap-6">
+                    {/* Logic Builder Column */}
+                    <div className="space-y-2">
+                        <Tabs defaultValue="visual" className="w-full">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium">Logic Rules</label>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs mr-2">
+                                        {logicNodes.length} nodes
+                                    </Badge>
+                                    <TabsList className="h-8">
+                                        <TabsTrigger value="visual" className="text-xs h-7">Visual</TabsTrigger>
+                                        <TabsTrigger value="raw" className="text-xs h-7">Raw JSON</TabsTrigger>
+                                    </TabsList>
+                                </div>
+                            </div>
+
+                            <TabsContent value="visual" className="mt-0">
+                                <LogicBuilder
+                                    initialLogic={logicNodes}
+                                    onChange={setLogicNodes}
+                                    data={builderData}
+                                />
+                            </TabsContent>
+
+                            <TabsContent value="raw" className="mt-0">
+                                <div className="space-y-2">
+                                    <Textarea
+                                        className="font-mono text-xs min-h-[400px]"
+                                        value={rawLogicText}
+                                        onChange={(e) => {
+                                            setRawLogicText(e.target.value);
+                                            try {
+                                                const parsed = JSON.parse(e.target.value);
+                                                // Try to import valid JSON
+                                                const nodes = importFromJson(parsed);
+                                                if (nodes.length > 0) {
+                                                    setLogicNodes(nodes);
+                                                }
+                                            } catch (err) {
+                                                // Ignore parse errors while typing
+                                            }
+                                        }}
+                                        placeholder='[{"if": [...]}]'
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Edit the raw JSON Logic here. The visual builder will update automatically if the JSON is valid.
+                                    </p>
+                                </div>
+                            </TabsContent>
+                        </Tabs>
                     </div>
-                    <div>
-                        <label className="text-sm font-medium mb-1.5 block">Input Data (JSON Array)</label>
-                        <textarea
-                            className="w-full h-40 p-3 rounded-lg border bg-muted/50 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                            value={inputData}
-                            onChange={e => setInputData(e.target.value)}
-                            spellCheck={false}
-                        />
+
+                    {/* Input Builder Column */}
+                    <div className="space-y-2">
+                        <Tabs defaultValue="visual" className="w-full">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium">Verification Data</label>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs mr-2">
+                                        {inputs.length} scenarios
+                                    </Badge>
+                                    <TabsList className="h-8">
+                                        <TabsTrigger value="visual" className="text-xs h-7">Visual Input</TabsTrigger>
+                                        <TabsTrigger value="raw" className="text-xs h-7">Raw Input</TabsTrigger>
+                                    </TabsList>
+                                </div>
+                            </div>
+
+                            <TabsContent value="visual" className="mt-0">
+                                <InputBuilder
+                                    initialInput={inputs}
+                                    onChange={(newInputs) => {
+                                        setInputs(newInputs);
+                                        // Sync raw text
+                                        try {
+                                            const combined = newInputs.map(s => JSON.parse(s));
+                                            setRawInputText(JSON.stringify(combined, null, 2));
+                                        } catch (e) {
+                                            setRawInputText(newInputs.join('\n'));
+                                        }
+                                    }}
+                                    filterOptions={builderData.filterOptions}
+                                />
+                            </TabsContent>
+
+                            <TabsContent value="raw" className="mt-0">
+                                <div className="space-y-2">
+                                    <Textarea
+                                        className="font-mono text-xs min-h-[400px]"
+                                        value={rawInputText}
+                                        onChange={(e) => {
+                                            setRawInputText(e.target.value);
+                                            try {
+                                                const parsed = JSON.parse(e.target.value);
+                                                // Expecting array of objects or single object
+                                                const array = Array.isArray(parsed) ? parsed : [parsed];
+                                                const strings = array.map(o => JSON.stringify(o));
+                                                setInputs(strings);
+                                            } catch (err) {
+                                                // Ignore errors
+                                            }
+                                        }}
+                                        placeholder='[{"config": { ... }}]'
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Edit input JSON scenarios here.
+                                    </p>
+                                </div>
+                            </TabsContent>
+                        </Tabs>
                     </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4 mt-4">
+                {/* JSON Preview Dialog for Logic */}
+                {showJsonPreview && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowJsonPreview(false)}>
+                        <div className="bg-background rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] m-4" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-4 border-b">
+                                <h3 className="font-semibold">Logic JSON Preview</h3>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => {
+                                        navigator.clipboard.writeText(JSON.stringify(exportToJson(logicNodes), null, 2));
+                                        toast.success('Copied to clipboard');
+                                    }}>
+                                        <Copy className="h-4 w-4 mr-1" /> Copy
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => setShowJsonPreview(false)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <pre className="p-4 text-sm font-mono overflow-auto max-h-[60vh]">
+                                {JSON.stringify(exportToJson(logicNodes), null, 2)}
+                            </pre>
+                        </div>
+                    </div>
+                )}
+
+                {/* JSON Preview Dialog for Input */}
+                {showInputPreview && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowInputPreview(false)}>
+                        <div className="bg-background rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] m-4" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-4 border-b">
+                                <h3 className="font-semibold">Input JSON Preview</h3>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => {
+                                        navigator.clipboard.writeText(JSON.stringify(inputs.map(i => { try { return JSON.parse(i); } catch { return i; } }), null, 2));
+                                        toast.success('Copied to clipboard');
+                                    }}>
+                                        <Copy className="h-4 w-4 mr-1" /> Copy
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => setShowInputPreview(false)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <pre className="p-4 text-sm font-mono overflow-auto max-h-[60vh]">
+                                {JSON.stringify(inputs.map(i => { try { return JSON.parse(i); } catch { return i; } }), null, 2)}
+                            </pre>
+                        </div>
+                    </div>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-4 mt-6">
                     <Input
-                        placeholder="Description"
+                        placeholder="Version Description"
                         value={description}
                         onChange={e => setDescription(e.target.value)}
                     />
@@ -664,12 +915,12 @@ function VersionsSection({ domain }: { domain: LogicDomain }) {
                         <CollapsibleTrigger className="flex items-center gap-2 p-3 w-full bg-muted/50 rounded-lg hover:bg-muted">
                             {resultExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             <Eye className="h-4 w-4" />
-                            <span className="font-medium">Result</span>
+                            <span className="font-medium">Verification Result</span>
                             {verifyResult.isRuleUpdated && (
-                                <Badge variant="default" className="ml-2">Created v{verifyResult.version}</Badge>
+                                <Badge variant="default" className="ml-2 bg-green-600">Version Created</Badge>
                             )}
-                            {verifyResult.errors?.length > 0 && (
-                                <Badge variant="destructive" className="ml-2">Errors</Badge>
+                            {verifyResult && !verifyResult.success && verifyResult.errors?.length > 0 && (
+                                <Badge variant="destructive" className="ml-2">Errors Found</Badge>
                             )}
                         </CollapsibleTrigger>
                         <CollapsibleContent className="mt-2">

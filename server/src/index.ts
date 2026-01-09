@@ -5,6 +5,7 @@ import metricsRouter from './routes/metrics.js';
 import masterConversionRouter from './routes/masterConversionMetrics.js';
 import cancellationsRouter from './routes/cancellations.js';
 import firebaseRouter from './routes/firebase.js';
+import metadataRouter from './routes/metadata.js';
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/metrics', metricsRouter);
 app.use('/api/master-conversion', masterConversionRouter);
 app.use('/api/cancellations', cancellationsRouter);
 app.use('/api/firebase', firebaseRouter);
+app.use('/api/metadata', metadataRouter);
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
