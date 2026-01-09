@@ -3,6 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import { toast } from 'sonner';
 
 import { 
   CreditCard, 
@@ -23,9 +33,10 @@ import {
   Send,
   Smartphone,
   Bell,
+  HandCoins,
 } from 'lucide-react';
-import { useDriverPlanDetails, useAvailablePlans, usePaymentHistory, useSwitchPlan, useSendSubscriptionCommunication } from '../../hooks/useDrivers';
-import type { DriverPlanResponse, MandateDetails, CurrentPlanDetails, MediaChannel, SubscriptionMessageKey } from '../../services/drivers';
+import { useDriverPlanDetails, useAvailablePlans, usePaymentHistory, useSwitchPlan, useSendSubscriptionCommunication, useWaiveOffFee } from '../../hooks/useDrivers';
+import type { DriverPlanResponse, MandateDetails, CurrentPlanDetails, MediaChannel, SubscriptionMessageKey, WaiveOfMode } from '../../services/drivers';
 import { formatDateTime, formatDate } from '../../lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import {
@@ -155,7 +166,7 @@ export function DriverSubscriptionTab({ driverId, isActive }: DriverSubscription
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Dues & Credit Section */}
         {data.currentPlanDetails && (
-          <DuesCard planDetails={data.currentPlanDetails} />
+          <DuesCard planDetails={data.currentPlanDetails} driverId={driverId} />
         )}
 
         {/* Mandate Details (if autopay) */}
@@ -848,20 +859,39 @@ function PaymentHistorySection({
 
 
 // Dues Card Component
-function DuesCard({ planDetails }: { readonly planDetails: NonNullable<DriverPlanResponse['currentPlanDetails']> }) {
+function DuesCard({ 
+  planDetails, 
+  driverId 
+}: { 
+  readonly planDetails: NonNullable<DriverPlanResponse['currentPlanDetails']>;
+  readonly driverId: string;
+}) {
   const currentDues = planDetails.currentDuesWithCurrency.amount;
   const creditLimit = planDetails.totalPlanCreditLimitWithCurrency.amount;
   const utilizationPercentage = creditLimit > 0 
     ? Math.min((currentDues / creditLimit) * 100, 100) 
     : 0;
+  const [isWaiveOffDialogOpen, setIsWaiveOffDialogOpen] = useState(false);
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Wallet className="h-5 w-5 text-amber-500" />
-          Dues & Credit
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-amber-500" />
+            Dues & Credit
+          </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsWaiveOffDialogOpen(true)}
+            className="h-8 text-xs"
+          >
+            <HandCoins className="h-3 w-3 mr-1" />
+            Waive Off Dues
+          </Button>
+
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Credit Utilization Progress Bar */}
@@ -939,6 +969,13 @@ function DuesCard({ planDetails }: { readonly planDetails: NonNullable<DriverPla
             </p>
           </div>
         )}
+
+        {/* Waive Off Dialog */}
+        <WaiveOffDialog
+          open={isWaiveOffDialogOpen}
+          onOpenChange={setIsWaiveOffDialogOpen}
+          driverId={driverId}
+        />
       </CardContent>
     </Card>
   );
@@ -1414,3 +1451,188 @@ function SendCommunicationSection({ driverId }: { readonly driverId: string }) {
     </Card>
   );
 }
+
+// Waive Off Dialog Component
+function WaiveOffDialog({
+  open,
+  onOpenChange,
+  driverId,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly driverId: string;
+}) {
+  const [percentage, setPercentage] = useState('');
+  const [waiveOffType, setWaiveOffType] = useState<WaiveOfMode | ''>('');
+  const [daysValid, setDaysValid] = useState('');
+  const [errors, setErrors] = useState<{ percentage?: string; daysValid?: string }>({});
+  
+  const waiveOffMutation = useWaiveOffFee();
+
+  const validateForm = (): boolean => {
+    const newErrors: { percentage?: string; daysValid?: string } = {};
+    
+    const percentageNum = Number.parseInt(percentage, 10);
+    const daysNum = Number.parseInt(daysValid, 10);
+
+    if (!percentage || Number.isNaN(percentageNum) || percentageNum <= 0 || percentageNum > 100) {
+      newErrors.percentage = 'Percentage must be between 1 and 100';
+    }
+
+    if (!daysValid || Number.isNaN(daysNum) || daysNum <= 0 || daysNum > 365) {
+      newErrors.daysValid = 'Days valid must be between 1 and 365';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm() || !waiveOffType) return;
+
+    try {
+      const response = await waiveOffMutation.mutateAsync({
+        waiveOffEntities: [
+          {
+            driverId,
+            percentage: Number.parseInt(percentage, 10),
+            serviceName: 'YATRI_SUBSCRIPTION',
+            waiveOfMode: waiveOffType,
+            daysValidFor: Number.parseInt(daysValid, 10),
+          },
+        ],
+      });
+
+      // Check for error in response
+      if (response.errorCode) {
+        toast.error(response.errorMessage || 'Failed to waive off dues');
+      } else {
+        toast.success('Dues waived off successfully');
+        // Reset form and close dialog
+        setPercentage('');
+        setWaiveOffType('');
+        setDaysValid('');
+        setErrors({});
+        onOpenChange(false);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to waive off dues');
+    }
+  };
+
+  // Check if form is valid for enabling submit button
+  const percentageNum = Number.parseInt(percentage, 10);
+  const daysNum = Number.parseInt(daysValid, 10);
+  const isFormValid = 
+    percentage && 
+    waiveOffType && 
+    daysValid && 
+    !Number.isNaN(percentageNum) && 
+    percentageNum > 0 && 
+    percentageNum <= 100 &&
+    !Number.isNaN(daysNum) && 
+    daysNum > 0 && 
+    daysNum <= 365;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <HandCoins className="h-5 w-5 text-amber-500" />
+            Waive Off Dues
+          </DialogTitle>
+          <DialogDescription>
+            Configure the waive-off parameters for this driver's subscription dues.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          {/* Percentage Input */}
+          <div className="space-y-2">
+            <Label htmlFor="percentage">Waive Off Percentage (%)</Label>
+            <Input
+              id="percentage"
+              type="number"
+              min="1"
+              max="100"
+              placeholder="Enter percentage (1-100)"
+              value={percentage}
+              onChange={(e) => {
+                setPercentage(e.target.value);
+                setErrors((prev) => ({ ...prev, percentage: undefined }));
+              }}
+              className={errors.percentage ? 'border-destructive' : ''}
+            />
+            {errors.percentage && (
+              <p className="text-xs text-destructive">{errors.percentage}</p>
+            )}
+          </div>
+
+          {/* Waive Off Type Dropdown */}
+          <div className="space-y-2">
+            <Label htmlFor="waiveOffType">Type of Waive Off</Label>
+            <Select
+              value={waiveOffType}
+              onValueChange={(value) => setWaiveOffType(value as WaiveOfMode)}
+            >
+              <SelectTrigger id="waiveOffType">
+                <SelectValue placeholder="Select waive off type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="WITH_OFFER">With Offer</SelectItem>
+                <SelectItem value="WITHOUT_OFFER">Without Offer</SelectItem>
+                <SelectItem value="NO_WAIVE_OFF">No Waive Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Days Valid Input */}
+          <div className="space-y-2">
+            <Label htmlFor="daysValid">Days Valid Till</Label>
+            <Input
+              id="daysValid"
+              type="number"
+              min="1"
+              max="365"
+              placeholder="Enter days (1-365)"
+              value={daysValid}
+              onChange={(e) => {
+                setDaysValid(e.target.value);
+                setErrors((prev) => ({ ...prev, daysValid: undefined }));
+              }}
+              className={errors.daysValid ? 'border-destructive' : ''}
+            />
+            {errors.daysValid && (
+              <p className="text-xs text-destructive">{errors.daysValid}</p>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={waiveOffMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!isFormValid || waiveOffMutation.isPending}
+          >
+            {waiveOffMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              'Submit'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

@@ -1138,3 +1138,44 @@ export async function sendSubscriptionCommunication(
     data,
   });
 }
+
+// ============================================
+// Waive Off Fee
+// ============================================
+
+export type WaiveOfMode = 'WITH_OFFER' | 'WITHOUT_OFFER' | 'NO_WAIVE_OFF';
+
+export interface WaiveOffEntity {
+  driverId: string;
+  percentage: number;
+  serviceName: string;
+  waiveOfMode: WaiveOfMode;
+  daysValidFor: number;
+}
+
+export interface WaiveOffFeeRequest {
+  waiveOffEntities: WaiveOffEntity[];
+}
+
+export interface WaiveOffFeeResponse {
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export async function waiveOffFee(
+  merchantId: string,
+  data: WaiveOffFeeRequest,
+  cityId?: string
+): Promise<WaiveOffFeeResponse> {
+  const basePath = cityId && cityId !== 'all'
+    ? `/driver-offer/{merchantId}/{city}/plan/waiveOff/fee`
+    : `/driver-offer/{merchantId}/plan/waiveOff/fee`;
+
+  const path = buildPath(basePath, merchantId, cityId);
+
+  return apiRequest(bppApi, {
+    method: 'POST',
+    url: path,
+    data,
+  });
+}

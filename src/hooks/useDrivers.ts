@@ -545,3 +545,23 @@ export function useSendSubscriptionCommunication() {
   });
 }
 
+export function useWaiveOffFee() {
+  const { merchantShortId, merchantId, cityId } = useDashboardContext();
+  const queryClient = useQueryClient();
+  const apiMerchantId = merchantShortId || merchantId;
+
+  return useMutation({
+    mutationFn: (data: driversService.WaiveOffFeeRequest) =>
+      driversService.waiveOffFee(
+        apiMerchantId!,
+        data,
+        cityId || undefined
+      ),
+    onSuccess: () => {
+      // Invalidate driver plan details to refresh dues information
+      queryClient.invalidateQueries({ queryKey: ['driverPlanDetails'] });
+    },
+  });
+}
+
+
