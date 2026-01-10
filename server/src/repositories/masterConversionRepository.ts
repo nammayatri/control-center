@@ -288,10 +288,12 @@ function buildWhereClause(filters: MasterConversionFilters): string {
 
   // Handle vehicle category filters - convert to service_tier filters
   let effectiveServiceTiers = filters.serviceTier;
-  if (filters.vehicleCategory || filters.vehicleSubCategory) {
+  const hasVehicleFilter = filters.vehicleCategory || filters.vehicleSubCategory;
+
+  if (hasVehicleFilter) {
     const vehicleTiers = convertVehicleFiltersToServiceTiers(
-      filters.vehicleCategory,
-      filters.vehicleSubCategory
+      filters.vehicleCategory as any,
+      filters.vehicleSubCategory as any
     );
     if (vehicleTiers.length > 0) {
       // If both vehicle filters and serviceTier are provided, use intersection
@@ -305,11 +307,21 @@ function buildWhereClause(filters: MasterConversionFilters): string {
     }
   }
 
-  // Service tier logic: default to "All" if not specified
   if (effectiveServiceTiers && effectiveServiceTiers.length > 0) {
-    const tiers = effectiveServiceTiers.map((s) => `'${s}'`).join(",");
+    const tiers = effectiveServiceTiers.map((t) => `'${t}'`).join(",");
     conditions.push(`service_tier IN (${tiers})`);
+
+    // If we're filtering by specific tiers (Auto, Cab, etc.), 
+    // we should usually exclude 'All' to avoid double counting, 
+    // UNLESS 'All' was explicitly requested.
+    if (!effectiveServiceTiers.includes("All")) {
+      conditions.push(`service_tier != 'All'`);
+    }
   } else {
+    // Default: only show 'All' tier for general overview if no specific category/tier is selected
+    // BUT only if we are NOT grouping by something that NEEDS tiered data
+    // In buildWhereClause, we don't know the grouping, so we rely on the caller or default to All.
+    // For now, keep existing behavior for general totals.
     // No service tier filter = use tier-less data (service_tier = "All")
     conditions.push(`service_tier = 'All'`);
   }
@@ -1037,10 +1049,14 @@ export async function getDimensionalTimeSeries(
   dimension: Dimension | "none",
   granularity: Granularity
 ): Promise<DimensionalTimeSeriesDataPoint[]> {
-  // When grouping by vehicle_category or vehicle_sub_category, we need to see all service_tiers
-  // So we should not apply vehicle category filters AND not default to service_tier = 'All'
+  // When grouping by vehicle dimensions (category, sub_category, or service_tier), we need to:
+  // 1. See all service_tiers (not just 'All')
+  // 2. Exclude tier-less data (service_tier = 'All') to prevent double-counting
+  // 3. Not apply vehicle category filters
   const needsVehicleMapping =
-    dimension === "vehicle_category" || dimension === "vehicle_sub_category";
+    dimension === "vehicle_category" ||
+    dimension === "vehicle_sub_category" ||
+    dimension === "service_tier";
 
   let whereClause: string;
   if (needsVehicleMapping) {
@@ -1209,7 +1225,11 @@ export async function getDimensionalTimeSeries(
         conditions.push(`pooling_config_version IN (${versions})`);
       }
     }
-    // Don't add service_tier filter - we want all tiers to map to categories
+    // IMPORTANT: Exclude tier-less data (service_tier = 'All') when analyzing by vehicle dimensions
+    // Tier-less data only contains pre-selection metrics (searches) - after user selects a vehicle,
+    // a new tiered entry is created. Including "All" would double-count post-search metrics
+    // like earnings, completed rides, cancelled rides, etc.
+    conditions.push(`service_tier != 'All'`);
 
     whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -1287,7 +1307,7 @@ export async function getDimensionalTimeSeries(
       if (dimension === "vehicle_category") {
         mappedValue = getVehicleCategory(serviceTier);
       } else {
-        // vehicle_sub_category: service_tier IS the sub_category
+        // vehicle_sub_category and service_tier: service_tier IS the value
         mappedValue = serviceTier;
       }
 
@@ -1323,24 +1343,24 @@ export async function getDimensionalTimeSeries(
 
     // Convert grouped data to result format
     return Array.from(grouped.values()).map((item) => {
-      // Calculate conversion per category based on available data
-      // For vehicle_category, we aggregate data from multiple service_tiers
-      // Use tier-less logic if searches > 0, otherwise use tier logic with quotes_requested
+      // For vehicle dimensions, we ALWAYS use tier logic (completed_rides / quotes_requested)
+      // because:
+      // 1. "All" tier (which has searches) is excluded to prevent double counting
+      // 2. Searches are not attributable to specific vehicle categories
+      // 3. Only after user selects a vehicle do we get tiered data with quotes_requested
       let conversion = 0;
-      if (item.searches > 0) {
-        // Tier-less logic: completed_rides / searches * 100
-        conversion = safeRatePercent(item.completedRides, item.searches);
-      } else if (item.quotesRequested > 0) {
+      if (item.quotesRequested > 0) {
         // Tier logic: completed_rides / quotes_requested * 100
         conversion = safeRatePercent(item.completedRides, item.quotesRequested);
-      } else {
-        // Fallback: use searches even if 0 (will result in 0% conversion)
-        conversion = safeRatePercent(item.completedRides, item.searches);
       }
+      // Note: searches will be 0 for tiered data (expected behavior)
+      // RFA (Rider Fare Acceptance) is NOT applicable for vehicle dimensions
+      // because we cannot attribute why a user dropped off to a specific vehicle category
 
       const result: DimensionalTimeSeriesDataPoint = {
         timestamp: item.timestamp,
         dimensionValue: item.dimensionValue,
+        // Searches from tiered data (will likely be 0, which is expected for vehicle dimensions)
         searches: item.searches,
         completedRides: item.completedRides,
         conversion,
