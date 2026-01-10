@@ -213,7 +213,11 @@ export type Dimension =
   | "cancellation_pickup_distance"
   | "cancellation_pickup_left"
   | "cancellation_time_to_cancel"
-  | "cancellation_reason";
+  | "cancellation_reason"
+  | "run_hour"   // Temporal comparison: compare hours (within single day)
+  | "run_day"    // Temporal comparison: compare days
+  | "run_week"   // Temporal comparison: compare weeks
+  | "run_month"; // Temporal comparison: compare months
 
 export type Granularity = "hour" | "day";
 
