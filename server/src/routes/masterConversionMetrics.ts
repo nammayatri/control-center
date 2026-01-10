@@ -4,7 +4,6 @@ import {
   getComparisonMetrics,
   getTimeSeries,
   getFilterOptions,
-  getGroupedMasterConversionMetrics,
   getDimensionalTimeSeries,
 } from "../repositories/masterConversionRepository.js";
 import type {
@@ -14,7 +13,6 @@ import type {
   MasterConversionComparisonResponse,
   MasterConversionTimeSeriesResponse,
   MasterConversionFilterOptionsResponse,
-  GroupedMasterConversionResponse,
   Dimension,
   Granularity,
   DimensionalTimeSeriesResponse,
@@ -73,9 +71,9 @@ function parseFilters(query: Record<string, unknown>): MasterConversionFilters {
     serviceTier: parseArray(query.serviceTier),
     vehicleCategory:
       vehicleCategory &&
-      ["Bike", "Auto", "Cab", "Others", "All", "BookAny"].includes(
-        vehicleCategory
-      )
+        ["Bike", "Auto", "Cab", "Others", "All", "BookAny"].includes(
+          vehicleCategory
+        )
         ? vehicleCategory
         : undefined,
     vehicleSubCategory,
@@ -235,57 +233,7 @@ router.get("/filters", async (_req: Request, res: Response) => {
   }
 });
 
-// ============================================
-// GET /api/master-conversion/grouped
-// ============================================
 
-router.get("/grouped", async (req: Request, res: Response) => {
-  try {
-    const { groupBy } = req.query;
-    const validGroupBy = [
-      "city",
-      "merchant_id",
-      "flow_type",
-      "trip_tag",
-      "service_tier",
-    ];
-
-    if (!groupBy || !validGroupBy.includes(String(groupBy))) {
-      res.status(400).json({
-        error: "Invalid groupBy parameter",
-        message: `groupBy must be one of: ${validGroupBy.join(", ")}`,
-      });
-      return;
-    }
-
-    const filters = parseFilters(req.query);
-    const sort = parseSortOptions(req.query);
-    const data = await getGroupedMasterConversionMetrics(
-      filters,
-      groupBy as
-        | "city"
-        | "merchant_id"
-        | "flow_type"
-        | "trip_tag"
-        | "service_tier",
-      sort
-    );
-
-    const response: GroupedMasterConversionResponse = {
-      data,
-      groupBy: String(groupBy),
-      filters,
-    };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Error fetching grouped master conversion metrics:", error);
-    res.status(500).json({
-      error: "Failed to fetch grouped master conversion metrics",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
 
 // ============================================
 // GET /api/master-conversion/trend

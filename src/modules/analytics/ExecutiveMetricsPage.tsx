@@ -24,21 +24,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../../components/ui/popover";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../components/ui/table";
+
 import {
   useExecutiveMetrics,
   useComparisonMetrics,
   useTimeSeries,
   useTrendData,
   useFilterOptions,
-  useGroupedMetrics,
 } from "../../hooks/useExecMetrics";
 import { useAnalyticsFilters } from "../../hooks/useAnalyticsFilters";
 import type {
@@ -73,13 +65,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   LineChart,
   Line,
   AreaChart,
   Area,
-  Cell,
   Legend,
 } from "recharts";
 import { SmallTrendChart } from "./SmallTrendChart";
@@ -208,9 +197,6 @@ export function ExecutiveMetricsPage() {
   >("__all__");
   const [selectedVehicleSubCategory, setSelectedVehicleSubCategory] =
     useState<string>("__all__");
-  const [groupBy, setGroupBy] = useState<
-    "city" | "merchant_id" | "flow_type" | "trip_tag" | "service_tier" | string
-  >("city");
 
   // Advanced filter selections state
   const [filterSelections, setFilterSelections] = useState<FilterSelections>(
@@ -2178,11 +2164,6 @@ export function ExecutiveMetricsPage() {
     trendGranularity,
     restrictedFilters
   );
-  const {
-    data: groupedData,
-    isLoading: groupedLoading,
-    refetch: refetchGrouped,
-  } = useGroupedMetrics(groupBy as any, restrictedFilters);
 
   const handleRefresh = () => {
     // Refetch all data without reloading the page
@@ -2191,8 +2172,6 @@ export function ExecutiveMetricsPage() {
     refetchTimeSeries();
     refetchComparisonTimeSeries();
     refetchTrend();
-    refetchTrend();
-    refetchGrouped();
   };
 
   const handleClearFilters = () => {
@@ -4711,210 +4690,9 @@ export function ExecutiveMetricsPage() {
         )
         }
 
-        {/* Grouped Breakdown */}
-        <Card className="mt-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Aggregate Breakdown</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => {
-                    if (groupedData?.data) downloadCSV(groupedData.data, generateFilename(`aggregate_${groupBy}`, dateFrom, dateTo));
-                  }}
-                  title="Download CSV"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Select
-                  value={groupBy}
-                  onValueChange={(v) => setGroupBy(v as typeof groupBy)}
-                >
-                  <SelectTrigger className="w-40 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="city">City</SelectItem>
-                    <SelectItem value="merchant_id">Merchant</SelectItem>
-                    <SelectItem value="flow_type">Flow Type</SelectItem>
-                    <SelectItem value="trip_tag">Trip Tag</SelectItem>
-                    <SelectItem value="service_tier">Service Tier</SelectItem>
-                    <SelectItem value="cancellation_trip_distance">Cancellation Trip Distance</SelectItem>
-                    <SelectItem value="cancellation_fare_breakup">Cancellation Fare Bucket</SelectItem>
-                    <SelectItem value="cancellation_pickup_distance">Cancellation Pickup Distance</SelectItem>
-                    <SelectItem value="cancellation_pickup_left">Cancellation Pickup Dist. Left</SelectItem>
-                    <SelectItem value="cancellation_time_to_cancel">Cancellation Time to Cancel</SelectItem>
-                    <SelectItem value="cancellation_reason">Cancellation Reason</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader >
-          <CardContent>
-            {groupedLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : groupedData?.data && groupedData.data.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Chart */}
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={groupedData.data.slice(0, 10)}
-                      layout="vertical"
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" fontSize={12} />
-                      <YAxis
-                        dataKey="dimension"
-                        type="category"
-                        width={80}
-                        fontSize={11}
-                      />
-                      <Tooltip
-                        formatter={(value: number) => formatNumber(value)}
-                      />
-                      <Bar
-                        dataKey={groupBy.startsWith('cancellation_') ? "bookingsCancelled" : "bookings"}
-                        name={groupBy.startsWith('cancellation_') ? "Cancelled" : "Bookings"}
-                        radius={[0, 4, 4, 0]}
-                      >
-                        {groupedData.data.slice(0, 10).map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
 
-                {/* Table */}
-                <div className="max-h-64 overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>
-                          {groupBy.replace(/_/g, " ").replace("cancellation ", "").toUpperCase()}
-                        </TableHead>
-                        {groupBy.startsWith('cancellation_') ? (
-                          <>
-                            <TableHead className="text-right">Cancelled</TableHead>
-                            <TableHead className="text-right">User</TableHead>
-                            <TableHead className="text-right">Driver</TableHead>
-                          </>
-                        ) : (
-                          <>
-                            <TableHead className="text-right">Searches</TableHead>
-                            <TableHead className="text-right">Bookings</TableHead>
-                            <TableHead className="text-right">Completed</TableHead>
-                            <TableHead className="text-right">Conv. Rate</TableHead>
-                            {/* Show additional metrics if available */}
-                            {groupedData.data.some(
-                              (r) => r.riderFareAcceptanceRate !== undefined
-                            ) && (
-                                <TableHead className="text-right">
-                                  Rider Fare Acceptance
-                                </TableHead>
-                              )}
-                            {groupedData.data.some(
-                              (r) => r.driverQuoteAcceptanceRate !== undefined
-                            ) && (
-                                <TableHead className="text-right">
-                                  Driver Quote Acceptance
-                                </TableHead>
-                              )}
-                            {groupedData.data.some(
-                              (r) => r.driverAcceptanceRate !== undefined
-                            ) && (
-                                <TableHead className="text-right">
-                                  Driver Acc.
-                                </TableHead>
-                              )}
-                          </>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {groupedData.data.map((row) => (
-                        <TableRow key={row.dimension}>
-                          <TableCell
-                            className="font-medium text-xs truncate max-w-[150px]"
-                            title={row.dimension}
-                          >
-                            {row.dimension || "(empty)"}
-                          </TableCell>
-                          {groupBy.startsWith('cancellation_') ? (
-                            <>
-                              <TableCell className="text-right">
-                                {formatNumber(row.bookingsCancelled || 0)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatNumber(row.userCancelled || 0)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatNumber(row.driverCancelled || 0)}
-                              </TableCell>
-                            </>
-                          ) : (
-                            <>
-                              <TableCell className="text-right">
-                                {formatNumber(row.searches)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatNumber(row.bookings)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatNumber(row.completedRides)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatPercent(row.conversionRate)}
-                              </TableCell>
-                              {groupedData.data.some(
-                                (r) => r.riderFareAcceptanceRate !== undefined
-                              ) && (
-                                  <TableCell className="text-right">
-                                    {row.riderFareAcceptanceRate !== undefined
-                                      ? formatPercent(row.riderFareAcceptanceRate)
-                                      : "-"}
-                                  </TableCell>
-                                )}
-                              {groupedData.data.some(
-                                (r) => r.driverQuoteAcceptanceRate !== undefined
-                              ) && (
-                                  <TableCell className="text-right">
-                                    {row.driverQuoteAcceptanceRate !== undefined
-                                      ? formatPercent(row.driverQuoteAcceptanceRate)
-                                      : "-"}
-                                  </TableCell>
-                                )}
-                              {groupedData.data.some(
-                                (r) => r.driverAcceptanceRate !== undefined
-                              ) && (
-                                  <TableCell className="text-right">
-                                    {row.driverAcceptanceRate !== undefined
-                                      ? formatPercent(row.driverAcceptanceRate)
-                                      : "-"}
-                                  </TableCell>
-                                )}
-                            </>
-                          )}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                No grouped data available
-              </div>
-            )}
-          </CardContent>
-        </Card >
-      </PageContent >
+        {/* End of content */}
+      </PageContent>
     </Page >
   );
 }

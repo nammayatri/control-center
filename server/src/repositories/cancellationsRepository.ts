@@ -1,5 +1,5 @@
 import { getClickHouseClient } from '../db/clickhouse.js';
-import type { MetricsFilters, SortOptions, CancellationGroupedRow, DimensionalTimeSeriesDataPoint } from '../types/metrics.js';
+import type { MetricsFilters, SortOptions, DimensionalTimeSeriesDataPoint } from '../types/metrics.js';
 
 const TABLE = 'cancellations';
 
@@ -47,108 +47,7 @@ function safeRate(numerator: number, denominator: number): number {
     return Math.round((numerator / denominator) * 10000) / 10000;
 }
 
-export async function getCancellationGroupedMetrics(
-    filters: MetricsFilters,
-    groupBy: string
-): Promise<CancellationGroupedRow[]> {
-    const client = getClickHouseClient();
-    const whereClause = buildWhereClause(filters);
 
-    // Map frontend groupBy to DB columns
-    // Simple columns: trip_distance_bkt, fare_breakup, actual_pickup_dist__bkt
-    // JSON columns: pickup_dist_left_bucket, time_to_cancel_bkt, reason_code
-
-    let query = '';
-    const isJsonColumn = ['pickup_dist_left_bucket', 'time_to_cancel_bkt', 'reason_code'].includes(groupBy);
-
-    if (isJsonColumn) {
-        // Special aggregation for JSON columns using JSONExtractKeysAndValues
-        // We sum the counts for each key in the JSON map
-        query = `
-        SELECT
-            tupleElement(pair, 1) as dimension,
-            sum(tupleElement(pair, 2)) as count,
-            0 as total_bookings, -- Hard to attribute total bookings to a specific reason unless we sum?
-            -- Actually, if a row has total_bookings=1 and reason_code={'X':1}, it means that 1 booking was cancelled for reason X.
-            -- But total_bookings in that row might be > 1 if it's aggregated?
-            -- Sample: total_bookings="1", bookings_cancelled="1", reason_code={'WAIT':1}.
-            -- If total_bookings="10", bookings_cancelled="2", reason_code={'A':1, 'B':1}.
-            -- Then attributing total_bookings to 'A' is tricky.
-            -- However, for Reason Breakdown, we usually just care about the Breakdown of Cancellations.
-            -- So we might simply return counts of cancellations.
-            -- But the return type requires totalBookings etc for rates.
-            -- Let's calculate rates based on the GLOBAL total bookings for the filter period?
-            -- Or just return 0 for totalBookings and let frontend show absolute numbers?
-            -- User said: "How many people cancelled with same option".
-            -- So 'count' is 'bookingsCancelled'.
-            
-            -- Re-evaluating: 'tupleElement(pair, 2)' is the value from the JSON map.
-            -- The JSON map values (like {'WAIT': 1}) represent the count of cancellations for that reason.
-            -- So sum(value) = total cancellations for that reason/bucket.
-            
-            sum(tupleElement(pair, 2)) as bookings_cancelled,
-            -- For driver/user specific, we'd need to know if the reason is driver or user.
-            -- But the reason_code itself often implies it.
-            -- Or we can try to join with 'driver_cancelled' column?
-            -- If 'driver_cancelled' > 0, then these reasons are driver reasons?
-            -- Complicated if mixed.
-            -- For now, let's just return key metrics.
-            0 as user_cancelled, 
-            0 as driver_cancelled
-            
-        FROM (
-             SELECT
-                arrayJoin(JSONExtractKeysAndValues(assumeNotNull(${groupBy}), 'Int64')) as pair,
-                total_bookings,
-                bookings_cancelled,
-                user_cancelled,
-                driver_cancelled
-            FROM ${TABLE}
-            ${whereClause} AND ${groupBy} IS NOT NULL AND ${groupBy} != ''
-        )
-        GROUP BY dimension
-        ORDER BY bookings_cancelled DESC
-        `;
-    } else {
-        // Standard Group By
-        query = `
-        SELECT
-            ${groupBy} as dimension,
-            sumIf(total_bookings, total_bookings IS NOT NULL) as total_bookings,
-            sumIf(bookings_cancelled, bookings_cancelled IS NOT NULL) as bookings_cancelled,
-            sumIf(user_cancelled, user_cancelled IS NOT NULL) as user_cancelled,
-            sumIf(driver_cancelled, driver_cancelled IS NOT NULL) as driver_cancelled
-        FROM ${TABLE}
-        ${whereClause}
-        GROUP BY dimension
-        ORDER BY bookings_cancelled DESC
-        `;
-    }
-
-    const result = await client.query({ query, format: 'JSONEachRow' });
-    const rows = await result.json() as any[];
-
-    // For JSON columns, we might lack total_bookings context to calculate efficient rates.
-    // If needed, we could fetch global total bookings in a separate query, but for now 0 is safer than wrong data.
-
-    return rows.map(row => {
-        const totalBookings = safeNumber(row.total_bookings);
-        const bookingsCancelled = safeNumber(row.bookings_cancelled);
-        const userCancelled = safeNumber(row.user_cancelled);
-        const driverCancelled = safeNumber(row.driver_cancelled);
-
-        return {
-            dimension: String(row.dimension),
-            totalBookings,
-            bookingsCancelled,
-            userCancelled,
-            driverCancelled,
-            cancellationRate: safeRate(bookingsCancelled, totalBookings),
-            userCancellationRate: safeRate(userCancelled, totalBookings),
-            driverCancellationRate: safeRate(driverCancelled, totalBookings),
-        };
-    });
-}
 
 export async function getCancellationTrendMetrics(
     filters: MetricsFilters,
