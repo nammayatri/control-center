@@ -16,8 +16,8 @@ export interface MasterConversionFilters {
   poolingLogicVersion?: string[];
   poolingConfigVersion?: string[];
   serviceTier?: string[];
-  vehicleCategory?: "Bike" | "Auto" | "Cab" | "Others" | "All" | "BookAny";
-  vehicleSubCategory?: string;
+  vehicleCategory?: "Bike" | "Auto" | "Cab" | "Others" | "All" | "BookAny" | ("Bike" | "Auto" | "Cab" | "Others" | "All" | "BookAny")[];
+  vehicleSubCategory?: string | string[];
 }
 
 export interface SortOptions {

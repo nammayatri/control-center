@@ -188,3 +188,23 @@ export interface DimensionalTimeSeriesDataPoint {
     driverCancellations?: number;
     earnings?: number;
 }
+
+// ============================================
+// Grouped Metrics (Breakdown by Dimension)
+// ============================================
+
+export interface GroupedMetricsRow {
+    dimension: string;
+    searches: number;
+    bookings: number;
+    completedRides: number;
+    earnings: number;
+    cancelledBookings: number;
+    conversionRate: number;
+}
+
+export interface GroupedMetricsResponse {
+    data: GroupedMetricsRow[];
+    groupBy: string;
+    filters: MetricsFilters;
+}

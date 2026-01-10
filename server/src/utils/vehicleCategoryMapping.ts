@@ -15,7 +15,7 @@ export interface VehicleCategoryMapping {
  */
 export function getVehicleCategory(serviceTier: string): VehicleCategory {
     const normalized = serviceTier.toLowerCase();
-    
+
     // Bike category
     if (
         normalized.includes('2w parcel') ||
@@ -24,7 +24,7 @@ export function getVehicleCategory(serviceTier: string): VehicleCategory {
     ) {
         return 'Bike';
     }
-    
+
     // Auto category
     if (
         normalized === 'auto' ||
@@ -35,7 +35,7 @@ export function getVehicleCategory(serviceTier: string): VehicleCategory {
     ) {
         return 'Auto';
     }
-    
+
     // Special cases: All and BookAny (handled separately, not Cab)
     if (normalized === 'all') {
         return 'All';
@@ -43,12 +43,12 @@ export function getVehicleCategory(serviceTier: string): VehicleCategory {
     if (normalized === 'bookany') {
         return 'BookAny';
     }
-    
+
     // Others category (ambulance only)
     if (normalized.includes('ambulance')) {
         return 'Others';
     }
-    
+
     // Everything else is Cab
     return 'Cab';
 }
@@ -176,26 +176,38 @@ export function getVehicleSubCategories(category: VehicleCategory): string[] {
  * Converts vehicle_category and vehicle_sub_category filters to service_tier filters
  */
 export function convertVehicleFiltersToServiceTiers(
-    vehicleCategory?: VehicleCategory,
-    vehicleSubCategory?: string
+    vehicleCategory?: VehicleCategory | VehicleCategory[],
+    vehicleSubCategory?: string | string[]
 ): string[] {
-    if (vehicleSubCategory) {
-        // If sub-category is selected, use that specific service_tier
-        return [vehicleSubCategory];
+    // Collect all unique sub-categories
+    const subCats = Array.isArray(vehicleSubCategory)
+        ? vehicleSubCategory
+        : vehicleSubCategory ? [vehicleSubCategory] : [];
+
+    if (subCats.length > 0) {
+        return subCats;
     }
-    
-    if (vehicleCategory) {
-        // Handle special categories
-        if (vehicleCategory === 'All') {
-            return ['All'];
+
+    // Collect all categories
+    const categories = Array.isArray(vehicleCategory)
+        ? vehicleCategory
+        : vehicleCategory ? [vehicleCategory] : [];
+
+    if (categories.length > 0) {
+        let result: string[] = [];
+        for (const cat of categories) {
+            // Handle special categories
+            if (cat === 'All') {
+                result.push('All');
+            } else if (cat === 'BookAny') {
+                result.push('BookAny');
+            } else {
+                result = [...result, ...getServiceTiersByCategory(cat)];
+            }
         }
-        if (vehicleCategory === 'BookAny') {
-            return ['BookAny'];
-        }
-        // If only category is selected, get all service_tiers for that category
-        return getServiceTiersByCategory(vehicleCategory);
+        return [...new Set(result)];
     }
-    
+
     return [];
 }
 
