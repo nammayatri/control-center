@@ -26,6 +26,7 @@ import { ExecutiveMetricsPage } from './modules/analytics/ExecutiveMetricsPage';
 import { NammaTagsPage } from './modules/config/NammaTagsPage';
 import PassBookingPage from './modules/agent/PassBookingPage';
 import { DynamicLogicPage } from './modules/config/DynamicLogicPage';
+import { LogicBuilderPage } from './modules/json-logic/LogicBuilderPage';
 import { FarePolicyPage } from './modules/config/FarePolicyPage';
 import { VehicleServiceTierPage } from './modules/config/VehicleServiceTierPage';
 import { FirebaseConfigPage } from './modules/config/FirebaseConfigPage';
@@ -182,6 +183,7 @@ function AppRoutes() {
           <Route index element={<Navigate to="/config/namma-tags" replace />} />
           <Route path="namma-tags" element={<NammaTagsPage />} />
           <Route path="dynamic-logic" element={<DynamicLogicPage />} />
+          <Route path="json-logic-builder" element={<LogicBuilderPage />} />
           <Route path="fare-policy" element={<FarePolicyPage />} />
           <Route path="vehicle-service-tier" element={<VehicleServiceTierPage />} />
           <Route path="issue-config" element={<IssueConfigPage />} />
