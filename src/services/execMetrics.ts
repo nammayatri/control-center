@@ -128,6 +128,7 @@ export interface TimeSeriesDataPoint {
   cancelledRides?: number;
   userCancellations?: number;
   driverCancellations?: number;
+  conversion?: number;
 }
 
 export interface TimeSeriesResponse {

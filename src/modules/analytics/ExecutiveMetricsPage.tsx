@@ -56,6 +56,7 @@ import {
   TrendingDown,
   RefreshCw,
   Download,
+  Play,
 } from "lucide-react";
 import type { SummaryTableRow } from "./SummaryTable";
 import { SummaryTable } from "./SummaryTable";
@@ -72,6 +73,8 @@ import {
   Legend,
 } from "recharts";
 import { SmallTrendChart } from "./SmallTrendChart";
+import { useMultiSegmentTrend } from "../../hooks/useMultiSegmentTrend";
+import { MultiSegmentGrid } from "./MultiSegmentGrid";
 import {
   Collapsible,
   CollapsibleContent,
@@ -220,7 +223,6 @@ export function ExecutiveMetricsPage() {
     PINNED_SEGMENTS
   );
   const [isAddSegmentSheetOpen, setIsAddSegmentSheetOpen] = useState(false);
-  const [segmentSearchQuery, setSegmentSearchQuery] = useState("");
 
   // Metric selection for trend graphs - separated by type
   type RateMetric =
@@ -267,10 +269,42 @@ export function ExecutiveMetricsPage() {
   // Track which chart's popover is open
   const [activePopoverGroup, setActivePopoverGroup] = useState<number | null>(null);
 
-  // Segment selection for multi-line chart
+  // Multi-segment selection state (ordered - max 3 segments)
+  interface SegmentConfiguration {
+    id: string;
+    name: string;
+    segments: (Dimension | "none")[];
+    segment1TopN: number;
+    segment2TopN: number;
+    segment3TopN: number;
+  }
+
+  const [savedConfigurations, setSavedConfigurations] = useState<SegmentConfiguration[]>([]);
+  const [activeConfigId, setActiveConfigId] = useState<string | null>(null);
+  const [selectedSegments, setSelectedSegments] = useState<(Dimension | "none")[]>([]);
+  // Pending segments state for the UI before "Apply" is clicked
+  const [pendingSegments, setPendingSegments] = useState<(Dimension | "none")[]>([]);
+  const [segment1TopN, setSegment1TopN] = useState<number>(5);  // Top N for trend lines (Segment 1)
+  const [segment2TopN, setSegment2TopN] = useState<number>(3);  // Top N for 2nd segment
+  const [segment3TopN, setSegment3TopN] = useState<number>(3);  // Top N for 3rd segment
+
+  // Custom selected values for each segment (when user wants specific values instead of Top N)
+  const [segment1CustomValues, setSegment1CustomValues] = useState<string[]>([]);
+  const [segment2CustomValues, setSegment2CustomValues] = useState<string[]>([]);
+  const [segment3CustomValues, setSegment3CustomValues] = useState<string[]>([]);
+  const [valuePickerSearch, setValuePickerSearch] = useState("");
+  const [valuePickerOpen, setValuePickerOpen] = useState<1 | 2 | 3 | null>(null);
+
+  const [isMultiSegmentApplied, setIsMultiSegmentApplied] = useState(false);
+
+  // Segment selection for multi-line chart (Legacy - keep for backward compatibility or refactor)
   const [selectedSegment, setSelectedSegment] = useState<Dimension | "none">(
-    "none"
+    "city"
   );
+
+  const isVehicleSegment = selectedSegment === "vehicle_category" ||
+    selectedSegment === "vehicle_sub_category" ||
+    selectedSegment === "service_tier";
 
   // Track hovered line for single-line tooltip display
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
@@ -547,6 +581,20 @@ export function ExecutiveMetricsPage() {
   // Fetch data
   const { data: filterOptions } = useFilterOptions();
 
+  // Multi-segment analysis data hook
+  const multiSegmentResult = useMultiSegmentTrend({
+    segments: selectedSegments,
+    segment1TopN: segment1TopN,
+    segment2TopN: segment2TopN,
+    segment3TopN: segment3TopN,
+    segment1CustomValues: segment1CustomValues,
+    segment2CustomValues: segment2CustomValues,
+    segment3CustomValues: segment3CustomValues,
+    filters: timeSeriesFilters,
+    granularity: effectiveGranularity,
+    enabled: isMultiSegmentApplied && selectedSegments.length > 0
+  });
+
   // Build filter categories for AdvancedFiltersPopover
   const filterCategories: FilterCategory[] = useMemo(() => {
     if (!filterOptions) return [];
@@ -599,7 +647,7 @@ export function ExecutiveMetricsPage() {
         label: "Vehicle Category",
         filters:
           filterOptions.vehicleCategories
-            ?.filter((vc) => vc.value !== "All")
+            ?.filter((vc) => ["Auto", "Cab", "Bike"].includes(vc.value))
             ?.map((vc) => ({
               id: `vehicleCategory_${vc.value}`,
               label: vc.label,
@@ -897,19 +945,8 @@ export function ExecutiveMetricsPage() {
       for (const point of timeSeriesData.data) {
         let value = 0;
         if (metricKey === "conversion") {
-          // Calculate conversion rate based on tier type
-          // If quotes_requested is available and searches is 0 (tier data), use quotes_requested
-          // Otherwise use searches (tier-less data)
-          const denominator =
-            point.searches === 0 &&
-              point.searchForQuotes &&
-              point.searchForQuotes > 0
-              ? point.searchForQuotes
-              : point.searches || point.searchForQuotes || 1;
-          value =
-            point.completedRides && denominator > 0
-              ? (point.completedRides / denominator) * 100
-              : 0;
+          // Use pre-calculated conversion from backend
+          value = point.conversion || 0;
         } else if (metricKey === "searches") {
           // For "Total Search Tries" when vehicle category is selected:
           // If searches is 0 (tier data), use quotes_requested as searchTries
@@ -1134,18 +1171,8 @@ export function ExecutiveMetricsPage() {
           // Calculate metric value and store raw values
           switch (metric) {
             case "conversion": {
-              const denom =
-                point.searches === 0 &&
-                  point.searchForQuotes &&
-                  point.searchForQuotes > 0
-                  ? point.searchForQuotes
-                  : point.searches || point.searchForQuotes || 1;
-              numerator = point.completedRides || 0;
-              denominator = denom;
-              value =
-                numerator && denominator > 0
-                  ? (numerator / denominator) * 100
-                  : point.conversion || 0;
+              // Use pre-calculated conversion from backend
+              value = point.conversion || 0;
               break;
             }
             case "driverQuoteAcceptance": {
@@ -1638,7 +1665,10 @@ export function ExecutiveMetricsPage() {
   ]);
 
   // Extract top N segment values based on search volume
-  const { availableSegmentValues, othersDataMap } = useMemo(() => {
+  const { availableSegmentValues, othersDataMap } = useMemo<{
+    availableSegmentValues: string[];
+    othersDataMap: Map<string, any>;
+  }>(() => {
     if (selectedSegment === "none" || !segmentTrendData?.data) {
       return { availableSegmentValues: [], othersDataMap: new Map() };
     }
@@ -1716,19 +1746,23 @@ export function ExecutiveMetricsPage() {
       .map(([val]) => val);
 
     // 3. Separate Logic:
-    // a) availableSegmentValues should ALWAYS be the full list (for the dropdown)
+    // a) availableSegmentValues should be filtered for vehicle_category main variants
     // b) othersDataMap should be calculated ONLY if topN is a number (5, 10, 20)
 
-    // Always return all sorted values
-    const resultValues = [...sortedValues];
+    // Filter vehicle_category to only show main variants in dropdowns
+    let finalAvailableValues = sortedValues;
+    if (selectedSegment === "vehicle_category") {
+      finalAvailableValues = sortedValues.filter(val =>
+        ["Auto", "Cab", "Bike"].includes(val)
+      );
+    }
 
-    // Calculate Others data if needed
+    // Calculate Others data if needed (using the FULL sortedValues to determine what is "Others")
     const othersDataMap = new Map<string, any>();
 
     if (typeof topN === "number") {
-      const topItems = new Set(sortedValues.slice(0, topN));
-      // If we are in Top N mode, we aggregate everything NOT in the top N into others
-      // Note: This matches the "Top N view". The dropdown shows everything.
+      const topItemsCount = Math.min(topN, sortedValues.length);
+      const topItems = new Set(sortedValues.slice(0, topItemsCount));
 
       segmentTrendData.data.forEach((point) => {
         const val = String(point.dimensionValue || "Unknown");
@@ -1763,7 +1797,7 @@ export function ExecutiveMetricsPage() {
       });
     }
 
-    return { availableSegmentValues: resultValues, othersDataMap };
+    return { availableSegmentValues: finalAvailableValues, othersDataMap };
   }, [selectedSegment, segmentTrendData, topN]);
 
   // Manage selection based on Top N changes
@@ -1814,8 +1848,10 @@ export function ExecutiveMetricsPage() {
         case "driverCancellations": return point.driverCancellations || 0;
         case "earnings": return point.earnings || 0;
         case "conversion":
-          return point.searches > 0 ? (point.bookings / point.searches) * 100 : 0;
+          const cDenom = point.searches || point.searchForQuotes || point.quotesRequested || 1;
+          return ((point.completedRides || 0) / cDenom) * 100;
         case "riderFareAcceptance":
+          if (isVehicleSegment) return 0;
           return point.searchGotEstimates > 0 ? (point.quotesAccepted / point.searchGotEstimates) * 100 : 0;
         case "driverQuoteAcceptance":
           return point.searchForQuotes > 0 ? (point.quotesAccepted / point.searchForQuotes) * 100 : 0;
@@ -2212,10 +2248,14 @@ export function ExecutiveMetricsPage() {
         const calcChange = (curr: number, prev: number) => prev > 0 ? ((curr - prev) / prev) * 100 : 0;
 
         // Calculate rates for comparison
-        const compConversion = compTotals.searches > 0 ? (compTotals.bookings / compTotals.searches) * 100 : 0;
+        const compConvDenom = compTotals.searches || compTotals.quotesRequested || 1;
+        const compConversion = (compTotals.completedRides / compConvDenom) * 100;
         const compRFA = compTotals.searchGotEstimates > 0 ? (compTotals.quotesAccepted / compTotals.searchGotEstimates) * 100 : 0;
         const compDQA = compTotals.quotesRequested > 0 ? (compTotals.quotesAccepted / compTotals.quotesRequested) * 100 : 0;
         const compCancel = compTotals.bookings > 0 ? (compTotals.cancelledRides / compTotals.bookings) * 100 : 0;
+
+        const currConvDenom = totals.searches || totals.quotesRequested || 1;
+        const currConversion = (totals.completedRides / currConvDenom) * 100;
 
         changes = {
           searches: calcChange(totals.searches, compTotals.searches),
@@ -2225,8 +2265,8 @@ export function ExecutiveMetricsPage() {
           completedRides: calcChange(totals.completedRides, compTotals.completedRides),
           cancelledRides: calcChange(totals.cancelledRides, compTotals.cancelledRides),
           earnings: calcChange(totals.earnings, compTotals.earnings),
-          conversionRate: compConversion > 0 ? ((totals.searches > 0 ? (totals.bookings / totals.searches) * 100 : 0) - compConversion) / compConversion * 100 : 0, // Using % change of rate
-          riderFareAcceptance: compRFA > 0 ? ((totals.searchGotEstimates > 0 ? (totals.quotesAccepted / totals.searchGotEstimates) * 100 : 0) - compRFA) / compRFA * 100 : 0,
+          conversionRate: compConversion > 0 ? (currConversion - compConversion) / compConversion * 100 : 0,
+          riderFareAcceptance: isVehicleSegment ? 0 : (compRFA > 0 ? ((totals.searchGotEstimates > 0 ? (totals.quotesAccepted / totals.searchGotEstimates) * 100 : 0) - compRFA) / compRFA * 100 : 0),
           driverQuoteAcceptance: compDQA > 0 ? ((totals.quotesRequested > 0 ? (totals.quotesAccepted / totals.quotesRequested) * 100 : 0) - compDQA) / compDQA * 100 : 0,
           cancellationRate: compCancel > 0 ? ((totals.bookings > 0 ? (totals.cancelledRides / totals.bookings) * 100 : 0) - compCancel) / compCancel * 100 : 0
         };
@@ -2242,8 +2282,8 @@ export function ExecutiveMetricsPage() {
         completedRides: totals.completedRides,
         cancelledRides: totals.cancelledRides,
         earnings: totals.earnings,
-        conversionRate: totals.searches > 0 ? (totals.bookings / totals.searches) * 100 : 0,
-        riderFareAcceptance: totals.searchGotEstimates > 0 ? (totals.quotesAccepted / totals.searchGotEstimates) * 100 : 0,
+        conversionRate: (totals.searches || totals.quotesRequested) > 0 ? (totals.completedRides / (totals.searches || totals.quotesRequested)) * 100 : 0,
+        riderFareAcceptance: !isVehicleSegment && totals.searchGotEstimates > 0 ? (totals.quotesAccepted / totals.searchGotEstimates) * 100 : 0,
         driverQuoteAcceptance: totals.quotesRequested > 0 ? (totals.quotesAccepted / totals.quotesRequested) * 100 : 0,
         cancellationRate: totals.bookings > 0 ? (totals.cancelledRides / totals.bookings) * 100 : 0,
         changes
@@ -2322,13 +2362,15 @@ export function ExecutiveMetricsPage() {
           const calcChange = (curr: number, prev: number) => prev > 0 ? ((curr - prev) / prev) * 100 : 0;
 
           // Calculate comparison rates
-          const compConversion = compStats.searches > 0 ? (compStats.bookings / compStats.searches) * 100 : 0;
+          const compConvDenom = compStats.searches || compStats.quotesRequested || 1;
+          const compConversion = (compStats.completedRides / compConvDenom) * 100;
           const compRFA = compStats.searchGotEstimates > 0 ? (compStats.quotesAccepted / compStats.searchGotEstimates) * 100 : 0;
           const compDQA = compStats.quotesRequested > 0 ? (compStats.quotesAccepted / compStats.quotesRequested) * 100 : 0;
           const compCancel = compStats.bookings > 0 ? (compStats.cancelledRides / compStats.bookings) * 100 : 0;
 
           // Calculate current rates
-          const currConversion = stats.searches > 0 ? (stats.bookings / stats.searches) * 100 : 0;
+          const currConvDenom = stats.searches || stats.quotesRequested || 1;
+          const currConversion = (stats.completedRides / currConvDenom) * 100;
           const currRFA = stats.searchGotEstimates > 0 ? (stats.quotesAccepted / stats.searchGotEstimates) * 100 : 0;
           const currDQA = stats.quotesRequested > 0 ? (stats.quotesAccepted / stats.quotesRequested) * 100 : 0;
           const currCancel = stats.bookings > 0 ? (stats.cancelledRides / stats.bookings) * 100 : 0;
@@ -2358,8 +2400,8 @@ export function ExecutiveMetricsPage() {
           completedRides: stats.completedRides,
           cancelledRides: stats.cancelledRides,
           earnings: stats.earnings,
-          conversionRate: stats.searches > 0 ? (stats.bookings / stats.searches) * 100 : 0,
-          riderFareAcceptance: stats.searchGotEstimates > 0 ? (stats.quotesAccepted / stats.searchGotEstimates) * 100 : 0,
+          conversionRate: (stats.searches || stats.quotesRequested) > 0 ? (stats.completedRides / (stats.searches || stats.quotesRequested)) * 100 : 0,
+          riderFareAcceptance: !isVehicleSegment && stats.searchGotEstimates > 0 ? (stats.quotesAccepted / stats.searchGotEstimates) * 100 : 0,
           driverQuoteAcceptance: stats.quotesRequested > 0 ? (stats.quotesAccepted / stats.quotesRequested) * 100 : 0,
           cancellationRate: stats.bookings > 0 ? (stats.cancelledRides / stats.bookings) * 100 : 0,
           changes
@@ -2910,295 +2952,102 @@ export function ExecutiveMetricsPage() {
             </Card>
 
             {/* Rider Fare Acceptance Card */}
-            <Collapsible open={rfaExpanded} onOpenChange={setRfaExpanded}>
-              <Card>
-                <CollapsibleTrigger className="w-full hover:bg-muted/50 transition-colors">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Percent className="h-5 w-5 text-blue-600" />
-                        <CardTitle className="text-base">
-                          Rider Fare Acceptance
-                        </CardTitle>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const data = getTrendData("riderFareAcceptanceRate");
-                            if (data) downloadCSV(data, generateFilename("rfa_trend", dateFrom, dateTo));
-                          }}
-                          title="Download CSV"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      {rfaExpanded ? (
-                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      {/* Left side: Metric and change */}
-                      <div className="flex-shrink-0 min-w-[120px]">
-                        <div className="text-2xl font-bold">
-                          {executiveData?.totals?.riderFareAcceptanceRate !==
-                            undefined
-                            ? formatPercent(
-                              executiveData.totals.riderFareAcceptanceRate
-                            )
-                            : "-"}
-                        </div>
-                        {(() => {
-                          // Calculate RFA comparison
-                          const currentRFA =
-                            executiveData?.totals?.riderFareAcceptanceRate;
-                          if (!currentRFA || !comparisonData) return null;
-                          const previousQuotes =
-                            comparisonData.previous.searchForQuotes || 0;
-                          const previousSearches =
-                            comparisonData.previous.searches || 1;
-                          const previousRFA =
-                            previousSearches > 0
-                              ? (previousQuotes / previousSearches) * 100
-                              : 0;
-                          const rfaChange =
-                            previousRFA > 0
-                              ? ((currentRFA - previousRFA) / previousRFA) * 100
-                              : 0;
-                          return (
-                            <TooltipProvider>
-                              <UITooltip>
-                                <TooltipTrigger asChild>
-                                  <div
-                                    className={cn(
-                                      "flex items-center gap-1 mt-1 text-xs cursor-help",
-                                      rfaChange > 0
-                                        ? "text-green-600"
-                                        : rfaChange < 0
-                                          ? "text-red-600"
-                                          : "text-muted-foreground"
-                                    )}
-                                  >
-                                    {rfaChange > 0 ? (
-                                      <TrendingUp className="h-3 w-3" />
-                                    ) : rfaChange < 0 ? (
-                                      <TrendingDown className="h-3 w-3" />
-                                    ) : null}
-                                    {rfaChange !== 0 && (
-                                      <span>
-                                        {Math.abs(rfaChange).toFixed(2)}%
-                                      </span>
-                                    )}
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent className="bg-gray-800 text-white border-gray-700">
-                                  <div className="space-y-1">
-                                    <p className="text-xs">
-                                      {rfaChange > 0
-                                        ? "Increased by"
-                                        : rfaChange < 0
-                                          ? "Decreased by"
-                                          : "No change"}
-                                    </p>
-                                    <p className="text-sm font-bold">
-                                      {Math.abs(rfaChange).toFixed(2)}%
-                                    </p>
-                                    {comparisonPeriods && (
-                                      <>
-                                        <p className="text-xs text-gray-300">
-                                          comparing to
-                                        </p>
-                                        <p className="text-xs text-gray-300">
-                                          {comparisonPeriods.previousFrom} -{" "}
-                                          {comparisonPeriods.previousTo}
-                                        </p>
-                                      </>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </UITooltip>
-                            </TooltipProvider>
-                          );
-                        })()}
-                      </div>
-                      {/* Right side: Graph */}
-                      {timeSeriesData?.data &&
-                        (() => {
-                          const rfaTrendData = getTrendData
-                            ? getTrendData("riderFareAcceptance")
-                            : undefined;
-                          const comparisonRfaTrendData = getComparisonTrendData
-                            ? getComparisonTrendData("riderFareAcceptance")
-                            : undefined;
-
-                          if (!rfaTrendData || rfaTrendData.length === 0)
-                            return null;
-
-                          const mergedData = comparisonRfaTrendData ? rfaTrendData.map(d => {
-                            const comp = comparisonRfaTrendData.find(c => c.timestamp === d.timestamp);
-                            return { ...d, comparisonValue: comp?.value };
-                          }) : rfaTrendData;
-
-                          const gradientId = "gradient-rfa";
-                          return (
-                            <div className="flex-1 h-16 min-w-0">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart
-                                  data={mergedData}
-                                  margin={{
-                                    top: 0,
-                                    right: 0,
-                                    left: 0,
-                                    bottom: 0,
-                                  }}
-                                >
-                                  <defs>
-                                    <linearGradient
-                                      id={gradientId}
-                                      x1="0"
-                                      y1="0"
-                                      x2="0"
-                                      y2="1"
-                                    >
-                                      <stop
-                                        offset="0%"
-                                        stopColor="#3b82f6"
-                                        stopOpacity={0.3}
-                                      />
-                                      <stop
-                                        offset="100%"
-                                        stopColor="#3b82f6"
-                                        stopOpacity={0}
-                                      />
-                                    </linearGradient>
-                                  </defs>
-                                  {comparisonRfaTrendData && (
-                                    <Area
-                                      type="monotone"
-                                      dataKey="comparisonValue"
-                                      stroke="#fb923c"
-                                      strokeWidth={1}
-                                      strokeDasharray="3 3"
-                                      fill="transparent"
-                                      dot={false}
-                                      activeDot={{ r: 3, fill: "#fb923c" }}
-                                    />
-                                  )}
-                                  <Area
-                                    type="monotone"
-                                    dataKey="value"
-                                    stroke="#3b82f6"
-                                    strokeWidth={2}
-                                    fill={`url(#${gradientId})`}
-                                    dot={false}
-                                    activeDot={{ r: 3, fill: "#3b82f6" }}
-                                  />
-                                  <Tooltip
-                                    content={({ active, payload, label }) => {
-                                      if (active && payload && payload.length) {
-                                        const timestamp = payload[0].payload?.timestamp || label || "";
-                                        const formattedDate = formatTooltipDate(timestamp);
-                                        return (
-                                          <div className="bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg space-y-1">
-                                            <p className="text-gray-300 mb-1 border-b border-gray-700 pb-1">{formattedDate}</p>
-                                            {payload.map((p, idx) => (
-                                              <div key={idx} className="flex items-center gap-2">
-                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.stroke }} />
-                                                <span className={cn("font-medium", p.dataKey === "comparisonValue" ? "text-orange-300" : "text-white")}>
-                                                  {p.dataKey === "comparisonValue" ? "Prev: " : "Curr: "}
-                                                  {typeof p.value === 'number' ? formatPercent(p.value) : p.value}
-                                                </span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        );
-                                      }
-                                      return null;
-                                    }}
-                                  />
-                                </AreaChart>
-                              </ResponsiveContainer>
-                            </div>
-                          );
-                        })()}
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="pt-0 pb-4">
-                    <div className="space-y-3">
-                      <div className="p-2 bg-muted/50 rounded">
+            {!isVehicleSegment && (
+              <Collapsible open={rfaExpanded} onOpenChange={setRfaExpanded}>
+                <Card>
+                  <CollapsibleTrigger className="w-full hover:bg-muted/50 transition-colors">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          {/* Left side: Metric and change */}
-                          <div className="flex-shrink-0 min-w-[120px]">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">
-                              {selectedVehicleCategory !== "__all__" &&
-                                selectedVehicleCategory !== "All"
-                                ? "Search Tries"
-                                : "Quotes Requested"}
-                            </p>
-                            <p className="text-lg font-bold mb-1">
-                              {formatNumber(
-                                selectedVehicleCategory !== "__all__" &&
-                                  selectedVehicleCategory !== "All"
-                                  ? executiveData?.totals?.searchTries ??
-                                  executiveData?.totals?.quotesRequested ??
-                                  0
-                                  : executiveData?.totals?.quotesRequested || 0
-                              )}
-                            </p>
-                            {comparisonData?.change?.quotesRequested && (
+                          <Percent className="h-5 w-5 text-blue-600" />
+                          <CardTitle className="text-base">
+                            Rider Fare Acceptance
+                          </CardTitle>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const data = getTrendData("riderFareAcceptanceRate");
+                              if (data) downloadCSV(data, generateFilename("rfa_trend", dateFrom, dateTo));
+                            }}
+                            title="Download CSV"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        {rfaExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        {/* Left side: Metric and change */}
+                        <div className="flex-shrink-0 min-w-[120px]">
+                          <div className="text-2xl font-bold">
+                            {executiveData?.totals?.riderFareAcceptanceRate !==
+                              undefined
+                              ? formatPercent(
+                                executiveData.totals.riderFareAcceptanceRate
+                              )
+                              : "-"}
+                          </div>
+                          {(() => {
+                            // Calculate RFA comparison
+                            const currentRFA =
+                              executiveData?.totals?.riderFareAcceptanceRate;
+                            if (!currentRFA || !comparisonData) return null;
+                            const previousQuotes =
+                              comparisonData.previous.searchForQuotes || 0;
+                            const previousSearches =
+                              comparisonData.previous.searches || 1;
+                            const previousRFA =
+                              previousSearches > 0
+                                ? (previousQuotes / previousSearches) * 100
+                                : 0;
+                            const rfaChange =
+                              previousRFA > 0
+                                ? ((currentRFA - previousRFA) / previousRFA) * 100
+                                : 0;
+                            return (
                               <TooltipProvider>
                                 <UITooltip>
                                   <TooltipTrigger asChild>
                                     <div
                                       className={cn(
-                                        "flex items-center gap-1 text-xs cursor-help",
-                                        comparisonData.change.quotesRequested
-                                          .percent > 0
+                                        "flex items-center gap-1 mt-1 text-xs cursor-help",
+                                        rfaChange > 0
                                           ? "text-green-600"
-                                          : comparisonData.change
-                                            .quotesRequested.percent < 0
+                                          : rfaChange < 0
                                             ? "text-red-600"
                                             : "text-muted-foreground"
                                       )}
                                     >
-                                      {comparisonData.change.quotesRequested
-                                        .percent > 0 ? (
+                                      {rfaChange > 0 ? (
                                         <TrendingUp className="h-3 w-3" />
-                                      ) : comparisonData.change.quotesRequested
-                                        .percent < 0 ? (
+                                      ) : rfaChange < 0 ? (
                                         <TrendingDown className="h-3 w-3" />
                                       ) : null}
-                                      <span>
-                                        {Math.abs(
-                                          comparisonData.change.quotesRequested
-                                            .percent
-                                        ).toFixed(2)}
-                                        %
-                                      </span>
+                                      {rfaChange !== 0 && (
+                                        <span>
+                                          {Math.abs(rfaChange).toFixed(2)}%
+                                        </span>
+                                      )}
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent className="bg-gray-800 text-white border-gray-700">
                                     <div className="space-y-1">
                                       <p className="text-xs">
-                                        {comparisonData.change.quotesRequested
-                                          .percent > 0
+                                        {rfaChange > 0
                                           ? "Increased by"
-                                          : comparisonData.change
-                                            .quotesRequested.percent < 0
+                                          : rfaChange < 0
                                             ? "Decreased by"
                                             : "No change"}
                                       </p>
                                       <p className="text-sm font-bold">
-                                        {Math.abs(
-                                          comparisonData.change.quotesRequested
-                                            .percent
-                                        ).toFixed(2)}
-                                        %
+                                        {Math.abs(rfaChange).toFixed(2)}%
                                       </p>
                                       {comparisonPeriods && (
                                         <>
@@ -3215,24 +3064,33 @@ export function ExecutiveMetricsPage() {
                                   </TooltipContent>
                                 </UITooltip>
                               </TooltipProvider>
-                            )}
-                          </div>
-                          {/* Right side: Graph */}
-                          {(() => {
-                            const quotesRequestedTrend = getTrendData
-                              ? getTrendData("quotesRequested")
+                            );
+                          })()}
+                        </div>
+                        {/* Right side: Graph */}
+                        {timeSeriesData?.data &&
+                          (() => {
+                            const rfaTrendData = getTrendData
+                              ? getTrendData("riderFareAcceptance")
                               : undefined;
-                            if (
-                              !quotesRequestedTrend ||
-                              quotesRequestedTrend.length === 0
-                            )
+                            const comparisonRfaTrendData = getComparisonTrendData
+                              ? getComparisonTrendData("riderFareAcceptance")
+                              : undefined;
+
+                            if (!rfaTrendData || rfaTrendData.length === 0)
                               return null;
-                            const gradientId = "gradient-quotes-requested";
+
+                            const mergedData = comparisonRfaTrendData ? rfaTrendData.map(d => {
+                              const comp = comparisonRfaTrendData.find(c => c.timestamp === d.timestamp);
+                              return { ...d, comparisonValue: comp?.value };
+                            }) : rfaTrendData;
+
+                            const gradientId = "gradient-rfa";
                             return (
                               <div className="flex-1 h-16 min-w-0">
                                 <ResponsiveContainer width="100%" height="100%">
                                   <AreaChart
-                                    data={quotesRequestedTrend}
+                                    data={mergedData}
                                     margin={{
                                       top: 0,
                                       right: 0,
@@ -3260,6 +3118,18 @@ export function ExecutiveMetricsPage() {
                                         />
                                       </linearGradient>
                                     </defs>
+                                    {comparisonRfaTrendData && (
+                                      <Area
+                                        type="monotone"
+                                        dataKey="comparisonValue"
+                                        stroke="#fb923c"
+                                        strokeWidth={1}
+                                        strokeDasharray="3 3"
+                                        fill="transparent"
+                                        dot={false}
+                                        activeDot={{ r: 3, fill: "#fb923c" }}
+                                      />
+                                    )}
                                     <Area
                                       type="monotone"
                                       dataKey="value"
@@ -3271,27 +3141,21 @@ export function ExecutiveMetricsPage() {
                                     />
                                     <Tooltip
                                       content={({ active, payload, label }) => {
-                                        if (
-                                          active &&
-                                          payload &&
-                                          payload.length
-                                        ) {
-                                          const timestamp =
-                                            payload[0].payload?.timestamp ||
-                                            label ||
-                                            "";
-                                          const formattedDate =
-                                            formatTooltipDate(timestamp);
-                                          const value = payload[0]
-                                            .value as number;
+                                        if (active && payload && payload.length) {
+                                          const timestamp = payload[0].payload?.timestamp || label || "";
+                                          const formattedDate = formatTooltipDate(timestamp);
                                           return (
-                                            <div className="bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg">
-                                              <p className="text-gray-300 mb-1">
-                                                {formattedDate}
-                                              </p>
-                                              <p className="font-semibold">
-                                                {formatNumber(value)}
-                                              </p>
+                                            <div className="bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg space-y-1">
+                                              <p className="text-gray-300 mb-1 border-b border-gray-700 pb-1">{formattedDate}</p>
+                                              {payload.map((p, idx) => (
+                                                <div key={idx} className="flex items-center gap-2">
+                                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.stroke }} />
+                                                  <span className={cn("font-medium", p.dataKey === "comparisonValue" ? "text-orange-300" : "text-white")}>
+                                                    {p.dataKey === "comparisonValue" ? "Prev: " : "Curr: "}
+                                                    {typeof p.value === 'number' ? formatPercent(p.value) : p.value}
+                                                  </span>
+                                                </div>
+                                              ))}
                                             </div>
                                           );
                                         }
@@ -3303,13 +3167,193 @@ export function ExecutiveMetricsPage() {
                               </div>
                             );
                           })()}
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0 pb-4">
+                      <div className="space-y-3">
+                        <div className="p-2 bg-muted/50 rounded">
+                          <div className="flex items-center gap-2">
+                            {/* Left side: Metric and change */}
+                            <div className="flex-shrink-0 min-w-[120px]">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                                {selectedVehicleCategory !== "__all__" &&
+                                  selectedVehicleCategory !== "All"
+                                  ? "Search Tries"
+                                  : "Quotes Requested"}
+                              </p>
+                              <p className="text-lg font-bold mb-1">
+                                {formatNumber(
+                                  selectedVehicleCategory !== "__all__" &&
+                                    selectedVehicleCategory !== "All"
+                                    ? executiveData?.totals?.searchTries ??
+                                    executiveData?.totals?.quotesRequested ??
+                                    0
+                                    : executiveData?.totals?.quotesRequested || 0
+                                )}
+                              </p>
+                              {comparisonData?.change?.quotesRequested && (
+                                <TooltipProvider>
+                                  <UITooltip>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        className={cn(
+                                          "flex items-center gap-1 text-xs cursor-help",
+                                          comparisonData.change.quotesRequested
+                                            .percent > 0
+                                            ? "text-green-600"
+                                            : comparisonData.change
+                                              .quotesRequested.percent < 0
+                                              ? "text-red-600"
+                                              : "text-muted-foreground"
+                                        )}
+                                      >
+                                        {comparisonData.change.quotesRequested
+                                          .percent > 0 ? (
+                                          <TrendingUp className="h-3 w-3" />
+                                        ) : comparisonData.change.quotesRequested
+                                          .percent < 0 ? (
+                                          <TrendingDown className="h-3 w-3" />
+                                        ) : null}
+                                        <span>
+                                          {Math.abs(
+                                            comparisonData.change.quotesRequested
+                                              .percent
+                                          ).toFixed(2)}
+                                          %
+                                        </span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-gray-800 text-white border-gray-700">
+                                      <div className="space-y-1">
+                                        <p className="text-xs">
+                                          {comparisonData.change.quotesRequested
+                                            .percent > 0
+                                            ? "Increased by"
+                                            : comparisonData.change
+                                              .quotesRequested.percent < 0
+                                              ? "Decreased by"
+                                              : "No change"}
+                                        </p>
+                                        <p className="text-sm font-bold">
+                                          {Math.abs(
+                                            comparisonData.change.quotesRequested
+                                              .percent
+                                          ).toFixed(2)}
+                                          %
+                                        </p>
+                                        {comparisonPeriods && (
+                                          <>
+                                            <p className="text-xs text-gray-300">
+                                              comparing to
+                                            </p>
+                                            <p className="text-xs text-gray-300">
+                                              {comparisonPeriods.previousFrom} -{" "}
+                                              {comparisonPeriods.previousTo}
+                                            </p>
+                                          </>
+                                        )}
+                                      </div>
+                                    </TooltipContent>
+                                  </UITooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                            {/* Right side: Graph */}
+                            {(() => {
+                              const quotesRequestedTrend = getTrendData
+                                ? getTrendData("quotesRequested")
+                                : undefined;
+                              if (
+                                !quotesRequestedTrend ||
+                                quotesRequestedTrend.length === 0
+                              )
+                                return null;
+                              const gradientId = "gradient-quotes-requested";
+                              return (
+                                <div className="flex-1 h-16 min-w-0">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart
+                                      data={quotesRequestedTrend}
+                                      margin={{
+                                        top: 0,
+                                        right: 0,
+                                        left: 0,
+                                        bottom: 0,
+                                      }}
+                                    >
+                                      <defs>
+                                        <linearGradient
+                                          id={gradientId}
+                                          x1="0"
+                                          y1="0"
+                                          x2="0"
+                                          y2="1"
+                                        >
+                                          <stop
+                                            offset="0%"
+                                            stopColor="#3b82f6"
+                                            stopOpacity={0.3}
+                                          />
+                                          <stop
+                                            offset="100%"
+                                            stopColor="#3b82f6"
+                                            stopOpacity={0}
+                                          />
+                                        </linearGradient>
+                                      </defs>
+                                      <Area
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#3b82f6"
+                                        strokeWidth={2}
+                                        fill={`url(#${gradientId})`}
+                                        dot={false}
+                                        activeDot={{ r: 3, fill: "#3b82f6" }}
+                                      />
+                                      <Tooltip
+                                        content={({ active, payload, label }) => {
+                                          if (
+                                            active &&
+                                            payload &&
+                                            payload.length
+                                          ) {
+                                            const timestamp =
+                                              payload[0].payload?.timestamp ||
+                                              label ||
+                                              "";
+                                            const formattedDate =
+                                              formatTooltipDate(timestamp);
+                                            const value = payload[0]
+                                              .value as number;
+                                            return (
+                                              <div className="bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-lg">
+                                                <p className="text-gray-300 mb-1">
+                                                  {formattedDate}
+                                                </p>
+                                                <p className="font-semibold">
+                                                  {formatNumber(value)}
+                                                </p>
+                                              </div>
+                                            );
+                                          }
+                                          return null;
+                                        }}
+                                      />
+                                    </AreaChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            )}
 
             {/* Driver Quote Acceptance Card */}
             <Collapsible open={dqaExpanded} onOpenChange={setDqaExpanded}>
@@ -4044,15 +4088,28 @@ export function ExecutiveMetricsPage() {
                           <Select
                             onValueChange={(v) => {
                               const rateMetrics = ["conversion", "riderFareAcceptance", "driverQuoteAcceptance", "cancellationRate", "userCancellationRate", "driverCancellationRate"];
-                              if (rateMetrics.includes(v)) {
-                                const metric = v as RateMetric;
-                                if (!selectedRateMetrics.includes(metric)) {
-                                  setSelectedRateMetrics([...selectedRateMetrics, metric]);
+
+                              // In multi-segment mode, replace the metric instead of adding
+                              if (isMultiSegmentApplied && selectedSegments.length > 0) {
+                                if (rateMetrics.includes(v)) {
+                                  setSelectedRateMetrics([v as RateMetric]);
+                                  setSelectedValueMetrics([]);
+                                } else {
+                                  setSelectedValueMetrics([v as ValueMetric]);
+                                  setSelectedRateMetrics([]);
                                 }
                               } else {
-                                const metric = v as ValueMetric;
-                                if (!selectedValueMetrics.includes(metric)) {
-                                  setSelectedValueMetrics([...selectedValueMetrics, metric]);
+                                // Normal mode - add to selection
+                                if (rateMetrics.includes(v)) {
+                                  const metric = v as RateMetric;
+                                  if (!selectedRateMetrics.includes(metric)) {
+                                    setSelectedRateMetrics([...selectedRateMetrics, metric]);
+                                  }
+                                } else {
+                                  const metric = v as ValueMetric;
+                                  if (!selectedValueMetrics.includes(metric)) {
+                                    setSelectedValueMetrics([...selectedValueMetrics, metric]);
+                                  }
                                 }
                               }
                             }}
@@ -4062,7 +4119,9 @@ export function ExecutiveMetricsPage() {
                             </SelectTrigger>
                             <SelectContent className="rounded-lg border-zinc-200 dark:border-zinc-800">
                               {/* Value Metrics */}
-                              <SelectItem value="searches" className="text-xs">Searches</SelectItem>
+                              {!isVehicleSegment && (
+                                <SelectItem value="searches" className="text-xs">Searches</SelectItem>
+                              )}
                               <SelectItem value="quotesRequested" className="text-xs">Quotes Requested</SelectItem>
                               <SelectItem value="quotesAccepted" className="text-xs">Quotes Accepted</SelectItem>
                               <SelectItem value="bookings" className="text-xs">Bookings</SelectItem>
@@ -4074,7 +4133,9 @@ export function ExecutiveMetricsPage() {
                               {/* Rate Metrics */}
                               <SelectItem value="conversion" className="text-xs">Conversion Rate</SelectItem>
                               <SelectItem value="driverQuoteAcceptance" className="text-xs">Driver Quote Acceptance</SelectItem>
-                              <SelectItem value="riderFareAcceptance" className="text-xs">Rider Fare Acceptance</SelectItem>
+                              {!isVehicleSegment && (
+                                <SelectItem value="riderFareAcceptance" className="text-xs">Rider Fare Acceptance</SelectItem>
+                              )}
                               <SelectItem value="cancellationRate" className="text-xs">Cancellation Rate</SelectItem>
                               <SelectItem value="userCancellationRate" className="text-xs">User Cancellation Rate</SelectItem>
                               <SelectItem value="driverCancellationRate" className="text-xs">Driver Cancellation Rate</SelectItem>
@@ -4117,6 +4178,10 @@ export function ExecutiveMetricsPage() {
                                     if (dim.value === "none") {
                                       setSelectedSegmentValues(new Set());
                                     }
+                                    // Clear multi-segment mode when selecting single segment
+                                    setIsMultiSegmentApplied(false);
+                                    setPendingSegments([]);
+                                    setSelectedSegments([]);
                                   }}
                                 >
                                   {dim.label}
@@ -4150,68 +4215,640 @@ export function ExecutiveMetricsPage() {
                             );
                           })}
 
-                          {/* Add Segments Sheet */}
+                          {/* Saved Configuration Tabs */}
+                          {savedConfigurations.length > 0 && (
+                            <>
+                              <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-2" />
+                              {savedConfigurations.map((config) => {
+                                const isActive = activeConfigId === config.id;
+                                return (
+                                  <div key={config.id} className="flex items-center gap-1 group">
+                                    <Button
+                                      variant={isActive ? "secondary" : "ghost"}
+                                      size="sm"
+                                      className={cn(
+                                        "h-8 px-3 text-xs rounded-full transition-all duration-200",
+                                        isActive
+                                          ? "bg-primary text-primary-foreground shadow-sm font-medium"
+                                          : "text-muted-foreground hover:text-foreground border border-zinc-200 dark:border-zinc-700"
+                                      )}
+                                      onClick={() => {
+                                        // Load configuration and open sidebar for editing
+                                        setActiveConfigId(config.id);
+                                        setSelectedSegments(config.segments);
+                                        setSegment1TopN(config.segment1TopN);
+                                        setSegment2TopN(config.segment2TopN);
+                                        setSegment3TopN(config.segment3TopN);
+                                        setIsMultiSegmentApplied(true);
+                                        setSelectedSegment("none");
+
+                                        // Also load into pending for editing
+                                        setPendingSegments([...config.segments]);
+                                        setIsAddSegmentSheetOpen(true);
+                                      }}
+                                    >
+                                      {config.name}
+                                    </Button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Remove this configuration
+                                        setSavedConfigurations(prev => prev.filter(c => c.id !== config.id));
+                                        if (activeConfigId === config.id) {
+                                          setActiveConfigId(null);
+                                          setSelectedSegments([]);
+                                          setIsMultiSegmentApplied(false);
+                                        }
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-opacity"
+                                    >
+                                      <X className="h-3 w-3 text-muted-foreground" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
+
+                          {/* Segment Configuration Sheet */}
                           <Sheet open={isAddSegmentSheetOpen} onOpenChange={setIsAddSegmentSheetOpen}>
                             <SheetTrigger asChild>
                               <Button
                                 variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-primary hover:text-primary transition-all ml-1"
+                                size="sm"
+                                className="h-8 px-3 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-primary hover:text-primary transition-all ml-1 text-xs gap-1"
                               >
-                                <Plus className="h-4 w-4" />
+                                <Plus className="h-3 w-3" />
+                                Segment
                               </Button>
                             </SheetTrigger>
-                            <SheetContent side="right" className="p-0 flex flex-col w-[400px]">
+                            <SheetContent side="right" className="p-0 flex flex-col w-[450px]">
                               <SheetHeader className="p-6 border-b">
-                                <SheetTitle>Add Segments</SheetTitle>
-                                <p className="text-xs text-muted-foreground">You can choose up to a maximum of 3 segments</p>
+                                <SheetTitle>Segment Analysis</SheetTitle>
+                                <p className="text-xs text-muted-foreground">
+                                  Configure segments for dimensional analysis. First segment defines trend lines, second creates columns, third creates rows.
+                                </p>
                               </SheetHeader>
-                              <div className="p-6 space-y-4 flex-1 overflow-y-auto">
-                                <div className="relative">
-                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                  <Input
-                                    placeholder="Search Segments"
-                                    className="pl-9 h-10 rounded-lg"
-                                    value={segmentSearchQuery}
-                                    onChange={(e) => setSegmentSearchQuery(e.target.value)}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  {trendDimensionsList
-                                    .filter(d =>
-                                      d.value !== "none" &&
-                                      !visibleSegments.includes(d.value) &&
-                                      d.label.toLowerCase().includes(segmentSearchQuery.toLowerCase()) &&
-                                      // Only show cancellation segments if a cancellation metric is currently selected
-                                      (d.value.startsWith("cancellation_")
-                                        ? [...selectedValueMetrics, ...selectedRateMetrics].some((m: string) => ["cancelledRides", "userCancellations", "driverCancellations", "cancellationRate", "userCancellationRate", "driverCancellationRate"].includes(m))
-                                        : true)
-                                    )
-                                    .map((dim) => (
-                                      <div
-                                        key={dim.value}
-                                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer group transition-colors"
-                                        onClick={() => {
-                                          if (visibleSegments.length < 7) { // 4 pinned + 3 extra
-                                            setVisibleSegments(prev => [...prev, dim.value as Dimension]);
-                                            setIsAddSegmentSheetOpen(false);
-                                          }
-                                        }}
+
+                              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                {/* Segment 1 - Trend Lines */}
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+                                    <span className="text-sm font-semibold">Trend Lines</span>
+                                    <span className="text-xs text-muted-foreground">(lines within each chart)</span>
+                                  </div>
+                                  <Select
+                                    value={pendingSegments[0] || ""}
+                                    onValueChange={(v) => {
+                                      const newSegments = [...pendingSegments];
+                                      newSegments[0] = v as Dimension;
+                                      setPendingSegments(newSegments.filter(Boolean) as Dimension[]);
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-10">
+                                      <SelectValue placeholder="Select segment..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {trendDimensionsList
+                                        .filter(d => d.value !== "none" && !pendingSegments.slice(1).includes(d.value))
+                                        .map(dim => (
+                                          <SelectItem key={dim.value} value={dim.value}>{dim.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {pendingSegments[0] && (
+                                    <div className="flex items-center gap-2 pl-8">
+                                      <span className="text-xs text-muted-foreground">Show:</span>
+                                      <Select
+                                        value={String(segment1TopN)}
+                                        onValueChange={(v) => setSegment1TopN(parseInt(v))}
                                       >
-                                        <div className="h-5 w-5 rounded border-2 border-zinc-300 dark:border-zinc-700 flex items-center justify-center group-hover:border-primary transition-colors">
-                                          <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
-                                        </div>
-                                        <span className="text-sm font-medium">{dim.label}</span>
-                                      </div>
-                                    ))}
+                                        <SelectTrigger className="h-8 w-[90px] text-xs">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="3">Top 3</SelectItem>
+                                          <SelectItem value="5">Top 5</SelectItem>
+                                          <SelectItem value="10">Top 10</SelectItem>
+                                          <SelectItem value="20">Top 20</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+
+                                      {/* Value Picker Popover */}
+                                      <Popover open={valuePickerOpen === 1} onOpenChange={(open) => {
+                                        setValuePickerOpen(open ? 1 : null);
+                                        if (!open) setValuePickerSearch("");
+                                      }}>
+                                        <PopoverTrigger asChild>
+                                          <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                                            {segment1CustomValues.length > 0
+                                              ? `${segment1CustomValues.length} Values`
+                                              : "Select Values"}
+                                            <ChevronDown className="h-3 w-3" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-72 p-0" align="start">
+                                          <div className="p-3 border-b">
+                                            <div className="relative">
+                                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                              <Input
+                                                placeholder="Search values..."
+                                                className="pl-8 h-9"
+                                                value={valuePickerSearch}
+                                                onChange={(e) => setValuePickerSearch(e.target.value)}
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="p-2 border-b flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-muted-foreground uppercase">
+                                              Select {trendDimensionsList.find(d => d.value === pendingSegments[0])?.label}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                              {filterOptions?.cities?.length || 0} total
+                                            </span>
+                                          </div>
+                                          <div className="px-3 py-2 border-b flex gap-3">
+                                            <button
+                                              className="text-xs font-medium text-primary hover:underline"
+                                              onClick={() => {
+                                                const allValues = pendingSegments[0] === 'city'
+                                                  ? filterOptions?.cities || []
+                                                  : pendingSegments[0] === 'vehicle_category'
+                                                    ? filterOptions?.vehicleCategories?.map(v => v.value) || []
+                                                    : pendingSegments[0] === 'trip_tag'
+                                                      ? filterOptions?.tripTags || []
+                                                      : [];
+                                                setSegment1CustomValues(allValues);
+                                              }}
+                                            >
+                                              Select All
+                                            </button>
+                                            <button
+                                              className="text-xs text-muted-foreground hover:underline"
+                                              onClick={() => setSegment1CustomValues([])}
+                                            >
+                                              Clear All
+                                            </button>
+                                          </div>
+                                          <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+                                            {(() => {
+                                              let availableValues: string[] = [];
+                                              if (pendingSegments[0] === 'city') {
+                                                availableValues = filterOptions?.cities || [];
+                                              } else if (pendingSegments[0] === 'vehicle_category') {
+                                                availableValues = (filterOptions?.vehicleCategories?.map(v => v.value) || [])
+                                                  .filter(v => ["Auto", "Cab", "Bike"].includes(v));
+                                              } else if (pendingSegments[0] === 'trip_tag') {
+                                                availableValues = filterOptions?.tripTags || [];
+                                              }
+
+                                              return availableValues
+                                                .filter(v => v.toLowerCase().includes(valuePickerSearch.toLowerCase()))
+                                                .map(value => (
+                                                  <div
+                                                    key={value}
+                                                    className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                                                    onClick={() => {
+                                                      setSegment1CustomValues(prev =>
+                                                        prev.includes(value)
+                                                          ? prev.filter(v => v !== value)
+                                                          : [...prev, value]
+                                                      );
+                                                    }}
+                                                  >
+                                                    <div className={cn(
+                                                      "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                                                      segment1CustomValues.includes(value)
+                                                        ? "bg-primary border-primary"
+                                                        : "border-zinc-300 dark:border-zinc-600"
+                                                    )}>
+                                                      {segment1CustomValues.includes(value) && (
+                                                        <Check className="h-3 w-3 text-primary-foreground" />
+                                                      )}
+                                                    </div>
+                                                    <span className="text-sm">{value}</span>
+                                                  </div>
+                                                ));
+                                            })()}
+                                          </div>
+                                          <div className="p-3 border-t">
+                                            <Button
+                                              className="w-full h-9"
+                                              onClick={() => setValuePickerOpen(null)}
+                                            >
+                                              Apply Selections
+                                            </Button>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  )}
                                 </div>
+
+                                {/* Segment 2 - Grid Columns */}
+                                {pendingSegments[0] && (
+                                  <div className="space-y-3 pt-4 border-t border-dashed">
+                                    <div className="flex items-center gap-2">
+                                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-xs font-bold">2</span>
+                                      <span className="text-sm font-semibold">Grid Columns</span>
+                                      <span className="text-xs text-muted-foreground">(optional)</span>
+                                    </div>
+                                    <Select
+                                      value={pendingSegments[1] || ""}
+                                      onValueChange={(v) => {
+                                        const newSegments = [...pendingSegments];
+                                        if (v === "__none__") {
+                                          newSegments.splice(1);
+                                        } else {
+                                          newSegments[1] = v as Dimension;
+                                        }
+                                        setPendingSegments(newSegments.filter(Boolean) as Dimension[]);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-10">
+                                        <SelectValue placeholder="Select segment (optional)..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">None</SelectItem>
+                                        {trendDimensionsList
+                                          .filter(d => d.value !== "none" && d.value !== pendingSegments[0] && d.value !== pendingSegments[2])
+                                          .map(dim => (
+                                            <SelectItem key={dim.value} value={dim.value}>{dim.label}</SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {pendingSegments[1] && (
+                                      <div className="flex items-center gap-2 pl-8">
+                                        <span className="text-xs text-muted-foreground">Show:</span>
+                                        <Select
+                                          value={String(segment2TopN)}
+                                          onValueChange={(v) => setSegment2TopN(parseInt(v))}
+                                        >
+                                          <SelectTrigger className="h-8 w-[90px] text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="3">Top 3</SelectItem>
+                                            <SelectItem value="5">Top 5</SelectItem>
+                                            <SelectItem value="10">Top 10</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+
+                                        {/* Value Picker Popover for Segment 2 */}
+                                        <Popover open={valuePickerOpen === 2} onOpenChange={(open) => {
+                                          setValuePickerOpen(open ? 2 : null);
+                                          if (!open) setValuePickerSearch("");
+                                        }}>
+                                          <PopoverTrigger asChild>
+                                            <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                                              {segment2CustomValues.length > 0
+                                                ? `${segment2CustomValues.length} Values`
+                                                : "Select Values"}
+                                              <ChevronDown className="h-3 w-3" />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-72 p-0" align="start">
+                                            <div className="p-3 border-b">
+                                              <div className="relative">
+                                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                  placeholder="Search values..."
+                                                  className="pl-8 h-9"
+                                                  value={valuePickerSearch}
+                                                  onChange={(e) => setValuePickerSearch(e.target.value)}
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="p-2 border-b flex items-center justify-between">
+                                              <span className="text-xs font-semibold text-muted-foreground uppercase">
+                                                Select {trendDimensionsList.find(d => d.value === pendingSegments[1])?.label}
+                                              </span>
+                                            </div>
+                                            <div className="px-3 py-2 border-b flex gap-3">
+                                              <button
+                                                className="text-xs font-medium text-primary hover:underline"
+                                                onClick={() => {
+                                                  const seg = pendingSegments[1];
+                                                  const allValues = seg === 'city'
+                                                    ? filterOptions?.cities || []
+                                                    : seg === 'vehicle_category'
+                                                      ? filterOptions?.vehicleCategories?.map(v => v.value) || []
+                                                      : seg === 'trip_tag'
+                                                        ? filterOptions?.tripTags || []
+                                                        : [];
+                                                  setSegment2CustomValues(allValues);
+                                                }}
+                                              >
+                                                Select All
+                                              </button>
+                                              <button
+                                                className="text-xs text-muted-foreground hover:underline"
+                                                onClick={() => setSegment2CustomValues([])}
+                                              >
+                                                Clear All
+                                              </button>
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+                                              {(() => {
+                                                const seg = pendingSegments[1];
+                                                let availableValues: string[] = [];
+                                                if (seg === 'city') {
+                                                  availableValues = filterOptions?.cities || [];
+                                                } else if (seg === 'vehicle_category') {
+                                                  availableValues = (filterOptions?.vehicleCategories?.map(v => v.value) || [])
+                                                    .filter(v => ["Auto", "Cab", "Bike"].includes(v));
+                                                } else if (seg === 'trip_tag') {
+                                                  availableValues = filterOptions?.tripTags || [];
+                                                }
+
+                                                return availableValues
+                                                  .filter(v => v.toLowerCase().includes(valuePickerSearch.toLowerCase()))
+                                                  .map(value => (
+                                                    <div
+                                                      key={value}
+                                                      className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                                                      onClick={() => {
+                                                        setSegment2CustomValues(prev =>
+                                                          prev.includes(value)
+                                                            ? prev.filter(v => v !== value)
+                                                            : [...prev, value]
+                                                        );
+                                                      }}
+                                                    >
+                                                      <div className={cn(
+                                                        "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                                                        segment2CustomValues.includes(value)
+                                                          ? "bg-primary border-primary"
+                                                          : "border-zinc-300 dark:border-zinc-600"
+                                                      )}>
+                                                        {segment2CustomValues.includes(value) && (
+                                                          <Check className="h-3 w-3 text-primary-foreground" />
+                                                        )}
+                                                      </div>
+                                                      <span className="text-sm">{value}</span>
+                                                    </div>
+                                                  ));
+                                              })()}
+                                            </div>
+                                            <div className="p-3 border-t">
+                                              <Button
+                                                className="w-full h-9"
+                                                onClick={() => setValuePickerOpen(null)}
+                                              >
+                                                Apply Selections
+                                              </Button>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Segment 3 - Grid Rows */}
+                                {pendingSegments[1] && (
+                                  <div className="space-y-3 pt-4 border-t border-dashed">
+                                    <div className="flex items-center gap-2">
+                                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-xs font-bold">3</span>
+                                      <span className="text-sm font-semibold">Grid Rows</span>
+                                      <span className="text-xs text-muted-foreground">(optional)</span>
+                                    </div>
+                                    <Select
+                                      value={pendingSegments[2] || ""}
+                                      onValueChange={(v) => {
+                                        const newSegments = [...pendingSegments];
+                                        if (v === "__none__") {
+                                          newSegments.splice(2);
+                                        } else {
+                                          newSegments[2] = v as Dimension;
+                                        }
+                                        setPendingSegments(newSegments.filter(Boolean) as Dimension[]);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-10">
+                                        <SelectValue placeholder="Select segment (optional)..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">None</SelectItem>
+                                        {trendDimensionsList
+                                          .filter(d => d.value !== "none" && d.value !== pendingSegments[0] && d.value !== pendingSegments[1])
+                                          .map(dim => (
+                                            <SelectItem key={dim.value} value={dim.value}>{dim.label}</SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {pendingSegments[2] && (
+                                      <div className="flex items-center gap-2 pl-8">
+                                        <span className="text-xs text-muted-foreground">Show:</span>
+                                        <Select
+                                          value={String(segment3TopN)}
+                                          onValueChange={(v) => setSegment3TopN(parseInt(v))}
+                                        >
+                                          <SelectTrigger className="h-8 w-[90px] text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="3">Top 3</SelectItem>
+                                            <SelectItem value="5">Top 5</SelectItem>
+                                            <SelectItem value="10">Top 10</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+
+                                        {/* Value Picker Popover for Segment 3 */}
+                                        <Popover open={valuePickerOpen === 3} onOpenChange={(open) => {
+                                          setValuePickerOpen(open ? 3 : null);
+                                          if (!open) setValuePickerSearch("");
+                                        }}>
+                                          <PopoverTrigger asChild>
+                                            <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                                              {segment3CustomValues.length > 0
+                                                ? `${segment3CustomValues.length} Values`
+                                                : "Select Values"}
+                                              <ChevronDown className="h-3 w-3" />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-72 p-0" align="start">
+                                            <div className="p-3 border-b">
+                                              <div className="relative">
+                                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                  placeholder="Search values..."
+                                                  className="pl-8 h-9"
+                                                  value={valuePickerSearch}
+                                                  onChange={(e) => setValuePickerSearch(e.target.value)}
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="p-2 border-b flex items-center justify-between">
+                                              <span className="text-xs font-semibold text-muted-foreground uppercase">
+                                                Select {trendDimensionsList.find(d => d.value === pendingSegments[2])?.label}
+                                              </span>
+                                            </div>
+                                            <div className="px-3 py-2 border-b flex gap-3">
+                                              <button
+                                                className="text-xs font-medium text-primary hover:underline"
+                                                onClick={() => {
+                                                  const seg = pendingSegments[2];
+                                                  const allValues = seg === 'city'
+                                                    ? filterOptions?.cities || []
+                                                    : seg === 'vehicle_category'
+                                                      ? filterOptions?.vehicleCategories?.map(v => v.value) || []
+                                                      : seg === 'trip_tag'
+                                                        ? filterOptions?.tripTags || []
+                                                        : [];
+                                                  setSegment3CustomValues(allValues);
+                                                }}
+                                              >
+                                                Select All
+                                              </button>
+                                              <button
+                                                className="text-xs text-muted-foreground hover:underline"
+                                                onClick={() => setSegment3CustomValues([])}
+                                              >
+                                                Clear All
+                                              </button>
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+                                              {(() => {
+                                                const seg = pendingSegments[2];
+                                                let availableValues: string[] = [];
+                                                if (seg === 'city') {
+                                                  availableValues = filterOptions?.cities || [];
+                                                } else if (seg === 'vehicle_category') {
+                                                  availableValues = filterOptions?.vehicleCategories?.map(v => v.value) || [];
+                                                } else if (seg === 'trip_tag') {
+                                                  availableValues = filterOptions?.tripTags || [];
+                                                }
+
+                                                return availableValues
+                                                  .filter(v => v.toLowerCase().includes(valuePickerSearch.toLowerCase()))
+                                                  .map(value => (
+                                                    <div
+                                                      key={value}
+                                                      className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                                                      onClick={() => {
+                                                        setSegment3CustomValues(prev =>
+                                                          prev.includes(value)
+                                                            ? prev.filter(v => v !== value)
+                                                            : [...prev, value]
+                                                        );
+                                                      }}
+                                                    >
+                                                      <div className={cn(
+                                                        "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                                                        segment3CustomValues.includes(value)
+                                                          ? "bg-primary border-primary"
+                                                          : "border-zinc-300 dark:border-zinc-600"
+                                                      )}>
+                                                        {segment3CustomValues.includes(value) && (
+                                                          <Check className="h-3 w-3 text-primary-foreground" />
+                                                        )}
+                                                      </div>
+                                                      <span className="text-sm">{value}</span>
+                                                    </div>
+                                                  ));
+                                              })()}
+                                            </div>
+                                            <div className="p-3 border-t">
+                                              <Button
+                                                className="w-full h-9"
+                                                onClick={() => setValuePickerOpen(null)}
+                                              >
+                                                Apply Selections
+                                              </Button>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Preview Summary */}
+                                {pendingSegments.length > 0 && (
+                                  <div className="mt-6 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg border">
+                                    <div className="text-xs font-semibold text-muted-foreground mb-2">Preview</div>
+                                    <div className="text-sm">
+                                      {pendingSegments.length === 1 && (
+                                        <span>Single chart with <strong>{trendDimensionsList.find(d => d.value === pendingSegments[0])?.label}</strong> as trend lines</span>
+                                      )}
+                                      {pendingSegments.length === 2 && (
+                                        <span>Grid of <strong>{segment2TopN}</strong> charts (by {trendDimensionsList.find(d => d.value === pendingSegments[1])?.label}), each showing <strong>{trendDimensionsList.find(d => d.value === pendingSegments[0])?.label}</strong> trends</span>
+                                      )}
+                                      {pendingSegments.length === 3 && (
+                                        <span>Matrix of <strong>{segment2TopN} × {segment3TopN}</strong> charts (columns: {trendDimensionsList.find(d => d.value === pendingSegments[1])?.label}, rows: {trendDimensionsList.find(d => d.value === pendingSegments[2])?.label}), each showing <strong>{trendDimensionsList.find(d => d.value === pendingSegments[0])?.label}</strong> trends</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <div className="p-6 border-t bg-zinc-50/50 dark:bg-zinc-900/50">
+
+                              <div className="p-6 border-t bg-zinc-50/50 dark:bg-zinc-900/50 space-y-3">
                                 <Button
-                                  className="w-full h-11 rounded-xl font-bold shadow-lg"
-                                  onClick={() => setIsAddSegmentSheetOpen(false)}
+                                  className="w-full h-11 rounded-xl font-bold shadow-lg gap-2"
+                                  disabled={pendingSegments.length === 0}
+                                  onClick={() => {
+                                    // Generate configuration name from segment labels
+                                    const configName = pendingSegments
+                                      .map(seg => trendDimensionsList.find(d => d.value === seg)?.label || seg)
+                                      .join(" + ");
+
+                                    const newConfig: SegmentConfiguration = {
+                                      id: Date.now().toString(),
+                                      name: configName,
+                                      segments: [...pendingSegments],
+                                      segment1TopN,
+                                      segment2TopN,
+                                      segment3TopN,
+                                    };
+
+                                    // Add to saved configurations
+                                    setSavedConfigurations(prev => [...prev, newConfig]);
+                                    setActiveConfigId(newConfig.id);
+
+                                    // Apply this configuration
+                                    setSelectedSegments(pendingSegments);
+
+                                    // If only one segment is selected, use the normal selectedSegment 
+                                    // flow to get the big chart (same as clicking City/Vehicle Category pills)
+                                    if (pendingSegments.length === 1) {
+                                      setSelectedSegment(pendingSegments[0]);
+                                      setIsMultiSegmentApplied(false);
+
+                                      // Sync custom values to the legacy selectedSegmentValues state
+                                      // so the single-segment chart uses them for filtering
+                                      if (segment1CustomValues.length > 0) {
+                                        setSelectedSegmentValues(new Set(segment1CustomValues));
+                                        setTopN("custom");
+                                      } else {
+                                        setSelectedSegmentValues(new Set());
+                                        setTopN(segment1TopN);
+                                      }
+                                    } else {
+                                      // For 2+ segments, use multi-segment grid
+                                      setIsMultiSegmentApplied(true);
+                                      setSelectedSegment("none");
+                                    }
+
+                                    setIsAddSegmentSheetOpen(false);
+
+                                    // Reset pending for next configuration
+                                    setPendingSegments([]);
+                                  }}
                                 >
-                                  Add Segments
+                                  <Play className="h-4 w-4 fill-current" />
+                                  Apply Analysis
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  className="w-full h-10 rounded-xl"
+                                  onClick={() => {
+                                    setPendingSegments([]);
+                                    setIsAddSegmentSheetOpen(false);
+                                  }}
+                                >
+                                  Cancel
                                 </Button>
                               </div>
                             </SheetContent>
@@ -4435,6 +5072,23 @@ export function ExecutiveMetricsPage() {
 
                             if (isLoading) {
                               return <Skeleton className="h-[400px] w-full" />;
+                            }
+
+                            // Multi-Segment View
+                            if (isMultiSegmentApplied && selectedSegments.length > 0) {
+                              // Get the first selected metric to display
+                              const metricToShow = selectedRateMetrics[0] || selectedValueMetrics[0] || 'conversion';
+                              return (
+                                <MultiSegmentGrid
+                                  segments={selectedSegments}
+                                  gridData={multiSegmentResult.gridData}
+                                  segment3Values={multiSegmentResult.segment3Values}
+                                  filters={timeSeriesFilters}
+                                  granularity={effectiveGranularity}
+                                  isLoading={multiSegmentResult.isLoading}
+                                  selectedMetric={metricToShow}
+                                />
+                              );
                             }
 
                             // If segment is selected, use metric-based charts (one chart per metric, segment values as lines)
