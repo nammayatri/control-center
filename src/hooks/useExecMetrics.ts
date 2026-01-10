@@ -59,14 +59,4 @@ export function useFilterOptions() {
     });
 }
 
-export function useGroupedMetrics(
-    groupBy: 'city' | 'merchant_id' | 'flow_type' | 'trip_tag' | 'service_tier' | "cancellation_trip_distance" | "cancellation_fare_breakup" | "cancellation_pickup_distance" | "cancellation_pickup_left" | "cancellation_time_to_cancel" | "cancellation_reason",
-    filters: MetricsFilters = {},
-    enabled = true
-) {
-    return useQuery({
-        queryKey: ['execMetrics', 'grouped', groupBy, filters],
-        queryFn: () => execMetricsService.getGroupedMetrics(groupBy, filters),
-        enabled,
-    });
-}
+

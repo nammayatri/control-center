@@ -16,11 +16,8 @@ export interface SortOptions {
     sortOrder?: 'asc' | 'desc';
 }
 
-export interface GroupByOptions {
-    groupBy?: 'date' | 'city' | 'flow_type' | 'trip_tag' | 'variant';
-}
 
-export interface MetricsQueryParams extends MetricsFilters, SortOptions, GroupByOptions { }
+export interface MetricsQueryParams extends MetricsFilters, SortOptions { }
 
 // ============================================
 // Raw Data Types (from ClickHouse)
@@ -177,36 +174,7 @@ export interface FilterOptionsResponse {
     };
 }
 
-// ============================================
-// Grouped/Breakdown Response
-// ============================================
 
-export interface GroupedMetricsRow {
-    dimension: string;
-    searches: number;
-    bookings: number;
-    completedRides: number;
-    earnings: number;
-    cancelledBookings: number;
-    conversionRate: number;
-}
-
-export interface GroupedMetricsResponse {
-    data: GroupedMetricsRow[];
-    groupBy: string;
-    filters: MetricsFilters;
-}
-
-export interface CancellationGroupedRow {
-    dimension: string;
-    totalBookings: number;
-    bookingsCancelled: number;
-    userCancelled: number;
-    driverCancelled: number;
-    cancellationRate: number;
-    userCancellationRate: number;
-    driverCancellationRate: number;
-}
 
 export interface DimensionalTimeSeriesDataPoint {
     timestamp: string;

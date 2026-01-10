@@ -213,7 +213,11 @@ export type Dimension =
   | "cancellation_pickup_distance"
   | "cancellation_pickup_left"
   | "cancellation_time_to_cancel"
-  | "cancellation_reason";
+  | "cancellation_reason"
+  | "run_hour"   // Temporal comparison: compare hours (within single day)
+  | "run_day"    // Temporal comparison: compare days
+  | "run_week"   // Temporal comparison: compare weeks
+  | "run_month"; // Temporal comparison: compare months
 
 export type Granularity = "hour" | "day";
 
@@ -338,46 +342,7 @@ export async function getFilterOptions(): Promise<FilterOptionsResponse> {
   });
 }
 
-export async function getGroupedMetrics(
-  groupBy: "city" | "merchant_id" | "flow_type" | "trip_tag" | "service_tier" | "cancellation_trip_distance" | "cancellation_fare_breakup" | "cancellation_pickup_distance" | "cancellation_pickup_left" | "cancellation_time_to_cancel" | "cancellation_reason",
-  filters: MetricsFilters = {}
-): Promise<GroupedMetricsResponse> {
 
-  // Check if it's a cancellation metric
-  if (groupBy.startsWith('cancellation_')) {
-    const validMap: Record<string, string> = {
-      'cancellation_trip_distance': 'trip_distance_bkt',
-      'cancellation_fare_breakup': 'fare_breakup',
-      'cancellation_pickup_distance': 'actual_pickup_dist__bkt',
-      'cancellation_pickup_left': 'pickup_dist_left_bucket',
-      'cancellation_time_to_cancel': 'time_to_cancel_bkt',
-      'cancellation_reason': 'reason_code'
-    };
-
-    const backendGroupBy = validMap[groupBy];
-    if (backendGroupBy) {
-      const query = buildMasterQueryParams({ ...filters, groupBy: backendGroupBy as any }); // Cast as any because MetricsFilters type is not updated to backend keys, but buildQueryParams expects strings. Actually MetricsFilters.groupBy is specific union.
-      // We need to pass the backendGroupBy key in query params.
-      // buildMasterQueryParams checks `filters.groupBy`.
-      // We can override the groupBy in the query construction or just manually build/replace.
-
-      // Let's use buildMasterQueryParams but we need to ensure it uses the backend key.
-      // Since buildMasterQueryParams takes MetricsFilters which has specific groupBy, we might need to cast or just construct updated filters.
-      // But buildMasterQueryParams uses filters.groupBy directly.
-
-      return apiRequest(adminApi, {
-        method: "GET",
-        url: `/cancellations/grouped${query}`,
-      });
-    }
-  }
-
-  const query = buildMasterQueryParams({ ...filters, groupBy: groupBy as any });
-  return apiRequest(adminApi, {
-    method: "GET",
-    url: `/master-conversion/grouped${query}`,
-  });
-}
 
 export async function getTrendData(
   dimension: Dimension | "none",

@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getCancellationGroupedMetrics } from '../repositories/cancellationsRepository.js';
-import type { MetricsFilters, GroupedMetricsResponse } from '../types/metrics.js';
+import type { MetricsFilters } from '../types/metrics.js';
 
 const router = Router();
 
@@ -27,52 +26,7 @@ function parseFilters(query: Record<string, unknown>): MetricsFilters {
     };
 }
 
-// GET /api/cancellations/grouped
-router.get('/grouped', async (req: Request, res: Response) => {
-    try {
-        const { groupBy } = req.query;
 
-        // Valid dimensions for cancellations
-        const validGroupBy = [
-            'trip_distance_bkt',
-            'fare_breakup',
-            'actual_pickup_dist__bkt',
-            'pickup_dist_left_bucket',
-            'time_to_cancel_bkt',
-            'reason_code'
-        ];
-
-        if (!groupBy || !validGroupBy.includes(String(groupBy))) {
-            res.status(400).json({
-                error: 'Invalid groupBy parameter',
-                message: `groupBy must be one of: ${validGroupBy.join(', ')}`,
-            });
-            return;
-        }
-
-        const filters = parseFilters(req.query);
-        const data = await getCancellationGroupedMetrics(filters, String(groupBy));
-
-        // Reuse GroupedMetricsResponse structure but typing data as any[] or specific
-        // Since the interface expects GroupedMetricsRow, and we return CancellationGroupedRow,
-        // we might strictly technically mismatch if we used GroupedMetricsResponse interface literally.
-        // But for JSON res.json(), it's fine.
-        // Or we can define a CancellationGroupedResponse.
-        // Let's just send JSON.
-
-        res.json({
-            data,
-            groupBy: String(groupBy),
-            filters,
-        });
-    } catch (error) {
-        console.error('Error fetching grouped cancellation metrics:', error);
-        res.status(500).json({
-            error: 'Failed to fetch grouped cancellation metrics',
-            message: error instanceof Error ? error.message : 'Unknown error',
-        });
-    }
-});
 
 // GET /api/cancellations/trend
 router.get('/trend', async (req: Request, res: Response) => {
