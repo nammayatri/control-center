@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, Fragment } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { Page, PageContent } from "../../components/layout/Page";
 import { KPIHeader } from "../../components/layout/KPIHeader";
@@ -94,6 +94,7 @@ import {
   type FilterSelections,
 } from "../../components/ui/advanced-filters-popover";
 import { downloadCSV, generateFilename } from "../../lib/csvDownload";
+import { calculateNiceDomain, formatYAxisValue } from "../../lib/chartUtils";
 import {
   Sheet,
   SheetContent,
@@ -103,17 +104,18 @@ import {
 } from "../../components/ui/sheet";
 import { Input } from "../../components/ui/input";
 
+// Juspay-inspired color palette for better aesthetics
 const COLORS = [
-  "#3b82f6",
-  "#22c55e",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-  "#f97316",
-  "#6366f1",
-  "#d946ef",
+  "#5650E8", // Vibrant purple/blue
+  "#F5A5A5", // Soft coral/pink
+  "#22C55E", // Green
+  "#F59E0B", // Amber
+  "#EC4899", // Pink
+  "#06B6D4", // Cyan
+  "#8B5CF6", // Purple
+  "#F97316", // Orange
+  "#6366F1", // Indigo
+  "#D946EF", // Magenta
 ];
 
 function formatNumber(value: number): string {
@@ -247,8 +249,10 @@ export function ExecutiveMetricsPage() {
   type TrendMetric = RateMetric | ValueMetric;
 
   const [selectedRateMetrics, setSelectedRateMetrics] = useState<RateMetric[]>(["conversion"]);
-  const [selectedValueMetrics, setSelectedValueMetrics] = useState<ValueMetric[]>(["searches"]);
+  const [selectedValueMetrics, setSelectedValueMetrics] = useState<ValueMetric[]>([]);
 
+  // Track visible lines for clickable legend
+  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({});
 
 
   // Selected segment values (for filtering which segment values to display)
@@ -984,11 +988,10 @@ export function ExecutiveMetricsPage() {
           const finished = (point.completedRides || 0) + (point.cancelledRides || 0);
           value = finished > 0 ? ((point.driverCancellations || 0) / finished) * 100 : 0;
         } else if (metricKey === "riderFareAcceptance") {
-          // Calculate RFA: searchForQuotes / searches * 100
-          value =
-            point.searchForQuotes && point.searches
-              ? (point.searchForQuotes / point.searches) * 100
-              : 0;
+          // Calculate RFA: quotesRequested / searchGotEstimates * 100
+          const quotesReq = point.searchForQuotes || 0;
+          const searchEst = point.searchGotEstimates || 0;
+          value = searchEst > 0 ? (quotesReq / searchEst) * 100 : 0;
         } else if (metricKey === "driverQuoteAcceptance") {
           // Calculate DQA: quotesAccepted / searchForQuotes * 100
           value =
@@ -1064,7 +1067,9 @@ export function ExecutiveMetricsPage() {
           const finished = (point.completedRides || 0) + (point.cancelledRides || 0);
           value = finished > 0 ? ((point.driverCancellations || 0) / finished) * 100 : 0;
         } else if (metricKey === "riderFareAcceptance") {
-          value = point.searchForQuotes && point.searches ? (point.searchForQuotes / point.searches) * 100 : 0;
+          const quotesReq = point.searchForQuotes || 0;
+          const searchEst = point.searchGotEstimates || 0;
+          value = searchEst > 0 ? (quotesReq / searchEst) * 100 : 0;
         } else if (metricKey === "driverQuoteAcceptance") {
           value = point.quotesAccepted && point.searchForQuotes ? (point.quotesAccepted / point.searchForQuotes) * 100 : 0;
         } else {
@@ -1189,9 +1194,9 @@ export function ExecutiveMetricsPage() {
             }
             case "riderFareAcceptance": {
               numerator = point.searchForQuotes || 0;
-              denominator = point.searches || 1;
+              denominator = point.searchGotEstimates || 0;
               value =
-                numerator && denominator > 0
+                denominator > 0
                   ? (numerator / denominator) * 100
                   : 0;
               break;
@@ -1407,11 +1412,10 @@ export function ExecutiveMetricsPage() {
           }
 
           case "riderFareAcceptance": {
-            // RFA: searchForQuotes / searches * 100
-            value =
-              point.searchForQuotes && point.searches && point.searches > 0
-                ? (point.searchForQuotes / point.searches) * 100
-                : 0;
+            // RFA: quotesRequested / searchGotEstimates * 100
+            const quotesReq = point.searchForQuotes || 0;
+            const searchEst = point.searchGotEstimates || 0;
+            value = searchEst > 0 ? (quotesReq / searchEst) * 100 : 0;
             break;
           }
 
@@ -1532,7 +1536,7 @@ export function ExecutiveMetricsPage() {
                 }
                 case "riderFareAcceptance": {
                   numerator = originalPoint.searchForQuotes || 0;
-                  denominator = originalPoint.searches || 1;
+                  denominator = originalPoint.searchGotEstimates || 0;
                   break;
                 }
                 case "cancellationRate": {
@@ -1852,7 +1856,8 @@ export function ExecutiveMetricsPage() {
           return ((point.completedRides || 0) / cDenom) * 100;
         case "riderFareAcceptance":
           if (isVehicleSegment) return 0;
-          return point.searchGotEstimates > 0 ? (point.quotesAccepted / point.searchGotEstimates) * 100 : 0;
+          const quotesReqVal = point.searchForQuotes || 0;
+          return point.searchGotEstimates > 0 ? (quotesReqVal / point.searchGotEstimates) * 100 : 0;
         case "driverQuoteAcceptance":
           return point.searchForQuotes > 0 ? (point.quotesAccepted / point.searchForQuotes) * 100 : 0;
         case "cancellationRate":
@@ -2250,7 +2255,7 @@ export function ExecutiveMetricsPage() {
         // Calculate rates for comparison
         const compConvDenom = compTotals.searches || compTotals.quotesRequested || 1;
         const compConversion = (compTotals.completedRides / compConvDenom) * 100;
-        const compRFA = compTotals.searchGotEstimates > 0 ? (compTotals.quotesAccepted / compTotals.searchGotEstimates) * 100 : 0;
+        const compRFA = compTotals.searchGotEstimates > 0 ? (compTotals.quotesRequested / compTotals.searchGotEstimates) * 100 : 0;
         const compDQA = compTotals.quotesRequested > 0 ? (compTotals.quotesAccepted / compTotals.quotesRequested) * 100 : 0;
         const compCancel = compTotals.bookings > 0 ? (compTotals.cancelledRides / compTotals.bookings) * 100 : 0;
 
@@ -2266,7 +2271,7 @@ export function ExecutiveMetricsPage() {
           cancelledRides: calcChange(totals.cancelledRides, compTotals.cancelledRides),
           earnings: calcChange(totals.earnings, compTotals.earnings),
           conversionRate: compConversion > 0 ? (currConversion - compConversion) / compConversion * 100 : 0,
-          riderFareAcceptance: isVehicleSegment ? 0 : (compRFA > 0 ? ((totals.searchGotEstimates > 0 ? (totals.quotesAccepted / totals.searchGotEstimates) * 100 : 0) - compRFA) / compRFA * 100 : 0),
+          riderFareAcceptance: isVehicleSegment ? 0 : (compRFA > 0 ? ((totals.searchGotEstimates > 0 ? (totals.quotesRequested / totals.searchGotEstimates) * 100 : 0) - compRFA) / compRFA * 100 : 0),
           driverQuoteAcceptance: compDQA > 0 ? ((totals.quotesRequested > 0 ? (totals.quotesAccepted / totals.quotesRequested) * 100 : 0) - compDQA) / compDQA * 100 : 0,
           cancellationRate: compCancel > 0 ? ((totals.bookings > 0 ? (totals.cancelledRides / totals.bookings) * 100 : 0) - compCancel) / compCancel * 100 : 0
         };
@@ -2275,6 +2280,7 @@ export function ExecutiveMetricsPage() {
       return [{
         id: "overall",
         label: "Overall",
+        segments: ["Overall"],
         searches: totals.searches,
         quotesRequested: totals.quotesRequested,
         quotesAccepted: totals.quotesAccepted,
@@ -2283,7 +2289,7 @@ export function ExecutiveMetricsPage() {
         cancelledRides: totals.cancelledRides,
         earnings: totals.earnings,
         conversionRate: (totals.searches || totals.quotesRequested) > 0 ? (totals.completedRides / (totals.searches || totals.quotesRequested)) * 100 : 0,
-        riderFareAcceptance: !isVehicleSegment && totals.searchGotEstimates > 0 ? (totals.quotesAccepted / totals.searchGotEstimates) * 100 : 0,
+        riderFareAcceptance: !isVehicleSegment && totals.searchGotEstimates > 0 ? (totals.quotesRequested / totals.searchGotEstimates) * 100 : 0,
         driverQuoteAcceptance: totals.quotesRequested > 0 ? (totals.quotesAccepted / totals.quotesRequested) * 100 : 0,
         cancellationRate: totals.bookings > 0 ? (totals.cancelledRides / totals.bookings) * 100 : 0,
         changes
@@ -2364,14 +2370,14 @@ export function ExecutiveMetricsPage() {
           // Calculate comparison rates
           const compConvDenom = compStats.searches || compStats.quotesRequested || 1;
           const compConversion = (compStats.completedRides / compConvDenom) * 100;
-          const compRFA = compStats.searchGotEstimates > 0 ? (compStats.quotesAccepted / compStats.searchGotEstimates) * 100 : 0;
+          const compRFA = compStats.searchGotEstimates > 0 ? (compStats.quotesRequested / compStats.searchGotEstimates) * 100 : 0;
           const compDQA = compStats.quotesRequested > 0 ? (compStats.quotesAccepted / compStats.quotesRequested) * 100 : 0;
           const compCancel = compStats.bookings > 0 ? (compStats.cancelledRides / compStats.bookings) * 100 : 0;
 
           // Calculate current rates
           const currConvDenom = stats.searches || stats.quotesRequested || 1;
           const currConversion = (stats.completedRides / currConvDenom) * 100;
-          const currRFA = stats.searchGotEstimates > 0 ? (stats.quotesAccepted / stats.searchGotEstimates) * 100 : 0;
+          const currRFA = stats.searchGotEstimates > 0 ? (stats.quotesRequested / stats.searchGotEstimates) * 100 : 0;
           const currDQA = stats.quotesRequested > 0 ? (stats.quotesAccepted / stats.quotesRequested) * 100 : 0;
           const currCancel = stats.bookings > 0 ? (stats.cancelledRides / stats.bookings) * 100 : 0;
 
@@ -2393,6 +2399,7 @@ export function ExecutiveMetricsPage() {
         return {
           id: label,
           label: label,
+          segments: [label],
           searches: stats.searches,
           quotesRequested: stats.quotesRequested,
           quotesAccepted: stats.quotesAccepted,
@@ -2401,7 +2408,7 @@ export function ExecutiveMetricsPage() {
           cancelledRides: stats.cancelledRides,
           earnings: stats.earnings,
           conversionRate: (stats.searches || stats.quotesRequested) > 0 ? (stats.completedRides / (stats.searches || stats.quotesRequested)) * 100 : 0,
-          riderFareAcceptance: !isVehicleSegment && stats.searchGotEstimates > 0 ? (stats.quotesAccepted / stats.searchGotEstimates) * 100 : 0,
+          riderFareAcceptance: !isVehicleSegment && stats.searchGotEstimates > 0 ? (stats.quotesRequested / stats.searchGotEstimates) * 100 : 0,
           driverQuoteAcceptance: stats.quotesRequested > 0 ? (stats.quotesAccepted / stats.quotesRequested) * 100 : 0,
           cancellationRate: stats.bookings > 0 ? (stats.cancelledRides / stats.bookings) * 100 : 0,
           changes
@@ -2409,6 +2416,133 @@ export function ExecutiveMetricsPage() {
       });
     }
   }, [selectedSegment, trendTimeSeriesData, segmentTrendData, comparisonTimeSeriesData, comparisonSegmentTrendData]);
+
+  // Calculate data for Summary Table when multi-segment is applied
+  const multiSegmentSummaryTableData: SummaryTableRow[] = useMemo(() => {
+    // Only compute when multi-segment mode is active and we have grid data
+    if (!isMultiSegmentApplied || selectedSegments.length < 2 || !multiSegmentResult.gridData || multiSegmentResult.gridData.length === 0) {
+      return [];
+    }
+
+    const rows: SummaryTableRow[] = [];
+    const segment3 = selectedSegments.length > 2 ? selectedSegments[2] : null;
+
+    // Iterate through the grid structure
+    multiSegmentResult.gridData.forEach((gridRow) => {
+      gridRow.forEach((cell) => {
+        // Aggregate metrics from chartData (which contains segment1 values)
+        if (!cell.chartData || cell.chartData.length === 0) return;
+
+        // Group by segment1Value and aggregate
+        const seg1Totals = new Map<string, {
+          searches: number;
+          bookings: number;
+          quotesRequested: number;
+          quotesAccepted: number;
+          completedRides: number;
+          cancelledRides: number;
+          earnings: number;
+          searchGotEstimates: number;
+        }>();
+
+        cell.chartData.forEach((point) => {
+          const seg1Val = point.dimensionValue;
+          const existing = seg1Totals.get(seg1Val) || {
+            searches: 0,
+            bookings: 0,
+            quotesRequested: 0,
+            quotesAccepted: 0,
+            completedRides: 0,
+            cancelledRides: 0,
+            earnings: 0,
+            searchGotEstimates: 0,
+          };
+
+          existing.searches += point.searches || 0;
+          existing.bookings += point.bookings || 0;
+          existing.quotesRequested += point.searchForQuotes || 0;
+          existing.quotesAccepted += point.quotesAccepted || 0;
+          existing.completedRides += point.completedRides || 0;
+          existing.cancelledRides += point.cancelledRides || 0;
+          existing.earnings += point.earnings || 0;
+          existing.searchGotEstimates += point.searchGotEstimates || 0;
+
+          seg1Totals.set(seg1Val, existing);
+        });
+
+        // Create a row for each segment1 value within this cell
+        seg1Totals.forEach((stats, seg1Val) => {
+          // Build the segments array based on how many segments are selected
+          const segments: string[] = [seg1Val, cell.segment2Value];
+          if (segment3 && cell.segment3Value) {
+            segments.push(cell.segment3Value);
+          }
+
+          const id = segments.join('_');
+
+          rows.push({
+            id,
+            label: segments.join(' / '),
+            segments,
+            searches: stats.searches,
+            quotesRequested: stats.quotesRequested,
+            quotesAccepted: stats.quotesAccepted,
+            bookings: stats.bookings,
+            completedRides: stats.completedRides,
+            cancelledRides: stats.cancelledRides,
+            earnings: stats.earnings,
+            conversionRate: (stats.searches || stats.quotesRequested) > 0
+              ? (stats.completedRides / (stats.searches || stats.quotesRequested)) * 100
+              : 0,
+            riderFareAcceptance: stats.searchGotEstimates > 0
+              ? (stats.quotesRequested / stats.searchGotEstimates) * 100
+              : 0,
+            driverQuoteAcceptance: stats.quotesRequested > 0
+              ? (stats.quotesAccepted / stats.quotesRequested) * 100
+              : 0,
+            cancellationRate: stats.bookings > 0
+              ? (stats.cancelledRides / stats.bookings) * 100
+              : 0,
+          });
+        });
+      });
+    });
+
+    return rows;
+  }, [isMultiSegmentApplied, selectedSegments, multiSegmentResult.gridData]);
+
+  // Compute segment labels for the SummaryTable
+  const summarySegmentLabels = useMemo(() => {
+    // Define the dimension label mapping locally (matching trendDimensionsList)
+    const dimLabelMap: Record<string, string> = {
+      'none': 'Overall',
+      'city': 'City',
+      'vehicle_category': 'Vehicle Category',
+      'vehicle_sub_category': 'Vehicle Sub-Category',
+      'service_tier': 'Service Tier',
+      'flow_type': 'Flow Type',
+      'trip_tag': 'Trip Tag',
+      'user_os_type': 'OS Type',
+      'user_bundle_version': 'App Bundle Version',
+      'user_sdk_version': 'SDK Version',
+      'user_backend_app_version': 'Backend App Version',
+      'dynamic_pricing_logic_version': 'Price Logic Version',
+      'pooling_logic_version': 'Pooling Logic Version',
+      'pooling_config_version': 'Pooling Config Version',
+    };
+
+    if (isMultiSegmentApplied && selectedSegments.length > 1) {
+      return selectedSegments
+        .filter(s => s !== 'none')
+        .map(s => dimLabelMap[s] || s);
+    }
+
+    if (selectedSegment !== 'none') {
+      return [dimLabelMap[selectedSegment] || selectedSegment];
+    }
+
+    return ['Overall'];
+  }, [isMultiSegmentApplied, selectedSegments, selectedSegment]);
 
   // Fetch trend data for dimensional breakdown chart
   const { refetch: refetchTrend } = useTrendData(
@@ -4177,11 +4311,13 @@ export function ExecutiveMetricsPage() {
                                     setSelectedSegment(dim.value as Dimension | "none");
                                     if (dim.value === "none") {
                                       setSelectedSegmentValues(new Set());
+                                    } else {
+                                      // Open the Sheet with this segment pre-selected
+                                      setPendingSegments([dim.value as Dimension]);
+                                      setIsAddSegmentSheetOpen(true);
                                     }
                                     // Clear multi-segment mode when selecting single segment
                                     setIsMultiSegmentApplied(false);
-                                    setPendingSegments([]);
-                                    setSelectedSegments([]);
                                   }}
                                 >
                                   {dim.label}
@@ -4989,82 +5125,7 @@ export function ExecutiveMetricsPage() {
                       </div>
 
                       <CardContent className="p-0 relative bg-white dark:bg-zinc-950">
-                        {/* Internal Chart Controls (Overlay) */}
-                        <div className="absolute top-6 left-6 right-6 z-10 flex flex-col gap-3 pointer-events-none">
-                          <div className="flex items-center justify-between">
-                            {/* Left: Granularity */}
-                            <div className="flex items-center gap-1 p-1 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] pointer-events-auto">
-                              <div className="flex items-center bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg p-0.5">
-                                <Button
-                                  variant={trendGranularity === "day" ? "secondary" : "ghost"}
-                                  size="sm"
-                                  className={cn(
-                                    "h-7 px-3 text-[11px] font-medium transition-all duration-200",
-                                    trendGranularity === "day" ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
-                                  )}
-                                  onClick={() => setTrendGranularity("day")}
-                                >
-                                  Daily
-                                </Button>
-                                <Button
-                                  variant={trendGranularity === "hour" ? "secondary" : "ghost"}
-                                  size="sm"
-                                  className={cn(
-                                    "h-7 px-3 text-[11px] font-medium transition-all duration-200",
-                                    trendGranularity === "hour" ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
-                                  )}
-                                  onClick={() => setTrendGranularity("hour")}
-                                >
-                                  Hourly
-                                </Button>
-                              </div>
-
-                              <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
-
-                              <div className="flex items-center bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg p-0.5">
-                                <Button
-                                  variant={!isCumulative ? "secondary" : "ghost"}
-                                  size="sm"
-                                  className={cn(
-                                    "h-7 px-3 text-[11px] font-medium transition-all duration-200",
-                                    !isCumulative ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
-                                  )}
-                                  onClick={() => setIsCumulative(false)}
-                                >
-                                  Period
-                                </Button>
-                                <Button
-                                  variant={isCumulative ? "secondary" : "ghost"}
-                                  size="sm"
-                                  className={cn(
-                                    "h-7 px-3 text-[11px] font-medium transition-all duration-200",
-                                    isCumulative ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50"
-                                  )}
-                                  onClick={() => setIsCumulative(true)}
-                                >
-                                  Cumulative
-                                </Button>
-                              </div>
-
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 ml-0.5 text-muted-foreground hover:text-foreground rounded-lg"
-                                onClick={handleRefresh}
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-
-                            {/* Metric selectors now inside each chart card */}
-                            <div />
-
-                            {/* Right Gap */}
-                            <div />
-                          </div>
-                        </div>
-
-                        <div className="pt-20 pb-4 px-6">
+                        <div className="pt-4 pb-4 px-6">
                           {(() => {
                             const isLoading =
                               trendTimeSeriesLoading ||
@@ -5076,7 +5137,6 @@ export function ExecutiveMetricsPage() {
 
                             // Multi-Segment View
                             if (isMultiSegmentApplied && selectedSegments.length > 0) {
-                              // Get the first selected metric to display
                               const metricToShow = selectedRateMetrics[0] || selectedValueMetrics[0] || 'conversion';
                               return (
                                 <MultiSegmentGrid
@@ -5091,487 +5151,378 @@ export function ExecutiveMetricsPage() {
                               );
                             }
 
-                            // If segment is selected, use metric-based charts (one chart per metric, segment values as lines)
-                            if (
-                              selectedSegment !== "none" &&
-                              chartDataByMetric.length > 0
-                            ) {
+                            // Filter metrics for this group
+                            const groupSpecificMetrics = chartDataByMetric.filter(m =>
+                              group.metrics.includes(m.metric as any)
+                            );
+
+                            // If we have metric-based charts (one chart per metric)
+                            if (groupSpecificMetrics.length > 0) {
                               return (
-                                <div className={chartDataByMetric.length === 1 ? "" : "grid grid-cols-1 md:grid-cols-2 gap-6"}>
-                                  {chartDataByMetric.map((metricChart) => (
-                                    <div key={metricChart.metric} className="space-y-2">
-                                      <h3 className="text-base font-semibold px-2">
-                                        {metricChart.metricLabel}
-                                      </h3>
-                                      <div className={chartDataByMetric.length === 1 ? "h-[400px]" : "h-[280px]"}>
-                                        <ResponsiveContainer width="100%" height="100%">
-                                          <LineChart
-                                            data={metricChart.data}
-                                            margin={{
-                                              top: 5,
-                                              right: 30,
-                                              left: 20,
-                                              bottom: 60,
-                                            }}
-                                            onMouseMove={(state) => {
-                                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                              const mouseState = state as any;
-                                              if (mouseState?.activePayload && mouseState.activePayload.length > 0 && mouseState.chartY !== undefined) {
-                                                const chartY = mouseState.chartY;
-                                                // Use actual chart height or estimate based on container
-                                                const chartHeight = 220; // Approximate usable chart area height
+                                <div className={groupSpecificMetrics.length === 1 ? "" : "grid grid-cols-1 md:grid-cols-2 gap-6"}>
+                                  {groupSpecificMetrics.map((metricChart) => (
+                                    <Card key={metricChart.metric} className="overflow-hidden">
+                                      <CardContent className="p-0">
+                                        {/* Header with all controls */}
+                                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-zinc-800">
+                                          {/* Left side controls */}
+                                          <div className="flex items-center gap-2">
+                                            {/* Daily/Hourly Toggle */}
+                                            <div className="flex items-center bg-gray-50 dark:bg-zinc-800 rounded-md p-0.5">
+                                              <Button
+                                                variant={trendGranularity === "day" ? "secondary" : "ghost"}
+                                                size="sm"
+                                                className={cn(
+                                                  "h-6 px-2.5 text-[11px] font-medium transition-all",
+                                                  trendGranularity === "day" ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-gray-100 dark:hover:bg-zinc-700"
+                                                )}
+                                                onClick={() => setTrendGranularity("day")}
+                                              >
+                                                Daily
+                                              </Button>
+                                              <Button
+                                                variant={trendGranularity === "hour" ? "secondary" : "ghost"}
+                                                size="sm"
+                                                className={cn(
+                                                  "h-6 px-2.5 text-[11px] font-medium transition-all",
+                                                  trendGranularity === "hour" ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-gray-100 dark:hover:bg-zinc-700"
+                                                )}
+                                                onClick={() => setTrendGranularity("hour")}
+                                              >
+                                                Hourly
+                                              </Button>
+                                            </div>
 
-                                                // Get all values at this X position
-                                                const entries = mouseState.activePayload.filter((e: any) => e.value !== undefined && e.name);
-                                                if (entries.length === 0) return;
+                                            {/* Divider */}
+                                            <div className="w-px h-4 bg-gray-200 dark:bg-zinc-700" />
 
-                                                // Calculate min/max for Y axis range
-                                                const values = entries.map((e: any) => e.value);
-                                                const maxVal = Math.max(...values);
-                                                const minVal = Math.min(...values);
-                                                const range = maxVal - minVal || maxVal || 1;
+                                            {/* Period/Cumulative Toggle */}
+                                            <div className="flex items-center bg-gray-50 dark:bg-zinc-800 rounded-md p-0.5">
+                                              <Button
+                                                variant={!isCumulative ? "secondary" : "ghost"}
+                                                size="sm"
+                                                className={cn(
+                                                  "h-6 px-2.5 text-[11px] font-medium transition-all",
+                                                  !isCumulative ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-gray-100 dark:hover:bg-zinc-700"
+                                                )}
+                                                onClick={() => setIsCumulative(false)}
+                                              >
+                                                Period
+                                              </Button>
+                                              <Button
+                                                variant={isCumulative ? "secondary" : "ghost"}
+                                                size="sm"
+                                                className={cn(
+                                                  "h-6 px-2.5 text-[11px] font-medium transition-all",
+                                                  isCumulative ? "bg-white dark:bg-zinc-700 shadow-sm" : "hover:bg-gray-100 dark:hover:bg-zinc-700"
+                                                )}
+                                                onClick={() => setIsCumulative(true)}
+                                              >
+                                                Cumulative
+                                              </Button>
+                                            </div>
+                                          </div>
 
-                                                let closestLine = entries[0]?.name;
-                                                let closestDistance = Infinity;
+                                          {/* Right side - Metric selector */}
+                                          <Select
+                                            value={metricChart.metric}
+                                            onValueChange={(newMetric) => {
+                                              const allRateOptions: RateMetric[] = ["conversion", "driverQuoteAcceptance", "riderFareAcceptance", "cancellationRate", "userCancellationRate", "driverCancellationRate"];
+                                              const allValueOptions: ValueMetric[] = ["searches", "quotesRequested", "quotesAccepted", "bookings", "cancelledRides", "userCancellations", "driverCancellations", "completedRides", "earnings"];
 
-                                                entries.forEach((entry: any) => {
-                                                  // Calculate normalized Y position (0 = max value at top, 1 = min value at bottom)
-                                                  const normalized = (maxVal - entry.value) / range;
-                                                  const estimatedY = 5 + normalized * chartHeight; // 5px top margin
-                                                  const distance = Math.abs(chartY - estimatedY);
-
-                                                  if (distance < closestDistance) {
-                                                    closestDistance = distance;
-                                                    closestLine = entry.name;
-                                                  }
-                                                });
-
-                                                setHoveredLine(closestLine);
+                                              if (allRateOptions.includes(newMetric as RateMetric)) {
+                                                if (selectedRateMetrics.includes(metricChart.metric as RateMetric)) {
+                                                  setSelectedRateMetrics(prev => prev.map(m => m === metricChart.metric ? (newMetric as RateMetric) : m));
+                                                } else {
+                                                  setSelectedRateMetrics([newMetric as RateMetric]);
+                                                  setSelectedValueMetrics(prev => prev.filter(m => m !== metricChart.metric));
+                                                }
+                                              } else if (allValueOptions.includes(newMetric as ValueMetric)) {
+                                                if (selectedValueMetrics.includes(metricChart.metric as ValueMetric)) {
+                                                  setSelectedValueMetrics(prev => prev.map(m => m === metricChart.metric ? (newMetric as ValueMetric) : m));
+                                                } else {
+                                                  setSelectedValueMetrics([newMetric as ValueMetric]);
+                                                  setSelectedRateMetrics(prev => prev.filter(m => m !== metricChart.metric));
+                                                }
                                               }
                                             }}
-                                            onMouseLeave={() => setHoveredLine(null)}
                                           >
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis
-                                              dataKey={
-                                                selectedSegment === "run_hour" ? "minute" :
-                                                  selectedSegment === "run_day" ? "hour" :
-                                                    selectedSegment === "run_week" ? "dayOfWeek" :
-                                                      selectedSegment === "run_month" ? "dayOfMonth" :
-                                                        "date"
-                                              }
-                                              tickFormatter={(value) => {
-                                                // For temporal segments, value is already formatted
-                                                if (selectedSegment === "run_hour" || selectedSegment === "run_day" || selectedSegment === "run_week") {
-                                                  return value;
-                                                }
-                                                if (selectedSegment === "run_month") {
-                                                  return `Day ${value}`;
-                                                }
-                                                // Default date formatting
-                                                const date = new Date(value);
-                                                return effectiveGranularity === "hour"
-                                                  ? format(date, "d MMM H:mm")
-                                                  : format(date, "MMM d");
-                                              }}
-                                              fontSize={10}
-                                              angle={-45}
-                                              textAnchor="end"
-                                              height={70}
-                                              interval="preserveStartEnd"
-                                            />
-                                            <YAxis
-                                              fontSize={10}
-                                              domain={[0, "auto"]}
-                                              tickFormatter={(value) => {
-                                                if (metricChart.isPercentage) {
-                                                  return `${value.toFixed(0)}%`;
-                                                }
-                                                if (value >= 1000000)
-                                                  return `${(value / 1000000).toFixed(1)}M`;
-                                                if (value >= 1000)
-                                                  return `${(value / 1000).toFixed(1)}K`;
-                                                return value.toLocaleString();
-                                              }}
-                                            />
-                                            <Tooltip
-                                              content={({ active, payload, label }) => {
-                                                if (active && payload && payload.length) {
-                                                  // Get the date/time info
-                                                  const dateStr = label || payload[0]?.payload?.date || "";
-                                                  let formattedDate = "";
-                                                  let formattedTime = "";
+                                            <SelectTrigger className="h-7 w-44 text-[11px] bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700">
+                                              <SelectValue>{metricChart.metricLabel}</SelectValue>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Rate Metrics</div>
+                                              <SelectItem value="conversion">Conversion Rate</SelectItem>
+                                              {!isVehicleSegment && (
+                                                <SelectItem value="riderFareAcceptance">Rider Fare Acceptance</SelectItem>
+                                              )}
+                                              <SelectItem value="driverQuoteAcceptance">Driver Quote Acceptance</SelectItem>
+                                              <SelectItem value="cancellationRate">Cancellation Rate</SelectItem>
+                                              <SelectItem value="userCancellationRate">User Cancellation Rate</SelectItem>
+                                              <SelectItem value="driverCancellationRate">Driver Cancellation Rate</SelectItem>
+                                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Value Metrics</div>
+                                              {!isVehicleSegment && (
+                                                <SelectItem value="searches">Searches</SelectItem>
+                                              )}
+                                              <SelectItem value="quotesRequested">Quotes Requested</SelectItem>
+                                              <SelectItem value="quotesAccepted">Quotes Accepted</SelectItem>
+                                              <SelectItem value="bookings">Bookings</SelectItem>
+                                              <SelectItem value="completedRides">Completed Rides</SelectItem>
+                                              <SelectItem value="cancelledRides">Cancellations</SelectItem>
+                                              <SelectItem value="userCancellations">User Cancellations</SelectItem>
+                                              <SelectItem value="driverCancellations">Driver Cancellations</SelectItem>
+                                              <SelectItem value="earnings">Earnings</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
 
-                                                  // Handle temporal segments differently
-                                                  if (selectedSegment === "run_hour" || selectedSegment === "run_day") {
-                                                    formattedTime = dateStr; // Already formatted as HH:00
-                                                    formattedDate = metricChart.lines[0] || ""; // Show first line's date for context
-                                                  } else if (selectedSegment === "run_week") {
-                                                    formattedDate = dateStr; // Day of week
-                                                  } else if (selectedSegment === "run_month") {
-                                                    formattedDate = `Day ${dateStr}`;
-                                                  } else {
-                                                    try {
-                                                      const date = new Date(dateStr);
-                                                      formattedDate = format(date, "yyyy-MM-dd");
-                                                      formattedTime = format(date, "HH:mm");
-                                                    } catch {
-                                                      formattedDate = dateStr;
+                                        {/* Chart area */}
+                                        <div className={groupSpecificMetrics.length === 1 ? "h-[400px] p-4" : "h-[280px] p-4"}>
+                                          <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart
+                                              data={metricChart.data}
+                                              margin={{
+                                                top: 5,
+                                                right: 30,
+                                                left: 20,
+                                                bottom: 60,
+                                              }}
+                                              onMouseMove={(state: any) => {
+                                                if (state?.activePayload && state.activePayload.length > 0 && state.chartY !== undefined) {
+                                                  const chartY = state.chartY;
+                                                  const chartHeight = groupSpecificMetrics.length === 1 ? 330 : 210;
+
+                                                  const entries = state.activePayload.filter((e: any) => e.value !== undefined && e.name);
+                                                  if (entries.length === 0) return;
+
+                                                  const values = entries.map((e: any) => e.value);
+                                                  const maxVal = Math.max(...values);
+                                                  const minVal = Math.min(...values);
+                                                  const range = maxVal - minVal || maxVal || 1;
+
+                                                  let closestLine = entries[0]?.name;
+                                                  let closestDistance = Infinity;
+
+                                                  entries.forEach((entry: any) => {
+                                                    const normalized = (maxVal - entry.value) / range;
+                                                    const estimatedY = 5 + normalized * chartHeight;
+                                                    const distance = Math.abs(chartY - estimatedY);
+
+                                                    if (distance < closestDistance) {
+                                                      closestDistance = distance;
+                                                      closestLine = entry.name;
                                                     }
+                                                  });
+
+                                                  setHoveredLine(closestLine);
+                                                }
+                                              }}
+                                              onMouseLeave={() => setHoveredLine(null)}
+                                            >
+                                              <CartesianGrid
+                                                stroke="#f5f5f5"
+                                                strokeWidth={1}
+                                                vertical={true}
+                                                horizontal={true}
+                                              />
+                                              <XAxis
+                                                dataKey={
+                                                  selectedSegment === "run_hour" ? "minute" :
+                                                    selectedSegment === "run_day" ? "hour" :
+                                                      selectedSegment === "run_week" ? "dayOfWeek" :
+                                                        selectedSegment === "run_month" ? "dayOfMonth" :
+                                                          "date"
+                                                }
+                                                tickFormatter={(value, index) => {
+                                                  if (selectedSegment === "run_hour" || selectedSegment === "run_day" || selectedSegment === "run_week") {
+                                                    return value;
                                                   }
+                                                  if (selectedSegment === "run_month") {
+                                                    return `Day ${value}`;
+                                                  }
+                                                  const date = new Date(value);
+                                                  const hour = date.getHours();
+
+                                                  // Smart date/time formatting
+                                                  if (effectiveGranularity === "hour") {
+                                                    // At midnight or first tick, show date
+                                                    if (hour === 0 || index === 0) {
+                                                      return format(date, "d MMM");
+                                                    }
+                                                    // Otherwise show time only
+                                                    return format(date, "HH:mm");
+                                                  }
+                                                  return format(date, "MMM d");
+                                                }}
+                                                fontSize={10}
+                                                angle={-45}
+                                                textAnchor="end"
+                                                height={70}
+                                                interval="preserveStartEnd"
+                                                tick={{ fill: '#6b7280' }}
+                                                axisLine={{ stroke: '#e5e7eb' }}
+                                                tickLine={{ stroke: '#e5e7eb' }}
+                                              />
+                                              <YAxis
+                                                fontSize={10}
+                                                domain={metricChart.isPercentage ? [0, 100] : calculateNiceDomain(metricChart.data || [], metricChart.lines)}
+                                                tickFormatter={(value) => {
+                                                  if (metricChart.isPercentage) {
+                                                    return `${value.toFixed(0)}%`;
+                                                  }
+                                                  return formatYAxisValue(value);
+                                                }}
+                                                tick={{ fill: '#6b7280' }}
+                                                axisLine={{ stroke: '#e5e7eb' }}
+                                                tickLine={{ stroke: '#e5e7eb' }}
+                                                width={50}
+                                              />
+                                              <Tooltip
+                                                content={({ active, payload, label }) => {
+                                                  if (active && payload && payload.length) {
+                                                    const dateStr = label || payload[0]?.payload?.date || "";
+                                                    let formattedDate = "";
+                                                    let formattedTime = "";
+
+                                                    if (selectedSegment === "run_hour" || selectedSegment === "run_day") {
+                                                      formattedTime = dateStr;
+                                                      formattedDate = metricChart.lines[0] || "";
+                                                    } else if (selectedSegment === "run_week") {
+                                                      formattedDate = dateStr;
+                                                    } else if (selectedSegment === "run_month") {
+                                                      formattedDate = `Day ${dateStr}`;
+                                                    } else {
+                                                      try {
+                                                        const date = new Date(dateStr);
+                                                        formattedDate = format(date, "yyyy-MM-dd");
+                                                        formattedTime = format(date, "HH:mm");
+                                                      } catch {
+                                                        formattedDate = dateStr;
+                                                      }
+                                                    }
+
+                                                    return (
+                                                      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-gray-200 dark:border-zinc-700 overflow-hidden min-w-[180px]">
+                                                        {(hoveredLine ? payload.filter(entry => entry.name === hoveredLine) : payload).map((entry, index) => {
+                                                          const value = entry.value as number;
+                                                          const formattedValue = metricChart.isPercentage
+                                                            ? `${value.toFixed(1)}%`
+                                                            : value >= 1000000
+                                                              ? `${(value / 1000000).toFixed(1)}M`
+                                                              : value >= 1000
+                                                                ? `${(value / 1000).toFixed(1)}K`
+                                                                : value.toLocaleString();
+                                                          return (
+                                                            <div
+                                                              key={index}
+                                                              className="flex border-b border-gray-100 dark:border-zinc-800 last:border-b-0"
+                                                            >
+                                                              <div
+                                                                className="w-1.5 flex-shrink-0"
+                                                                style={{ backgroundColor: entry.color }}
+                                                              />
+                                                              <div className="px-3 py-2.5 flex-1">
+                                                                {index === 0 && (
+                                                                  <div className="mb-2">
+                                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                                      {formattedDate}
+                                                                    </p>
+                                                                    {formattedTime && (
+                                                                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                                        {formattedTime}
+                                                                      </p>
+                                                                    )}
+                                                                  </div>
+                                                                )}
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                                                                  {entry.name}
+                                                                </p>
+                                                                <p
+                                                                  className="text-lg font-bold"
+                                                                  style={{ color: entry.color }}
+                                                                >
+                                                                  {formattedValue}
+                                                                </p>
+                                                              </div>
+                                                            </div>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                    );
+                                                  }
+                                                  return null;
+                                                }}
+                                              />
+                                              <Legend
+                                                content={(props) => {
+                                                  const { payload } = props;
+                                                  if (!payload || payload.length === 0) return null;
 
                                                   return (
-                                                    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-gray-200 dark:border-zinc-700 overflow-hidden min-w-[180px]">
-                                                      {/* Filter to show only hovered line, or all if none hovered */}
-                                                      {(hoveredLine ? payload.filter(entry => entry.name === hoveredLine) : payload).map((entry, index) => {
-                                                        const value = entry.value as number;
-                                                        const formattedValue = metricChart.isPercentage
-                                                          ? `${value.toFixed(1)}%`
-                                                          : value >= 1000000
-                                                            ? `${(value / 1000000).toFixed(1)}M`
-                                                            : value >= 1000
-                                                              ? `${(value / 1000).toFixed(1)}K`
-                                                              : value.toLocaleString();
+                                                    <div className="flex flex-wrap gap-4 justify-start px-4 py-3">
+                                                      {payload.map((entry: any) => {
+                                                        const isVisible = visibleLines[entry.value] !== false;
                                                         return (
                                                           <div
-                                                            key={index}
-                                                            className="flex border-b border-gray-100 dark:border-zinc-800 last:border-b-0"
+                                                            key={entry.value}
+                                                            onClick={() => {
+                                                              setVisibleLines(prev => ({
+                                                                ...prev,
+                                                                [entry.value]: !prev[entry.value]
+                                                              }));
+                                                            }}
+                                                            className="flex items-center gap-2 cursor-pointer transition-all hover:opacity-70"
+                                                            style={{ opacity: isVisible ? 1 : 0.4 }}
                                                           >
-                                                            {/* Colored accent bar */}
                                                             <div
-                                                              className="w-1.5 flex-shrink-0"
-                                                              style={{ backgroundColor: entry.color }}
+                                                              className="w-3 h-3 rounded-sm transition-all"
+                                                              style={{
+                                                                backgroundColor: isVisible ? entry.color : '#9ca3af',
+                                                                border: isVisible ? 'none' : `1px solid ${entry.color}`
+                                                              }}
                                                             />
-                                                            <div className="px-3 py-2.5 flex-1">
-                                                              {/* Date/Time header - only on first entry */}
-                                                              {index === 0 && (
-                                                                <div className="mb-2">
-                                                                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                                    {formattedDate}
-                                                                  </p>
-                                                                  {formattedTime && (
-                                                                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                                      {formattedTime}
-                                                                    </p>
-                                                                  )}
-                                                                </div>
-                                                              )}
-                                                              {/* Line name */}
-                                                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                                                                {entry.name}
-                                                              </p>
-                                                              {/* Large value */}
-                                                              <p
-                                                                className="text-lg font-bold"
-                                                                style={{ color: entry.color }}
-                                                              >
-                                                                {formattedValue}
-                                                              </p>
-                                                            </div>
+                                                            <span
+                                                              className="text-xs font-medium transition-all"
+                                                              style={{ color: isVisible ? 'inherit' : '#9ca3af' }}
+                                                            >
+                                                              {entry.value}
+                                                            </span>
                                                           </div>
                                                         );
                                                       })}
                                                     </div>
                                                   );
-                                                }
-                                                return null;
-                                              }}
-                                            />
-                                            <Legend
-                                              wrapperStyle={{ paddingTop: "5px", fontSize: "11px" }}
-                                            />
-                                            {metricChart.lines.map((segmentValue, lineIndex) => (
-                                              <Line
-                                                key={segmentValue}
-                                                type="monotone"
-                                                dataKey={segmentValue}
-                                                name={segmentValue}
-                                                stroke={COLORS[lineIndex % COLORS.length]}
-                                                strokeWidth={segmentValue === "Others" ? 2 : 2.5}
-                                                strokeDasharray={segmentValue === "Others" ? "4 4" : undefined}
-                                                dot={false}
-                                                activeDot={{ r: 6 }}
+                                                }}
                                               />
-                                            ))}
-                                          </LineChart>
-                                        </ResponsiveContainer>
-                                      </div>
-                                    </div>
+                                              {metricChart.lines.map((segmentValue, lineIndex) => (
+                                                <Line
+                                                  key={segmentValue}
+                                                  type="monotone"
+                                                  dataKey={segmentValue}
+                                                  name={segmentValue}
+                                                  stroke={COLORS[lineIndex % COLORS.length]}
+                                                  strokeWidth={2}
+                                                  strokeLinecap="round"
+                                                  strokeDasharray={segmentValue === "Others" ? "4 4" : undefined}
+                                                  dot={false}
+                                                  activeDot={{ r: 5, strokeWidth: 2 }}
+                                                  hide={visibleLines[segmentValue] === false}
+                                                />
+                                              ))}
+                                            </LineChart>
+                                          </ResponsiveContainer>
+                                        </div>
+                                      </CardContent>
+                                    </Card>
                                   ))}
                                 </div>
                               );
                             }
 
-                            // Default rendering (no segment or single metric)
-                            const groupData = chartDataByGroup[groupIndex];
-                            if (!groupData) return null;
-
-                            if (!groupData.data || groupData.data.length === 0) {
-                              return (
-                                <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                                  No data available for the selected filters
-                                </div>
-                              );
-                            }
-
+                            // Fallback if no specific metrics found for this group
                             return (
-                              <div className="h-[400px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <LineChart
-                                    data={groupData.data}
-                                    margin={{
-                                      top: 5,
-                                      right: 30,
-                                      left: 20,
-                                      bottom: 60,
-                                    }}
-                                    onMouseMove={(state) => {
-                                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                      const mouseState = state as any;
-                                      if (mouseState?.activePayload && mouseState.activePayload.length > 0 && mouseState.chartY !== undefined) {
-                                        const chartY = mouseState.chartY;
-                                        const chartHeight = 340; // Approximate usable chart area height for 400px container
-
-                                        // Get all values at this X position
-                                        const entries = mouseState.activePayload.filter((e: any) => e.value !== undefined && e.name);
-                                        if (entries.length === 0) return;
-
-                                        // Calculate min/max for Y axis range
-                                        const values = entries.map((e: any) => e.value);
-                                        const maxVal = Math.max(...values);
-                                        const minVal = Math.min(...values);
-                                        const range = maxVal - minVal || maxVal || 1;
-
-                                        let closestLine = entries[0]?.name;
-                                        let closestDistance = Infinity;
-
-                                        entries.forEach((entry: any) => {
-                                          // Calculate normalized Y position (0 = max value at top, 1 = min value at bottom)
-                                          const normalized = (maxVal - entry.value) / range;
-                                          const estimatedY = 5 + normalized * chartHeight; // 5px top margin
-                                          const distance = Math.abs(chartY - estimatedY);
-
-                                          if (distance < closestDistance) {
-                                            closestDistance = distance;
-                                            closestLine = entry.name;
-                                          }
-                                        });
-
-                                        setHoveredLine(closestLine);
-                                      }
-                                    }}
-                                    onMouseLeave={() => setHoveredLine(null)}
-                                  >
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis
-                                      dataKey="date"
-                                      tickFormatter={(value) => {
-                                        const date = new Date(value);
-                                        return trendGranularity === "hour"
-                                          ? format(date, "d MMM H:mm")
-                                          : format(date, "MMM d");
-                                      }}
-                                      fontSize={10}
-                                      angle={-45}
-                                      textAnchor="end"
-                                      height={80}
-                                      interval="preserveStartEnd"
-                                    />
-                                    <YAxis
-                                      fontSize={10}
-                                      domain={[0, "auto"]}
-                                      tickFormatter={(value) => {
-                                        // For unified charts, Y-axis uses generic number formatting
-                                        // Individual metric formatting happens in per-metric charts
-                                        if (value >= 1000000)
-                                          return `${(value / 1000000).toFixed(1)}M`;
-                                        if (value >= 1000)
-                                          return `${(value / 1000).toFixed(1)}K`;
-                                        return value.toLocaleString();
-                                      }}
-                                    />
-                                    <Tooltip
-                                      content={({ active, payload, label }) => {
-                                        if (active && payload && payload.length) {
-                                          const dateStr =
-                                            label || payload[0].payload?.date || "";
-                                          let formattedDate = "";
-                                          let formattedTime = "";
-                                          try {
-                                            const date = new Date(dateStr);
-                                            formattedDate = format(date, "yyyy-MM-dd");
-                                            formattedTime = format(date, "HH:mm");
-                                          } catch {
-                                            formattedDate = formatTooltipDate(dateStr);
-                                          }
-                                          return (
-                                            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-gray-200 dark:border-zinc-700 overflow-hidden min-w-[180px]">
-                                              {/* Filter to show only hovered line, or all if none hovered */}
-                                              {(hoveredLine ? payload.filter(entry => entry.name === hoveredLine) : payload).map((entry, index) => {
-                                                const value = entry.value as number;
-                                                // Determine if this metric is a percentage based on metric name
-                                                const rateMetricNames = ["Conversion Rate", "Driver Quote Acceptance", "Rider Fare Acceptance", "Cancellation Rate", "User Cancellation Rate", "Driver Cancellation Rate"];
-                                                const isPercentage = rateMetricNames.some(name => entry.name?.includes(name));
-                                                const formattedValue = isPercentage
-                                                  ? `${value.toFixed(1)}%`
-                                                  : value >= 1000000
-                                                    ? `${(value / 1000000).toFixed(1)}M`
-                                                    : value >= 1000
-                                                      ? `${(value / 1000).toFixed(1)}K`
-                                                      : value.toLocaleString();
-                                                return (
-                                                  <div
-                                                    key={index}
-                                                    className="flex border-b border-gray-100 dark:border-zinc-800 last:border-b-0"
-                                                  >
-                                                    {/* Colored accent bar */}
-                                                    <div
-                                                      className="w-1.5 flex-shrink-0"
-                                                      style={{ backgroundColor: entry.color }}
-                                                    />
-                                                    <div className="px-3 py-2.5 flex-1">
-                                                      {/* Date/Time header - only on first entry */}
-                                                      {index === 0 && (
-                                                        <div className="mb-2">
-                                                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                            {formattedDate}
-                                                          </p>
-                                                          {formattedTime && (
-                                                            <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                              {formattedTime}
-                                                            </p>
-                                                          )}
-                                                        </div>
-                                                      )}
-                                                      {/* Line name */}
-                                                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                                                        {entry.name}
-                                                      </p>
-                                                      {/* Large value */}
-                                                      <p
-                                                        className="text-lg font-bold"
-                                                        style={{ color: entry.color }}
-                                                      >
-                                                        {formattedValue}
-                                                      </p>
-                                                    </div>
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          );
-                                        }
-                                        return null;
-                                      }}
-                                    />
-                                    <Legend
-                                      wrapperStyle={{ paddingTop: "5px" }}
-                                      formatter={(value: string) => {
-                                        if (groupData.data.length > 0) {
-                                          const values = groupData.data
-                                            .map((point) => {
-                                              const val = (
-                                                point as Record<
-                                                  string,
-                                                  number | string
-                                                >
-                                              )[value];
-                                              return typeof val === "number"
-                                                ? val
-                                                : 0;
-                                            })
-                                            .filter(
-                                              (v) =>
-                                                typeof v === "number" && !isNaN(v)
-                                            );
-                                          if (values.length > 0) {
-                                            const avg =
-                                              values.reduce((sum, v) => sum + v, 0) /
-                                              values.length;
-                                            // Determine if this metric is a percentage based on display name
-                                            const rateMetricNames = ["Conversion Rate", "Driver Quote Acceptance", "Rider Fare Acceptance", "Cancellation Rate", "User Cancellation Rate", "Driver Cancellation Rate"];
-                                            const isPercentage = rateMetricNames.some(name => value.includes(name));
-                                            const formattedAvg = isPercentage
-                                              ? `${avg.toFixed(2)}%`
-                                              : avg >= 1000000
-                                                ? `${(avg / 1000000).toFixed(2)}M`
-                                                : avg >= 1000
-                                                  ? `${(avg / 1000).toFixed(2)}K`
-                                                  : avg.toFixed(0);
-                                            return `${value} (${formattedAvg})`;
-                                          }
-                                        }
-                                        return value;
-                                      }}
-                                    />
-                                    {selectedSegment === "none"
-                                      ? group.metrics.map((metric, index) => (
-                                        <Fragment key={metric}>
-                                          {/* Comparison Line */}
-                                          {compareDateFrom && (
-                                            <Line
-                                              type="monotone"
-                                              dataKey={`${getMetricLabel(metric)} (Prev)`}
-                                              name={`${getMetricLabel(metric)} (Prev)`}
-                                              stroke={COLORS[index % COLORS.length]}
-                                              strokeWidth={2}
-                                              strokeDasharray="4 4"
-                                              dot={false}
-                                              activeDot={false}
-                                              strokeOpacity={0.6}
-                                            />
-                                          )}
-                                          {/* Current Line */}
-                                          <Line
-                                            type="monotone"
-                                            dataKey={getMetricLabel(metric)}
-                                            name={getMetricLabel(metric)}
-                                            stroke={COLORS[index % COLORS.length]}
-                                            strokeWidth={3}
-                                            dot={false}
-                                            activeDot={{ r: 6 }}
-                                          />
-                                        </Fragment>
-                                      ))
-                                      : (() => {
-                                        const firstMetricData =
-                                          groupData.metricsData?.[0]?.data;
-                                        if (
-                                          !firstMetricData ||
-                                          firstMetricData.length === 0
-                                        )
-                                          return null;
-                                        const firstPoint = firstMetricData[0];
-                                        if (!firstPoint) return null;
-                                        const segmentKeys = Object.keys(
-                                          firstPoint
-                                        ).filter(
-                                          (k) =>
-                                            k !== "date" &&
-                                            typeof (
-                                              firstPoint as Record<
-                                                string,
-                                                number | string
-                                              >
-                                            )[k] === "number" &&
-                                            // Also filter by selectedSegmentValues if applicable
-                                            (selectedSegmentValues.size === 0 || selectedSegmentValues.has(k))
-                                        );
-                                        return segmentKeys.map((key, index) => (
-                                          <Line
-                                            key={key}
-                                            type="monotone"
-                                            dataKey={key}
-                                            name={key}
-                                            stroke={COLORS[index % COLORS.length]}
-                                            strokeWidth={2}
-                                            dot={false}
-                                            activeDot={{ r: 5 }}
-                                          />
-                                        ));
-                                      })()}
-                                  </LineChart>
-                                </ResponsiveContainer>
+                              <div className="h-[400px] flex items-center justify-center text-muted-foreground italic">
+                                No selected metrics in this category ({group.type})
                               </div>
                             );
                           })()}
@@ -5582,13 +5533,17 @@ export function ExecutiveMetricsPage() {
                 })
                 }
               </div>
-            )}
+            )
+            }
 
             <div className="mt-8">
               <SummaryTable
-                data={summaryTableData}
+                data={isMultiSegmentApplied && selectedSegments.length > 1 && multiSegmentSummaryTableData.length > 0
+                  ? multiSegmentSummaryTableData
+                  : summaryTableData}
+                segmentLabels={summarySegmentLabels}
                 title="Summary Table"
-                loading={trendTimeSeriesLoading || segmentTrendLoading}
+                loading={trendTimeSeriesLoading || segmentTrendLoading || (isMultiSegmentApplied && multiSegmentResult.isLoading)}
                 showComparison={!!compareDateFrom}
               />
             </div>
@@ -5598,7 +5553,7 @@ export function ExecutiveMetricsPage() {
 
 
         {/* End of content */}
-      </PageContent>
+      </PageContent >
     </Page >
   );
 }

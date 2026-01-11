@@ -111,7 +111,7 @@ export const navConfig: NavItem[] = [
                 action: '*',
             },
             {
-                label: 'Executive Metrics',
+                label: 'Ride Analytics',
                 path: '/analytics/executive',
                 icon: 'BarChart3',
                 resource: '*',
