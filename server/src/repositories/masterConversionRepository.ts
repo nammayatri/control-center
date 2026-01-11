@@ -1263,6 +1263,7 @@ export async function getDimensionalTimeSeries(
       ${timeBucketExpr} as timestamp,
       ${dimensionColumn} as dimension_value,
       sumIf(searches, searches IS NOT NULL) as searches,
+      sumIf(search_got_estimates, search_got_estimates IS NOT NULL) as search_got_estimates,
       sumIf(quotes_requested, quotes_requested IS NOT NULL) as quotes_requested,
       sumIf(quotes_accepted, quotes_accepted IS NOT NULL) as quotes_accepted,
       sumIf(bookings, bookings IS NOT NULL) as bookings,
@@ -1288,6 +1289,7 @@ export async function getDimensionalTimeSeries(
         timestamp: string;
         dimensionValue: string;
         searches: number;
+        searchGotEstimates: number;
         quotesRequested: number;
         quotesAccepted: number;
         bookings: number;
@@ -1316,6 +1318,7 @@ export async function getDimensionalTimeSeries(
 
       if (existing) {
         existing.searches += safeNumber(row.searches);
+        existing.searchGotEstimates += safeNumber(row.search_got_estimates);
         existing.quotesRequested += safeNumber(row.quotes_requested);
         existing.quotesAccepted += safeNumber(row.quotes_accepted);
         existing.bookings += safeNumber(row.bookings);
@@ -1329,6 +1332,7 @@ export async function getDimensionalTimeSeries(
           timestamp,
           dimensionValue: mappedValue,
           searches: safeNumber(row.searches),
+          searchGotEstimates: safeNumber(row.search_got_estimates),
           quotesRequested: safeNumber(row.quotes_requested),
           quotesAccepted: safeNumber(row.quotes_accepted),
           bookings: safeNumber(row.bookings),
@@ -1384,6 +1388,9 @@ export async function getDimensionalTimeSeries(
       if (item.driverCancellations > 0) {
         result.driverCancellations = item.driverCancellations;
       }
+      if (item.searchGotEstimates > 0) {
+        result.searchGotEstimates = item.searchGotEstimates;
+      }
       if (item.earnings > 0) {
         result.earnings = item.earnings;
       }
@@ -1395,6 +1402,7 @@ export async function getDimensionalTimeSeries(
   // For other dimensions, use the original logic
   return rows.map((row) => {
     const searches = safeNumber(row.searches);
+    const searchGotEstimates = safeNumber(row.search_got_estimates);
     const quotesRequested = safeNumber(row.quotes_requested);
     const quotesAccepted = safeNumber(row.quotes_accepted);
     const bookings = safeNumber(row.bookings);
@@ -1424,6 +1432,9 @@ export async function getDimensionalTimeSeries(
 
     if (quotesRequested > 0) {
       result.searchForQuotes = quotesRequested;
+    }
+    if (searchGotEstimates > 0) {
+      result.searchGotEstimates = searchGotEstimates;
     }
     if (quotesAccepted > 0) {
       result.quotesAccepted = quotesAccepted;

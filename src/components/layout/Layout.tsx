@@ -9,13 +9,13 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const [sidebarCollapsed] = React.useState(false);
+  const [sidebarCollapsed] = React.useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   return (
     <div className="flex h-screen bg-background">
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block w-[60px] flex-shrink-0">
         <Sidebar collapsed={sidebarCollapsed} />
       </div>
 

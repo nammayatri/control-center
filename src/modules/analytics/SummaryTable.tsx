@@ -14,8 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Skeleton } from "../../components/ui/skeleton";
 
 export interface SummaryTableRow {
-    id: string; // Unique ID (e.g., dimension value)
-    label: string; // Display name
+    id: string; // Unique ID (e.g., dimension value or compound key)
+    segments: string[]; // Array of segment values [city, vehicleCategory, tripTag]
+    label: string; // Display name (fallback for single segment)
 
     // Metrics
     searches: number;
@@ -34,7 +35,7 @@ export interface SummaryTableRow {
 
     // Changes for comparison
     changes?: {
-        [key in keyof Omit<SummaryTableRow, 'id' | 'label' | 'changes'>]?: number;
+        [key in keyof Omit<SummaryTableRow, 'id' | 'label' | 'segments' | 'changes'>]?: number;
     };
 }
 
@@ -43,22 +44,39 @@ interface SummaryTableProps {
     title?: string;
     loading?: boolean;
     showComparison?: boolean;
+    segmentLabels?: string[]; // Labels for segment columns (e.g., ["City", "Vehicle Category"])
 }
 
+type SortKey = keyof SummaryTableRow | `segment_${number}`;
+
 type SortConfig = {
-    key: keyof SummaryTableRow;
+    key: SortKey;
     direction: "asc" | "desc";
 } | null;
 
-export function SummaryTable({ data, title = "Summary Table", loading = false, showComparison = false }: SummaryTableProps) {
+export function SummaryTable({
+    data,
+    title = "Summary Table",
+    loading = false,
+    showComparison = false,
+    segmentLabels = []
+}: SummaryTableProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "completedRides", direction: "desc" });
 
+    // Determine number of segment columns to display
+    const segmentCount = segmentLabels.length || 1;
+
     // Filter
     const filteredData = useMemo(() => {
-        return data.filter((row) =>
-            row.label.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        return data.filter((row) => {
+            const searchLower = searchQuery.toLowerCase();
+            // Search across all segments and label
+            if (row.segments && row.segments.length > 0) {
+                return row.segments.some(seg => seg.toLowerCase().includes(searchLower));
+            }
+            return row.label.toLowerCase().includes(searchLower);
+        });
     }, [data, searchQuery]);
 
     // Sort
@@ -66,8 +84,21 @@ export function SummaryTable({ data, title = "Summary Table", loading = false, s
         if (!sortConfig) return filteredData;
 
         return [...filteredData].sort((a, b) => {
-            const aValue = a[sortConfig.key] ?? 0;
-            const bValue = b[sortConfig.key] ?? 0;
+            let aValue: string | number = 0;
+            let bValue: string | number = 0;
+
+            // Handle segment columns
+            if (typeof sortConfig.key === 'string' && sortConfig.key.startsWith('segment_')) {
+                const segIndex = parseInt(sortConfig.key.split('_')[1], 10);
+                aValue = a.segments?.[segIndex] ?? a.label ?? '';
+                bValue = b.segments?.[segIndex] ?? b.label ?? '';
+            } else if (sortConfig.key === 'label') {
+                aValue = a.label ?? '';
+                bValue = b.label ?? '';
+            } else {
+                aValue = (a as unknown as Record<string, number>)[sortConfig.key as string] ?? 0;
+                bValue = (b as unknown as Record<string, number>)[sortConfig.key as string] ?? 0;
+            }
 
             if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
             if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
@@ -75,7 +106,7 @@ export function SummaryTable({ data, title = "Summary Table", loading = false, s
         });
     }, [filteredData, sortConfig]);
 
-    const requestSort = (key: keyof SummaryTableRow) => {
+    const requestSort = (key: SortKey) => {
         let direction: "asc" | "desc" = "desc"; // Default to desc for metrics
         if (sortConfig && sortConfig.key === key && sortConfig.direction === "desc") {
             direction = "asc";
@@ -83,7 +114,7 @@ export function SummaryTable({ data, title = "Summary Table", loading = false, s
         setSortConfig({ key, direction });
     };
 
-    const getSortIcon = (key: keyof SummaryTableRow) => {
+    const getSortIcon = (key: SortKey) => {
         if (!sortConfig || sortConfig.key !== key) {
             return <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />;
         }
@@ -95,8 +126,12 @@ export function SummaryTable({ data, title = "Summary Table", loading = false, s
     };
 
     const downloadCSV = () => {
-        const headers = [
-            "Label",
+        // Build headers dynamically based on segment columns
+        const segmentHeaders = segmentLabels.length > 0
+            ? segmentLabels
+            : ["Label"];
+
+        const metricHeaders = [
             "Searches",
             "Quotes Req",
             "Quotes Acc",
@@ -110,22 +145,32 @@ export function SummaryTable({ data, title = "Summary Table", loading = false, s
             "Cancellation %"
         ];
 
+        const headers = [...segmentHeaders, ...metricHeaders];
+
         const csvRows = [
             headers.join(","),
-            ...sortedData.map(row => [
-                `"${row.label}"`,
-                row.searches,
-                row.quotesRequested,
-                row.quotesAccepted,
-                row.bookings,
-                row.completedRides,
-                row.cancelledRides,
-                row.earnings.toFixed(2),
-                row.conversionRate.toFixed(2),
-                row.riderFareAcceptance.toFixed(2),
-                row.driverQuoteAcceptance.toFixed(2),
-                row.cancellationRate.toFixed(2)
-            ].join(","))
+            ...sortedData.map(row => {
+                // Build segment values
+                const segmentValues = segmentLabels.length > 0
+                    ? row.segments.map(s => `"${s}"`)
+                    : [`"${row.label}"`];
+
+                const metricValues = [
+                    row.searches,
+                    row.quotesRequested,
+                    row.quotesAccepted,
+                    row.bookings,
+                    row.completedRides,
+                    row.cancelledRides,
+                    row.earnings.toFixed(2),
+                    row.conversionRate.toFixed(2),
+                    row.riderFareAcceptance.toFixed(2),
+                    row.driverQuoteAcceptance.toFixed(2),
+                    row.cancellationRate.toFixed(2)
+                ];
+
+                return [...segmentValues, ...metricValues].join(",");
+            })
         ];
 
         const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
@@ -160,6 +205,54 @@ export function SummaryTable({ data, title = "Summary Table", loading = false, s
         );
     };
 
+    // Render segment columns
+    const renderSegmentHeaders = () => {
+        if (segmentLabels.length > 0) {
+            return segmentLabels.map((label, index) => (
+                <TableHead
+                    key={`segment-${index}`}
+                    className="cursor-pointer"
+                    onClick={() => requestSort(`segment_${index}` as SortKey)}
+                >
+                    <div className="flex items-center">
+                        {label} {getSortIcon(`segment_${index}` as SortKey)}
+                    </div>
+                </TableHead>
+            ));
+        }
+        // Fallback to single "Label" column
+        return (
+            <TableHead className="w-[180px] cursor-pointer" onClick={() => requestSort("label")}>
+                <div className="flex items-center">
+                    Label {getSortIcon("label")}
+                </div>
+            </TableHead>
+        );
+    };
+
+    const renderSegmentCells = (row: SummaryTableRow) => {
+        if (segmentLabels.length > 0 && row.segments && row.segments.length > 0) {
+            return row.segments.map((segValue, index) => (
+                <TableCell key={`seg-${index}`} className="font-medium text-xs">
+                    {segValue}
+                </TableCell>
+            ));
+        }
+        // Fallback to single label cell
+        return <TableCell className="font-medium text-xs">{row.label}</TableCell>;
+    };
+
+    const renderLoadingSegmentCells = () => {
+        if (segmentLabels.length > 0) {
+            return segmentLabels.map((_, index) => (
+                <TableCell key={`skel-seg-${index}`}>
+                    <Skeleton className="h-4 w-[100px]" />
+                </TableCell>
+            ));
+        }
+        return <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>;
+    };
+
     return (
         <Card className="w-full bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -181,115 +274,113 @@ export function SummaryTable({ data, title = "Summary Table", loading = false, s
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="bg-zinc-50/50 dark:bg-zinc-900/50 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50">
-                            <TableHead className="w-[180px] cursor-pointer" onClick={() => requestSort("label")}>
-                                <div className="flex items-center">
-                                    Label {getSortIcon("label")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("searches")}>
-                                <div className="flex items-center justify-end">
-                                    Searches {getSortIcon("searches")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("quotesRequested")}>
-                                <div className="flex items-center justify-end">
-                                    Quotes Req. {getSortIcon("quotesRequested")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("quotesAccepted")}>
-                                <div className="flex items-center justify-end">
-                                    Quotes Acc. {getSortIcon("quotesAccepted")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("bookings")}>
-                                <div className="flex items-center justify-end">
-                                    Bookings {getSortIcon("bookings")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("completedRides")}>
-                                <div className="flex items-center justify-end">
-                                    Completed {getSortIcon("completedRides")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("cancelledRides")}>
-                                <div className="flex items-center justify-end">
-                                    Cancelled {getSortIcon("cancelledRides")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("earnings")}>
-                                <div className="flex items-center justify-end">
-                                    Earnings {getSortIcon("earnings")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("conversionRate")}>
-                                <div className="flex items-center justify-end">
-                                    Conv. % {getSortIcon("conversionRate")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("riderFareAcceptance")}>
-                                <div className="flex items-center justify-end">
-                                    RFA % {getSortIcon("riderFareAcceptance")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("driverQuoteAcceptance")}>
-                                <div className="flex items-center justify-end">
-                                    DQA % {getSortIcon("driverQuoteAcceptance")}
-                                </div>
-                            </TableHead>
-                            <TableHead className="cursor-pointer text-right" onClick={() => requestSort("cancellationRate")}>
-                                <div className="flex items-center justify-end">
-                                    Cancel % {getSortIcon("cancellationRate")}
-                                </div>
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
-                                <TableRow key={i}>
-                                    <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[80px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
-                                </TableRow>
-                            ))
-                        ) : sortedData.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={12} className="text-center h-24 text-muted-foreground">
-                                    No data found
-                                </TableCell>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-zinc-50/50 dark:bg-zinc-900/50 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50">
+                                {renderSegmentHeaders()}
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("searches")}>
+                                    <div className="flex items-center justify-end">
+                                        Searches {getSortIcon("searches")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("quotesRequested")}>
+                                    <div className="flex items-center justify-end">
+                                        Quotes Req. {getSortIcon("quotesRequested")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("quotesAccepted")}>
+                                    <div className="flex items-center justify-end">
+                                        Quotes Acc. {getSortIcon("quotesAccepted")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("bookings")}>
+                                    <div className="flex items-center justify-end">
+                                        Bookings {getSortIcon("bookings")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("completedRides")}>
+                                    <div className="flex items-center justify-end">
+                                        Completed {getSortIcon("completedRides")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("cancelledRides")}>
+                                    <div className="flex items-center justify-end">
+                                        Cancelled {getSortIcon("cancelledRides")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("earnings")}>
+                                    <div className="flex items-center justify-end">
+                                        Earnings {getSortIcon("earnings")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("conversionRate")}>
+                                    <div className="flex items-center justify-end">
+                                        Conv. % {getSortIcon("conversionRate")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("riderFareAcceptance")}>
+                                    <div className="flex items-center justify-end">
+                                        RFA % {getSortIcon("riderFareAcceptance")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("driverQuoteAcceptance")}>
+                                    <div className="flex items-center justify-end">
+                                        DQA % {getSortIcon("driverQuoteAcceptance")}
+                                    </div>
+                                </TableHead>
+                                <TableHead className="cursor-pointer text-right" onClick={() => requestSort("cancellationRate")}>
+                                    <div className="flex items-center justify-end">
+                                        Cancel % {getSortIcon("cancellationRate")}
+                                    </div>
+                                </TableHead>
                             </TableRow>
-                        ) : (
-                            sortedData.map((row) => (
-                                <TableRow key={row.id}>
-                                    <TableCell className="font-medium text-xs">{row.label}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.searches, row.changes?.searches, formatNumber)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.quotesRequested, row.changes?.quotesRequested, formatNumber)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.quotesAccepted, row.changes?.quotesAccepted, formatNumber)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.bookings, row.changes?.bookings, formatNumber)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.completedRides, row.changes?.completedRides, formatNumber)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.cancelledRides, row.changes?.cancelledRides, formatNumber, true)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.earnings, row.changes?.earnings, formatCurrency)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.conversionRate, row.changes?.conversionRate, formatPercent)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.riderFareAcceptance, row.changes?.riderFareAcceptance, formatPercent)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.driverQuoteAcceptance, row.changes?.driverQuoteAcceptance, formatPercent)}</TableCell>
-                                    <TableCell className="text-right text-xs py-2">{renderCell(row.cancellationRate, row.changes?.cancellationRate, formatPercent, true)}</TableCell>
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <TableRow key={i}>
+                                        {renderLoadingSegmentCells()}
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[60px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[80px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-4 w-[50px]" /></TableCell>
+                                    </TableRow>
+                                ))
+                            ) : sortedData.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={segmentCount + 11} className="text-center h-24 text-muted-foreground">
+                                        No data found
+                                    </TableCell>
                                 </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
+                            ) : (
+                                sortedData.map((row) => (
+                                    <TableRow key={row.id}>
+                                        {renderSegmentCells(row)}
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.searches, row.changes?.searches, formatNumber)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.quotesRequested, row.changes?.quotesRequested, formatNumber)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.quotesAccepted, row.changes?.quotesAccepted, formatNumber)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.bookings, row.changes?.bookings, formatNumber)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.completedRides, row.changes?.completedRides, formatNumber)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.cancelledRides, row.changes?.cancelledRides, formatNumber, true)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.earnings, row.changes?.earnings, formatCurrency)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.conversionRate, row.changes?.conversionRate, formatPercent)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.riderFareAcceptance, row.changes?.riderFareAcceptance, formatPercent)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.driverQuoteAcceptance, row.changes?.driverQuoteAcceptance, formatPercent)}</TableCell>
+                                        <TableCell className="text-right text-xs py-2">{renderCell(row.cancellationRate, row.changes?.cancellationRate, formatPercent, true)}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
